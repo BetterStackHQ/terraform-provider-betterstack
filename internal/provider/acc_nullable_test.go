@@ -44,8 +44,8 @@ func TestAccExplorationGroupCanBeClearedByRemovingTheAttribute(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		defer mu.Unlock()
-		if r.URL.Query().Get("better_stack_team_id") != "t123" {
-			http.Error(w, "expected literal better_stack_team_id selector", http.StatusBadRequest)
+		if r.URL.Query().Get("team_id") != "t123" {
+			http.Error(w, "expected literal team_id selector", http.StatusBadRequest)
 			return
 		}
 		switch {
@@ -99,7 +99,7 @@ func TestAccExplorationGroupCanBeClearedByRemovingTheAttribute(t *testing.T) {
 	provider := fmt.Sprintf(`provider "betterstack" {
   api_token = "test-token"
   endpoint  = %q
-  better_stack_team_id = "t123"
+  team_id = "t123"
 }
 
 `, srv.URL)

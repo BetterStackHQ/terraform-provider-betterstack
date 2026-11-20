@@ -169,7 +169,7 @@ func TestRepresentativeBindingsMatchLiteralContracts(t *testing.T) {
 				IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{},
 				RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"},
 			},
-			selector: "better_stack_team_id",
+			selector: "team_id",
 		},
 		{
 			name: "errors application", binding: applicationBinding,
@@ -179,7 +179,7 @@ func TestRepresentativeBindingsMatchLiteralContracts(t *testing.T) {
 				IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{},
 				RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"},
 			},
-			selector: "better_stack_team_id",
+			selector: "team_id",
 		},
 		{
 			name: "flat status page resource", binding: statusPageResourceBinding,
@@ -254,7 +254,7 @@ func TestClientAgainstLiteralErrorsApplicationFixture(t *testing.T) {
 			http.Error(w, "unexpected literal route", http.StatusNotFound)
 			return
 		}
-		if r.URL.Query().Get("better_stack_team_id") != "t123" {
+		if r.URL.Query().Get("team_id") != "t123" {
 			http.Error(w, "missing literal team selector", http.StatusBadRequest)
 			return
 		}
@@ -272,7 +272,7 @@ func TestClientAgainstLiteralErrorsApplicationFixture(t *testing.T) {
 		w.Write([]byte(`{"data":{"id":"7","type":"application","attributes":{"name":"frontend"}}}`))
 	}))
 	defer srv.Close()
-	c := NewClient("token", srv.URL, map[string]string{"better_stack_team_id": "t123"}, "test")
+	c := NewClient("token", srv.URL, map[string]string{"team_id": "t123"}, "test")
 	out, err := c.Create(context.Background(), applicationBinding, nil, map[string]interface{}{"name": "frontend"})
 	if err != nil {
 		t.Fatal(err)

@@ -40,6 +40,7 @@ Optional attributes are also computed: left unset, they take the server-side def
 ### Read-Only
 
 - `id` (String) The id of this team.
+- `organization_id` (Number) ID of the organization the team belongs to.
 - `created_at` (String (RFC 3339)) When the team was created.
 - `updated_at` (String (RFC 3339)) When the team was last updated.
 

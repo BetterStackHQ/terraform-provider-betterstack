@@ -26,6 +26,7 @@ data "betterstack_team" "example" {
 ### Read-Only
 
 - `name` (String) The team's name. Unique within the organization, ignoring letter case.
+- `organization_id` (Number) ID of the organization the team belongs to.
 - `incident_grouping_period` (Number) Seconds within which a new incident is grouped with an open one, from 0 to 2147483647. New teams start at 300.
 - `incident_grouping_metadata_scope` (List of String) Metadata keys whose values must match for incidents to be grouped. New teams start with ["Origin"].
 - `notify_about_all_incidents_in_a_group` (Boolean) Whether every incident in a group alerts, rather than only the first. New teams start at true.

@@ -24,7 +24,7 @@ data "betterstack_dashboard" "example" {
 Set `id`, or filter attributes matching exactly one record.
 
 - `id` (String) Look up by id.
-- `name` (String) Dashboard name. Required unless template_id or source_id seeds the dashboard on create.
+- `name` (String) Dashboard name.
 - `dashboard_group_id` (Number) Group this dashboard belongs to. Send `null` to remove it from its group.
 
 ### Read-Only
@@ -39,6 +39,9 @@ Set `id`, or filter attributes matching exactly one record.
 - `charts` (Attributes List, see [nested schema](#nestedatt--charts)) Charts on the dashboard. Returned when you get one dashboard.
 - `sections` (Attributes List, see [nested schema](#nestedatt--sections)) Sections on the dashboard. Returned when you get one dashboard.
 - `has_overlaps` (Boolean) Whether any charts overlap on the grid. Returned when you get one dashboard.
+- `template_id` (Number) ID of the dashboard template to create the dashboard from, as GET /api/v4/dashboards/templates lists it. The dashboard starts with the template's charts, sections and alerts. With it, creating a dashboard accepts only `name`, `source_id`, and either `dashboard_group_id` or `resource_group_name`.
+- `source_id` (Number) ID of the source to set the new dashboard up for. With it, creating a dashboard accepts only `name`, `template_id`, and either `dashboard_group_id` or `resource_group_name`.
+- `resource_group_name` (String) Name of the dashboard group to put the new dashboard in. The team's group with that name is used, or created when there is none. Use it instead of `dashboard_group_id`, not with it.
 - `created_at` (String (RFC 3339)) When the dashboard was created.
 - `updated_at` (String (RFC 3339)) When the dashboard was last updated.
 
@@ -74,8 +77,8 @@ Set `id`, or filter attributes matching exactly one record.
 
 ## Endpoints
 
-- `GET /api/v3/dashboards`
-- `GET /api/v3/dashboards/:id`
-- `POST /api/v3/dashboards`
-- `PATCH /api/v3/dashboards/:id`
-- `DELETE /api/v3/dashboards/:id`
+- `GET /api/v4/dashboards`
+- `GET /api/v4/dashboards/:id`
+- `POST /api/v4/dashboards`
+- `PATCH /api/v4/dashboards/:id`
+- `DELETE /api/v4/dashboards/:id`

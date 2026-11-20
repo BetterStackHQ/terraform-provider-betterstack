@@ -264,7 +264,11 @@ var smokeCases = []smokeCase{
   name            = "example"
   date_range_from = "example-updated"
 }`,
-		importIgnore:   []string{"variables."},
+		replaceConfig: `resource "betterstack_dashboard" "test" {
+  name                = "example"
+  resource_group_name = "example-updated"
+}`,
+		importIgnore:   []string{"resource_group_name", "source_id", "template_id", "variables."},
 		importParts:    []string{"id"},
 		computedFields: map[string]map[string]interface{}{},
 		computedChecks: map[string]string{},

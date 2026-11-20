@@ -56,6 +56,4 @@ The same six operational control names are supported by both legacy providers. R
 be nonnegative and the minimum must not exceed the maximum. Non-idempotent writes retry only
 an explicit HTTP 429; ambiguous network failures are not replayed. Public data sources can be
 queried without a token; authenticated endpoints require it before making a request.
-- `better_stack_team_id` (String) Selects the team when the API token can reach several.
 - `team_id` (String) Selects the team when the API token can reach several.
-- `team_name` (String) Selects the team when the API token can reach several.

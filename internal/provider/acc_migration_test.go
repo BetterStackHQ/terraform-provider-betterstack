@@ -446,7 +446,6 @@ terraform {
 provider "betterstack" {
   api_token = "fixture-token"
   team_id = "t123"
-  better_stack_team_id = "t123"
   endpoint = %q
 }
 moved {

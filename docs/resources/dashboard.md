@@ -23,7 +23,7 @@ resource "betterstack_dashboard" "example" {
 
 ### Required
 
-- `name` (String) Dashboard name. Required unless template_id or source_id seeds the dashboard on create.
+- `name` (String) Dashboard name.
 
 ### Optional
 
@@ -35,6 +35,9 @@ Optional attributes are also computed: left unset, they take the server-side def
 - `date_range_to` (String) Default range end, for example now. Defaults to `now`.
 - `source_eligibility_sql` (String) SQL that decides which sources this dashboard's charts can read. Returned when you get one dashboard.
 - `variables` (Dynamic, see [nested schema](#nestedatt--variables)) Template variables, returned when you get one dashboard. An update replaces all variables: any you don't send is removed, except the built-in time, start_time, end_time and source variables, which always exist. The built-in variables keep their own type. `sql_definition` is accepted only on `select_with_sql` and `multi_select_with_sql` variables.
+- `template_id` (Number) ID of the dashboard template to create the dashboard from, as GET /api/v4/dashboards/templates lists it. The dashboard starts with the template's charts, sections and alerts. With it, creating a dashboard accepts only `name`, `source_id`, and either `dashboard_group_id` or `resource_group_name`. Write-only: the API never returns it; Terraform keeps the configured value. Can only be set when creating the resource; changing it afterwards replaces the resource.
+- `source_id` (Number) ID of the source to set the new dashboard up for. With it, creating a dashboard accepts only `name`, `template_id`, and either `dashboard_group_id` or `resource_group_name`. Write-only: the API never returns it; Terraform keeps the configured value. Can only be set when creating the resource; changing it afterwards replaces the resource.
+- `resource_group_name` (String) Name of the dashboard group to put the new dashboard in. The team's group with that name is used, or created when there is none. Use it instead of `dashboard_group_id`, not with it. Write-only: the API never returns it; Terraform keeps the configured value. Can only be set when creating the resource; changing it afterwards replaces the resource.
 
 ### Read-Only
 
@@ -79,13 +82,13 @@ Optional attributes are also computed: left unset, they take the server-side def
 
 ## Endpoints
 
-- `GET /api/v3/dashboards`
-- `GET /api/v3/dashboards/:id`
-- `POST /api/v3/dashboards`
-- `PATCH /api/v3/dashboards/:id`
-- `DELETE /api/v3/dashboards/:id`
+- `GET /api/v4/dashboards`
+- `GET /api/v4/dashboards/:id`
+- `POST /api/v4/dashboards`
+- `PATCH /api/v4/dashboards/:id`
+- `DELETE /api/v4/dashboards/:id`
 
--> Dashboard templates are a separate resource, `dashboard_template`, at GET /api/v3/dashboards/templates. That endpoint returns templates rather than dashboards.
+-> Dashboard templates are a separate resource, `dashboard_template`, at GET /api/v4/dashboards/templates. That endpoint returns templates rather than dashboards.
 
 ## Import
 

@@ -40,6 +40,7 @@ type TeamModel struct {
 	OnCallReminderPush              types.Bool   `tfsdk:"on_call_reminder_push"`
 	OnCallReminderSms               types.Bool   `tfsdk:"on_call_reminder_sms"`
 	OpenedEmailsTrackingEnabled     types.Bool   `tfsdk:"opened_emails_tracking_enabled"`
+	OrganizationId                  types.Int64  `tfsdk:"organization_id"`
 	ReportingEnabled                types.Bool   `tfsdk:"reporting_enabled"`
 	UpdatedAt                       types.String `tfsdk:"updated_at"`
 }
@@ -63,6 +64,7 @@ func (r *TeamResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 			"on_call_reminder_push":                 schema.BoolAttribute{Optional: true, Computed: true, Description: "Send on-call reminders as push notifications. Turning it on needs a plan with on-call scheduling and push alerts. New teams start at true.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
 			"on_call_reminder_sms":                  schema.BoolAttribute{Optional: true, Computed: true, Description: "Send on-call reminders by SMS. Turning it on needs a plan with on-call scheduling and SMS alerts. New teams start at false.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
 			"opened_emails_tracking_enabled":        schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether the incident timeline records opened alert e-mails. New teams start at true.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
+			"organization_id":                       schema.Int64Attribute{Computed: true, Description: "ID of the organization the team belongs to.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
 			"reporting_enabled":                     schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether reporting is on. New teams start at false.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
 			"updated_at":                            schema.StringAttribute{Computed: true, Description: "When the team was last updated."},
 		},
@@ -174,6 +176,9 @@ func populateTeam(ctx context.Context, m *TeamModel, attrs map[string]interface{
 	}
 	if v, ok := stringFromAPI(attrs["name"]); ok {
 		m.Name = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(attrs["organization_id"]); ok {
+		m.OrganizationId = types.Int64Value(v)
 	}
 	if v, ok := int64FromAPI(attrs["incident_grouping_period"]); ok {
 		m.IncidentGroupingPeriod = types.Int64Value(v)

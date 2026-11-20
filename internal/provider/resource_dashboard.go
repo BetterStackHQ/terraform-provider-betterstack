@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/dynamicplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -39,10 +40,13 @@ type DashboardModel struct {
 	HasOverlaps          types.Bool    `tfsdk:"has_overlaps"`
 	Name                 types.String  `tfsdk:"name"`
 	RefreshInterval      types.Int64   `tfsdk:"refresh_interval"`
+	ResourceGroupName    types.String  `tfsdk:"resource_group_name"`
 	Sections             types.List    `tfsdk:"sections"`
 	SourceEligibilitySql types.String  `tfsdk:"source_eligibility_sql"`
+	SourceId             types.Int64   `tfsdk:"source_id"`
 	TeamId               types.String  `tfsdk:"team_id"`
 	TeamName             types.String  `tfsdk:"team_name"`
+	TemplateId           types.Int64   `tfsdk:"template_id"`
 	UpdatedAt            types.String  `tfsdk:"updated_at"`
 	Variables            types.Dynamic `tfsdk:"variables"`
 }
@@ -210,12 +214,15 @@ func (r *DashboardResource) Schema(ctx context.Context, req resource.SchemaReque
 			"date_range_from":        schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("now-3h"), Description: "Default range start, for example now-3h."},
 			"date_range_to":          schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("now"), Description: "Default range end, for example now."},
 			"has_overlaps":           schema.BoolAttribute{Computed: true, Description: "Whether any charts overlap on the grid. Returned when you get one dashboard."},
-			"name":                   schema.StringAttribute{Required: true, Description: "Dashboard name. Required unless template_id or source_id seeds the dashboard on create."},
+			"name":                   schema.StringAttribute{Required: true, Description: "Dashboard name."},
 			"refresh_interval":       schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(30), Description: "Auto-refresh interval in seconds."},
+			"resource_group_name":    schema.StringAttribute{Optional: true, Computed: true, Description: "Name of the dashboard group to put the new dashboard in. The team's group with that name is used, or created when there is none. Use it instead of `dashboard_group_id`, not with it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_dashboard"}}},
 			"sections":               schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.Int64Attribute{Computed: true}, "name": schema.StringAttribute{Computed: true}, "y": schema.Int64Attribute{Computed: true}, "collapsed": schema.BoolAttribute{Computed: true}}}, Description: "Sections on the dashboard. Returned when you get one dashboard."},
 			"source_eligibility_sql": schema.StringAttribute{Optional: true, Computed: true, Description: "SQL that decides which sources this dashboard's charts can read. Returned when you get one dashboard.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"source_id":              schema.Int64Attribute{Optional: true, Computed: true, Description: "ID of the source to set the new dashboard up for. With it, creating a dashboard accepts only `name`, `template_id`, and either `dashboard_group_id` or `resource_group_name`.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown(), replaceWarningInt64{int64planmodifier.RequiresReplaceIfConfigured(), "betterstack_dashboard"}}},
 			"team_id":                schema.StringAttribute{Computed: true, Description: "Team that owns the dashboard, as its `t`-prefixed Better Stack team ID, such as `t123`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"team_name":              schema.StringAttribute{Computed: true, Description: "Name of the team that owns the dashboard."},
+			"template_id":            schema.Int64Attribute{Optional: true, Computed: true, Description: "ID of the dashboard template to create the dashboard from, as GET /api/v4/dashboards/templates lists it. The dashboard starts with the template's charts, sections and alerts. With it, creating a dashboard accepts only `name`, `source_id`, and either `dashboard_group_id` or `resource_group_name`.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown(), replaceWarningInt64{int64planmodifier.RequiresReplaceIfConfigured(), "betterstack_dashboard"}}},
 			"updated_at":             schema.StringAttribute{Computed: true, Description: "When the dashboard was last updated."},
 			"variables":              schema.DynamicAttribute{Optional: true, Computed: true, Description: "Template variables, returned when you get one dashboard. An update replaces all variables: any you don't send is removed, except the built-in time, start_time, end_time and source variables, which always exist. The built-in variables keep their own type. `sql_definition` is accepted only on `select_with_sql` and `multi_select_with_sql` variables.", PlanModifiers: []planmodifier.Dynamic{dynamicplanmodifier.UseStateForUnknown()}},
 		},
@@ -259,12 +266,52 @@ func (r *DashboardResource) body(ctx context.Context, m DashboardModel) map[stri
 			}
 		}
 	}
+	if !m.TemplateId.IsNull() && !m.TemplateId.IsUnknown() {
+		body["template_id"] = m.TemplateId.ValueInt64()
+	}
+	if !m.SourceId.IsNull() && !m.SourceId.IsUnknown() {
+		body["source_id"] = m.SourceId.ValueInt64()
+	}
+	if !m.ResourceGroupName.IsNull() && !m.ResourceGroupName.IsUnknown() {
+		body["resource_group_name"] = m.ResourceGroupName.ValueString()
+	}
+	return body
+}
+
+// bodyForUpdate excludes create-only fields, which require replacement rather than PATCH.
+func (r *DashboardResource) bodyForUpdate(ctx context.Context, m DashboardModel) map[string]interface{} {
+	body := map[string]interface{}{}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		body["name"] = m.Name.ValueString()
+	}
+	if !m.DashboardGroupId.IsNull() && !m.DashboardGroupId.IsUnknown() {
+		body["dashboard_group_id"] = m.DashboardGroupId.ValueInt64()
+	}
+	if !m.RefreshInterval.IsNull() && !m.RefreshInterval.IsUnknown() {
+		body["refresh_interval"] = m.RefreshInterval.ValueInt64()
+	}
+	if !m.DateRangeFrom.IsNull() && !m.DateRangeFrom.IsUnknown() {
+		body["date_range_from"] = m.DateRangeFrom.ValueString()
+	}
+	if !m.DateRangeTo.IsNull() && !m.DateRangeTo.IsUnknown() {
+		body["date_range_to"] = m.DateRangeTo.ValueString()
+	}
+	if !m.SourceEligibilitySql.IsNull() && !m.SourceEligibilitySql.IsUnknown() {
+		body["source_eligibility_sql"] = m.SourceEligibilitySql.ValueString()
+	}
+	if !m.Variables.IsNull() && !m.Variables.IsUnknown() && !m.Variables.IsUnderlyingValueNull() && !m.Variables.IsUnderlyingValueUnknown() {
+		if tv, err := m.Variables.UnderlyingValue().ToTerraformValue(ctx); err == nil {
+			if av, err := tftypesToAPI(tv); err == nil {
+				body["variables"] = projectAPIWrite(av, apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"name": apiValueShape{}, "variable_type": apiValueShape{}, "values": apiValueShape{Element: &apiValueShape{}}, "default_values": apiValueShape{Element: &apiValueShape{}}, "sql_definition": apiValueShape{}, "structured_value": apiValueShape{}, "allow_multiple_values": apiValueShape{}}}})
+			}
+		}
+	}
 	return body
 }
 
 // updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
 func (r *DashboardResource) updateBody(ctx context.Context, config, plan, state DashboardModel) map[string]interface{} {
-	body := r.body(ctx, config)
+	body := r.bodyForUpdate(ctx, config)
 	if !state.DashboardGroupId.IsNull() && !state.DashboardGroupId.IsUnknown() && plan.DashboardGroupId.IsNull() {
 		body["dashboard_group_id"] = nil
 	}
@@ -441,6 +488,30 @@ func populateDashboard(ctx context.Context, m *DashboardModel, attrs map[string]
 	}
 }
 
+func (r *DashboardResource) mergeResponse(ctx context.Context, m DashboardModel, attrs map[string]interface{}) {
+	if raw, ok := attrs["template_id"]; ok && !m.TemplateId.IsNull() && !m.TemplateId.IsUnknown() {
+		if tv, err := m.TemplateId.ToTerraformValue(ctx); err == nil {
+			if prior, err := tftypesToAPI(tv); err == nil {
+				attrs["template_id"] = mergeAPIRead(raw, prior, apiValueShape{WriteOnly: true})
+			}
+		}
+	}
+	if raw, ok := attrs["source_id"]; ok && !m.SourceId.IsNull() && !m.SourceId.IsUnknown() {
+		if tv, err := m.SourceId.ToTerraformValue(ctx); err == nil {
+			if prior, err := tftypesToAPI(tv); err == nil {
+				attrs["source_id"] = mergeAPIRead(raw, prior, apiValueShape{WriteOnly: true})
+			}
+		}
+	}
+	if raw, ok := attrs["resource_group_name"]; ok && !m.ResourceGroupName.IsNull() && !m.ResourceGroupName.IsUnknown() {
+		if tv, err := m.ResourceGroupName.ToTerraformValue(ctx); err == nil {
+			if prior, err := tftypesToAPI(tv); err == nil {
+				attrs["resource_group_name"] = mergeAPIRead(raw, prior, apiValueShape{WriteOnly: true})
+			}
+		}
+	}
+}
+
 func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan DashboardModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -472,6 +543,7 @@ func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateReque
 	if out == nil {
 		out = map[string]interface{}{}
 	}
+	r.mergeResponse(ctx, state, out)
 	resp.State.Raw = stateFromPlan(req.Plan.Raw, req.State.Raw, out)
 }
 

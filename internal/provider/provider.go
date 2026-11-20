@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"os"
+	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -30,17 +31,15 @@ func NewWithUserAgent(version, userAgent string) func() provider.Provider {
 }
 
 type providerModel struct {
-	APIToken          types.String `tfsdk:"api_token"`
-	Endpoint          types.String `tfsdk:"endpoint"`
-	APIRetryMax       types.Int64  `tfsdk:"api_retry_max"`
-	APIRetryWaitMin   types.Int64  `tfsdk:"api_retry_wait_min"`
-	APIRetryWaitMax   types.Int64  `tfsdk:"api_retry_wait_max"`
-	APITimeout        types.Int64  `tfsdk:"api_timeout"`
-	APIRateLimit      types.Int64  `tfsdk:"api_rate_limit"`
-	APIRateBurst      types.Int64  `tfsdk:"api_rate_burst"`
-	BetterStackTeamId types.String `tfsdk:"better_stack_team_id"`
-	TeamId            types.String `tfsdk:"team_id"`
-	TeamName          types.String `tfsdk:"team_name"`
+	APIToken        types.String `tfsdk:"api_token"`
+	Endpoint        types.String `tfsdk:"endpoint"`
+	APIRetryMax     types.Int64  `tfsdk:"api_retry_max"`
+	APIRetryWaitMin types.Int64  `tfsdk:"api_retry_wait_min"`
+	APIRetryWaitMax types.Int64  `tfsdk:"api_retry_wait_max"`
+	APITimeout      types.Int64  `tfsdk:"api_timeout"`
+	APIRateLimit    types.Int64  `tfsdk:"api_rate_limit"`
+	APIRateBurst    types.Int64  `tfsdk:"api_rate_burst"`
+	TeamId          types.String `tfsdk:"team_id"`
 }
 
 func (p *BetterStackProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -62,13 +61,7 @@ func (p *BetterStackProvider) Schema(ctx context.Context, req provider.SchemaReq
 			"api_rate_burst":     schema.Int64Attribute{Optional: true, Description: "Rate limiter burst; 0 chooses twice the rate, at least 10. Default: 0."},
 			// A credential that can reach several teams says how it picks one; this is that selector,
 			// taken from the API description rather than assumed.
-			"better_stack_team_id": schema.StringAttribute{Optional: true, Description: "Selects the team when the API token can reach several."},
-			// A credential that can reach several teams says how it picks one; this is that selector,
-			// taken from the API description rather than assumed.
 			"team_id": schema.StringAttribute{Optional: true, Description: "Selects the team when the API token can reach several."},
-			// A credential that can reach several teams says how it picks one; this is that selector,
-			// taken from the API description rather than assumed.
-			"team_name": schema.StringAttribute{Optional: true, Description: "Selects the team when the API token can reach several."},
 		},
 	}
 }
@@ -85,14 +78,12 @@ func (p *BetterStackProvider) Configure(ctx context.Context, req provider.Config
 	}
 	// Public data sources need no token. Authenticated calls reject a missing token before I/O.
 	tenants := map[string]string{}
-	if v := cfg.BetterStackTeamId.ValueString(); v != "" {
-		tenants["better_stack_team_id"] = v
-	}
 	if v := cfg.TeamId.ValueString(); v != "" {
+		// Every API takes the prefixed form, so the bare number is sent prefixed too.
+		if _, err := strconv.ParseUint(v, 10, 64); err == nil {
+			v = "t" + v
+		}
 		tenants["team_id"] = v
-	}
-	if v := cfg.TeamName.ValueString(); v != "" {
-		tenants["team_name"] = v
 	}
 	client := NewClient(token, cfg.Endpoint.ValueString(), tenants, p.userAgent)
 	controls := []struct {

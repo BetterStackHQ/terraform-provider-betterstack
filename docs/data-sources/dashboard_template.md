@@ -35,4 +35,4 @@ Set `id`, or filter attributes matching exactly one record.
 
 ## Endpoints
 
-- `GET /api/v3/dashboards/templates`
+- `GET /api/v4/dashboards/templates`
