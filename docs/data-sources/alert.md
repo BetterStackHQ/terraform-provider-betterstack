@@ -1,18 +1,18 @@
 ---
-page_title: "betterstack_chart_alert Data Source - terraform-provider-betterstack"
+page_title: "betterstack_alert Data Source - terraform-provider-betterstack"
 subcategory: "Telemetry"
 description: |-
   An alert on a dashboard chart or a saved exploration that opens an incident when its condition is met.
 ---
 
-# betterstack_chart_alert (Data Source)
+# betterstack_alert (Data Source)
 
 An alert on a dashboard chart or a saved exploration that opens an incident when its condition is met.
 
 ## Example Usage
 
 ```terraform
-data "betterstack_chart_alert" "example" {
+data "betterstack_alert" "example" {
   dashboard_id = 1
   chart_id     = 1
   name         = "High Error Rate"

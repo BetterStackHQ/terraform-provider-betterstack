@@ -128,6 +128,7 @@ func (p *BetterStackProvider) Configure(ctx context.Context, req provider.Config
 
 func (p *BetterStackProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
+		NewAlertResource,
 		NewAmazonSnsIntegrationResource,
 		NewApplicationResource,
 		NewApplicationGroupResource,
@@ -136,7 +137,6 @@ func (p *BetterStackProvider) Resources(ctx context.Context) []func() resource.R
 		NewCatalogAttributeResource,
 		NewCatalogRecordResource,
 		NewCatalogRelationResource,
-		NewChartAlertResource,
 		NewCollectorResource,
 		NewCollectorTargetResource,
 		NewConnectionResource,
@@ -162,12 +162,12 @@ func (p *BetterStackProvider) Resources(ctx context.Context) []func() resource.R
 		NewIncomingWebhookIntegrationResource,
 		NewJiraIntegrationResource,
 		NewMetadataResource,
-		NewMetricExpressionResource,
+		NewMetricResource,
 		NewMonitorResource,
 		NewMonitorGroupResource,
 		NewNewRelicIntegrationResource,
-		NewOnCallCalendarResource,
 		NewOnCallRotationResource,
+		NewOnCallScheduleResource,
 		NewOutgoingEmailIntegrationResource,
 		NewOutgoingWebhookIntegrationResource,
 		NewPagerdutyIntegrationResource,
@@ -189,6 +189,7 @@ func (p *BetterStackProvider) Resources(ctx context.Context) []func() resource.R
 
 func (p *BetterStackProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
+		NewAlertDataSource,
 		NewAmazonSnsIntegrationDataSource,
 		NewApplicationDataSource,
 		NewApplicationGroupDataSource,
@@ -197,7 +198,6 @@ func (p *BetterStackProvider) DataSources(ctx context.Context) []func() datasour
 		NewCatalogAttributeDataSource,
 		NewCatalogRecordDataSource,
 		NewCatalogRelationDataSource,
-		NewChartAlertDataSource,
 		NewCollectorDataSource,
 		NewCollectorTargetDataSource,
 		NewConnectionDataSource,
@@ -225,12 +225,12 @@ func (p *BetterStackProvider) DataSources(ctx context.Context) []func() datasour
 		NewIpListDataSource,
 		NewJiraIntegrationDataSource,
 		NewMetadataDataSource,
-		NewMetricExpressionDataSource,
+		NewMetricDataSource,
 		NewMonitorDataSource,
 		NewMonitorGroupDataSource,
 		NewNewRelicIntegrationDataSource,
-		NewOnCallCalendarDataSource,
 		NewOnCallRotationDataSource,
+		NewOnCallScheduleDataSource,
 		NewOutgoingEmailIntegrationDataSource,
 		NewOutgoingWebhookIntegrationDataSource,
 		NewPagerdutyIntegrationDataSource,

@@ -51,7 +51,7 @@ func TestMetricDataSourceKeepsGroupQueryScopeWhenResultBelongsToSiblingSource(t 
 		}
 	}))
 	defer srv.Close()
-	d := &MetricExpressionDataSource{client: testClient(srv.URL)}
+	d := &MetricDataSource{client: testClient(srv.URL)}
 	var schemaResponse datasource.SchemaResponse
 	d.Schema(ctx, datasource.SchemaRequest{}, &schemaResponse)
 	typ := schemaResponse.Schema.Type().TerraformType(ctx)
@@ -61,7 +61,7 @@ func TestMetricDataSourceKeepsGroupQueryScopeWhenResultBelongsToSiblingSource(t 
 	if response.Diagnostics.HasError() {
 		t.Fatal(response.Diagnostics)
 	}
-	var result MetricExpressionModel
+	var result MetricModel
 	if diagnostics := response.State.Get(ctx, &result); diagnostics.HasError() {
 		t.Fatal(diagnostics)
 	}
@@ -79,7 +79,7 @@ func TestMetricDataSourceIDCannotBypassConfiguredQueryScope(t *testing.T) {
 		w.Write([]byte(`{"data":[]}`))
 	}))
 	defer srv.Close()
-	d := &MetricExpressionDataSource{client: testClient(srv.URL)}
+	d := &MetricDataSource{client: testClient(srv.URL)}
 	var schemaResponse datasource.SchemaResponse
 	d.Schema(ctx, datasource.SchemaRequest{}, &schemaResponse)
 	typ := schemaResponse.Schema.Type().TerraformType(ctx)

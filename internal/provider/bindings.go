@@ -8,6 +8,29 @@ package provider
 // empty RequestPath means the endpoint takes flat attributes at the request root, which is what our
 // APIs actually accept, and a JSON:API-writing API would carry ["data", "attributes"] instead.
 
+var alertBinding = &apiBinding{
+	Resource:        "alert",
+	TypeName:        "chart_alert",
+	IDKey:           "id",
+	BaseURL:         "https://telemetry.betterstack.com",
+	Auth:            authScheme{Scheme: "bearer", Location: "header", Name: "Authorization"},
+	Version:         nil,
+	Selector:        &tenantSelector{In: "query", Name: "better_stack_team_id"},
+	Envelope:        envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}},
+	Relationships:   nil,
+	Pagination:      pagination{Via: "none", Path: nil, Param: ""},
+	Errors:          errorShape{MessagePath: []string{"errors"}, DetailPaths: map[string][]string{"invalid_attributes": []string{"invalid_attributes"}, "invalid_values": []string{"invalid_values"}, "required_attributes": []string{"required_attributes"}}, RecordKeys: nil},
+	Create:          &endpoint{Method: "POST", Path: "/api/v2/dashboards/{dashboard_id}/charts/{chart_id}/alerts", Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
+	Read:            &endpoint{Method: "GET", Path: "/api/v2/dashboards/{dashboard_id}/charts/{chart_id}/alerts/{id}", Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
+	List:            &endpoint{Method: "GET", Path: "/api/v2/dashboards/{dashboard_id}/charts/{chart_id}/alerts", ListResponse: true, Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
+	Update:          &endpoint{Method: "PATCH", Path: "/api/v2/dashboards/{dashboard_id}/charts/{chart_id}/alerts/{id}", Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
+	Delete:          &endpoint{Method: "DELETE", Path: "/api/v2/dashboards/{dashboard_id}/charts/{chart_id}/alerts/{id}", Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
+	SingletonFields: map[string]string{},
+	ResponseFields:  map[string]string{},
+	Reads:           []supplementalRead{},
+	DataSourceReads: []supplementalRead{},
+}
+
 var amazonSnsIntegrationBinding = &apiBinding{
 	Resource:        "amazon_sns_integration",
 	TypeName:        "amazon_sns_integration",
@@ -186,29 +209,6 @@ var catalogRelationBinding = &apiBinding{
 	List:            &endpoint{Method: "GET", Path: "/api/v2/catalog/relations", ListResponse: true, Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
 	Update:          &endpoint{Method: "PATCH", Path: "/api/v2/catalog/relations/{id}", Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
 	Delete:          &endpoint{Method: "DELETE", Path: "/api/v2/catalog/relations/{id}", Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
-	SingletonFields: map[string]string{},
-	ResponseFields:  map[string]string{},
-	Reads:           []supplementalRead{},
-	DataSourceReads: []supplementalRead{},
-}
-
-var chartAlertBinding = &apiBinding{
-	Resource:        "chart_alert",
-	TypeName:        "chart_alert",
-	IDKey:           "id",
-	BaseURL:         "https://telemetry.betterstack.com",
-	Auth:            authScheme{Scheme: "bearer", Location: "header", Name: "Authorization"},
-	Version:         nil,
-	Selector:        &tenantSelector{In: "query", Name: "better_stack_team_id"},
-	Envelope:        envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}},
-	Relationships:   nil,
-	Pagination:      pagination{Via: "none", Path: nil, Param: ""},
-	Errors:          errorShape{MessagePath: []string{"errors"}, DetailPaths: map[string][]string{"invalid_attributes": []string{"invalid_attributes"}, "invalid_values": []string{"invalid_values"}, "required_attributes": []string{"required_attributes"}}, RecordKeys: nil},
-	Create:          &endpoint{Method: "POST", Path: "/api/v2/dashboards/{dashboard_id}/charts/{chart_id}/alerts", Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
-	Read:            &endpoint{Method: "GET", Path: "/api/v2/dashboards/{dashboard_id}/charts/{chart_id}/alerts/{id}", Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
-	List:            &endpoint{Method: "GET", Path: "/api/v2/dashboards/{dashboard_id}/charts/{chart_id}/alerts", ListResponse: true, Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
-	Update:          &endpoint{Method: "PATCH", Path: "/api/v2/dashboards/{dashboard_id}/charts/{chart_id}/alerts/{id}", Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
-	Delete:          &endpoint{Method: "DELETE", Path: "/api/v2/dashboards/{dashboard_id}/charts/{chart_id}/alerts/{id}", Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
 	SingletonFields: map[string]string{},
 	ResponseFields:  map[string]string{},
 	Reads:           []supplementalRead{},
@@ -819,8 +819,8 @@ var metadataBinding = &apiBinding{
 	DataSourceReads: []supplementalRead{},
 }
 
-var metricExpressionBinding = &apiBinding{
-	Resource:        "metric_expression",
+var metricBinding = &apiBinding{
+	Resource:        "metric",
 	TypeName:        "metric_expression",
 	IDKey:           "id",
 	BaseURL:         "https://telemetry.betterstack.com",
@@ -910,29 +910,6 @@ var newRelicIntegrationBinding = &apiBinding{
 	DataSourceReads: []supplementalRead{},
 }
 
-var onCallCalendarBinding = &apiBinding{
-	Resource:        "on_call_calendar",
-	TypeName:        "on_call_calendar",
-	IDKey:           "id",
-	BaseURL:         "https://uptime.betterstack.com",
-	Auth:            authScheme{Scheme: "bearer", Location: "header", Name: "Authorization"},
-	Version:         nil,
-	Selector:        &tenantSelector{In: "query", Name: "team_id"},
-	Envelope:        envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}},
-	Relationships:   []string{"on_call_users"},
-	Pagination:      pagination{Via: "url", Path: []string{"pagination", "next"}, Param: ""},
-	Errors:          errorShape{MessagePath: []string{"errors"}, DetailPaths: map[string][]string{"allowed_values": []string{"allowed_values"}, "invalid_attributes": []string{"invalid_attributes"}, "required_attributes": []string{"required_attributes"}, "unauthorized_attributes": []string{"unauthorized_attributes"}}, RecordKeys: []string{"base"}},
-	Create:          &endpoint{Method: "POST", Path: "/api/v2/on-calls", Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
-	Read:            &endpoint{Method: "GET", Path: "/api/v2/on-calls/{id}", Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
-	List:            &endpoint{Method: "GET", Path: "/api/v2/on-calls", ListResponse: true, Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
-	Update:          &endpoint{Method: "PATCH", Path: "/api/v2/on-calls/{id}", Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
-	Delete:          &endpoint{Method: "DELETE", Path: "/api/v2/on-calls/{id}", Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
-	SingletonFields: map[string]string{},
-	ResponseFields:  map[string]string{},
-	Reads:           []supplementalRead{},
-	DataSourceReads: []supplementalRead{},
-}
-
 var onCallRotationBinding = &apiBinding{
 	Resource:        "on_call_rotation",
 	TypeName:        "on_call_rotation",
@@ -949,6 +926,29 @@ var onCallRotationBinding = &apiBinding{
 	Read:            &endpoint{Method: "GET", Path: "/api/v2/on-calls/{id}/rotation", Envelope: &envelope{ItemPath: []string{}, ListPath: nil, AttributesPath: []string{}, IDPath: []string{"id"}, TypePath: nil, RequestPath: []string{}, RelationshipsPath: nil, IncludedPath: nil}},
 	Update:          &endpoint{Method: "POST", Path: "/api/v2/on-calls/{id}/rotation", Envelope: &envelope{ItemPath: []string{}, ListPath: nil, AttributesPath: []string{}, IDPath: []string{"id"}, TypePath: nil, RequestPath: []string{}, RelationshipsPath: nil, IncludedPath: nil}},
 	Delete:          &endpoint{Method: "DELETE", Path: "/api/v2/on-calls/{id}/rotation", Envelope: &envelope{ItemPath: []string{}, ListPath: nil, AttributesPath: []string{}, IDPath: []string{"id"}, TypePath: nil, RequestPath: []string{}, RelationshipsPath: nil, IncludedPath: nil}},
+	SingletonFields: map[string]string{},
+	ResponseFields:  map[string]string{},
+	Reads:           []supplementalRead{},
+	DataSourceReads: []supplementalRead{},
+}
+
+var onCallScheduleBinding = &apiBinding{
+	Resource:        "on_call_schedule",
+	TypeName:        "on_call_calendar",
+	IDKey:           "id",
+	BaseURL:         "https://uptime.betterstack.com",
+	Auth:            authScheme{Scheme: "bearer", Location: "header", Name: "Authorization"},
+	Version:         nil,
+	Selector:        &tenantSelector{In: "query", Name: "team_id"},
+	Envelope:        envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}},
+	Relationships:   []string{"on_call_users"},
+	Pagination:      pagination{Via: "url", Path: []string{"pagination", "next"}, Param: ""},
+	Errors:          errorShape{MessagePath: []string{"errors"}, DetailPaths: map[string][]string{"allowed_values": []string{"allowed_values"}, "invalid_attributes": []string{"invalid_attributes"}, "required_attributes": []string{"required_attributes"}, "unauthorized_attributes": []string{"unauthorized_attributes"}}, RecordKeys: []string{"base"}},
+	Create:          &endpoint{Method: "POST", Path: "/api/v2/on-calls", Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
+	Read:            &endpoint{Method: "GET", Path: "/api/v2/on-calls/{id}", Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
+	List:            &endpoint{Method: "GET", Path: "/api/v2/on-calls", ListResponse: true, Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
+	Update:          &endpoint{Method: "PATCH", Path: "/api/v2/on-calls/{id}", Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
+	Delete:          &endpoint{Method: "DELETE", Path: "/api/v2/on-calls/{id}", Envelope: &envelope{ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"}, IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{}, RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"}}},
 	SingletonFields: map[string]string{},
 	ResponseFields:  map[string]string{},
 	Reads:           []supplementalRead{},
@@ -1383,6 +1383,7 @@ var teamBinding = &apiBinding{
 
 // allBindings lets a caller (the offline test server, tooling) enumerate every described endpoint.
 var allBindings = []*apiBinding{
+	alertBinding,
 	amazonSnsIntegrationBinding,
 	applicationBinding,
 	applicationGroupBinding,
@@ -1391,7 +1392,6 @@ var allBindings = []*apiBinding{
 	catalogAttributeBinding,
 	catalogRecordBinding,
 	catalogRelationBinding,
-	chartAlertBinding,
 	collectorBinding,
 	collectorTargetBinding,
 	connectionBinding,
@@ -1419,12 +1419,12 @@ var allBindings = []*apiBinding{
 	ipListBinding,
 	jiraIntegrationBinding,
 	metadataBinding,
-	metricExpressionBinding,
+	metricBinding,
 	monitorBinding,
 	monitorGroupBinding,
 	newRelicIntegrationBinding,
-	onCallCalendarBinding,
 	onCallRotationBinding,
+	onCallScheduleBinding,
 	outgoingEmailIntegrationBinding,
 	outgoingWebhookIntegrationBinding,
 	pagerdutyIntegrationBinding,

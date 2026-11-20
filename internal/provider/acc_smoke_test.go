@@ -46,6 +46,27 @@ func importID(addr string, parts []string) resource.ImportStateIdFunc {
 
 var smokeCases = []smokeCase{
 	{
+		name: "alert",
+		addr: "betterstack_alert.test",
+		createConfig: `resource "betterstack_alert" "test" {
+  dashboard_id = 1
+  chart_id     = 1
+  name         = "example"
+  alert_type   = "threshold"
+}`,
+		updateConfig: `resource "betterstack_alert" "test" {
+  dashboard_id = 1
+  chart_id     = 1
+  name         = "example"
+  alert_type   = "threshold"
+  string_value = "example-updated"
+}`,
+		importIgnore:   []string{},
+		importParts:    []string{"dashboard_id", "chart_id", "id"},
+		computedFields: map[string]map[string]interface{}{},
+		computedChecks: map[string]string{},
+	},
+	{
 		name: "amazon_sns_integration",
 		addr: "betterstack_amazon_sns_integration.test",
 		createConfig: `resource "betterstack_amazon_sns_integration" "test" {
@@ -166,27 +187,6 @@ var smokeCases = []smokeCase{
 }`,
 		importIgnore:   []string{"organization_id"},
 		importParts:    []string{"id"},
-		computedFields: map[string]map[string]interface{}{},
-		computedChecks: map[string]string{},
-	},
-	{
-		name: "chart_alert",
-		addr: "betterstack_chart_alert.test",
-		createConfig: `resource "betterstack_chart_alert" "test" {
-  dashboard_id = 1
-  chart_id     = 1
-  name         = "example"
-  alert_type   = "threshold"
-}`,
-		updateConfig: `resource "betterstack_chart_alert" "test" {
-  dashboard_id = 1
-  chart_id     = 1
-  name         = "example"
-  alert_type   = "threshold"
-  string_value = "example-updated"
-}`,
-		importIgnore:   []string{},
-		importParts:    []string{"dashboard_id", "chart_id", "id"},
 		computedFields: map[string]map[string]interface{}{},
 		computedChecks: map[string]string{},
 	},
@@ -617,14 +617,14 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "metric_expression",
-		addr: "betterstack_metric_expression.test",
-		createConfig: `resource "betterstack_metric_expression" "test" {
+		name: "metric",
+		addr: "betterstack_metric.test",
+		createConfig: `resource "betterstack_metric" "test" {
   source_id      = "12345"
   name           = "example"
   sql_expression = "example"
 }`,
-		updateConfig: `resource "betterstack_metric_expression" "test" {
+		updateConfig: `resource "betterstack_metric" "test" {
   source_id      = "12345"
   name           = "example-updated"
   sql_expression = "example"
@@ -678,21 +678,6 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "on_call_calendar",
-		addr: "betterstack_on_call_calendar.test",
-		createConfig: `resource "betterstack_on_call_calendar" "test" {
-  name = "example"
-}`,
-		updateConfig: `resource "betterstack_on_call_calendar" "test" {
-  name               = "example"
-  slack_group_handle = "example-updated"
-}`,
-		importIgnore:   []string{},
-		importParts:    []string{"id"},
-		computedFields: map[string]map[string]interface{}{},
-		computedChecks: map[string]string{},
-	},
-	{
 		name: "on_call_rotation",
 		addr: "betterstack_on_call_rotation.test",
 		createConfig: `resource "betterstack_on_call_rotation" "test" {
@@ -711,6 +696,21 @@ var smokeCases = []smokeCase{
   start_rotations_at = "2026-01-01T00:00:00Z"
   end_rotations_at   = "2026-01-01T00:00:00Z"
   timezone           = "UTC-updated"
+}`,
+		importIgnore:   []string{},
+		importParts:    []string{"id"},
+		computedFields: map[string]map[string]interface{}{},
+		computedChecks: map[string]string{},
+	},
+	{
+		name: "on_call_schedule",
+		addr: "betterstack_on_call_schedule.test",
+		createConfig: `resource "betterstack_on_call_schedule" "test" {
+  name = "example"
+}`,
+		updateConfig: `resource "betterstack_on_call_schedule" "test" {
+  name               = "example"
+  slack_group_handle = "example-updated"
 }`,
 		importIgnore:   []string{},
 		importParts:    []string{"id"},

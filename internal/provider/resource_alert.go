@@ -27,19 +27,19 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 )
 
-var _ resource.Resource = &ChartAlertResource{}
-var _ resource.ResourceWithConfigure = &ChartAlertResource{}
-var _ resource.ResourceWithImportState = &ChartAlertResource{}
+var _ resource.Resource = &AlertResource{}
+var _ resource.ResourceWithConfigure = &AlertResource{}
+var _ resource.ResourceWithImportState = &AlertResource{}
 
-type ChartAlertResource struct {
+type AlertResource struct {
 	client *Client
 }
 
-func NewChartAlertResource() resource.Resource {
-	return &ChartAlertResource{}
+func NewAlertResource() resource.Resource {
+	return &AlertResource{}
 }
 
-type ChartAlertModel struct {
+type AlertModel struct {
 	Id                       types.String  `tfsdk:"id"`
 	AdditionalConditions     types.List    `tfsdk:"additional_conditions"`
 	AggregationInterval      types.Int64   `tfsdk:"aggregation_interval"`
@@ -81,7 +81,7 @@ type ChartAlertModel struct {
 	VariableValues           types.List    `tfsdk:"variable_values"`
 }
 
-type ChartAlertAdditionalConditionsModel struct {
+type AlertAdditionalConditionsModel struct {
 	AlertType         types.String  `tfsdk:"alert_type"`
 	Operator          types.String  `tfsdk:"operator"`
 	Value             types.Float64 `tfsdk:"value"`
@@ -90,7 +90,7 @@ type ChartAlertAdditionalConditionsModel struct {
 	SeriesNamesExcept types.List    `tfsdk:"series_names_except"`
 }
 
-func chartAlertAdditionalConditionsAttrTypes() map[string]attr.Type {
+func alertAdditionalConditionsAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"alert_type":          types.StringType,
 		"operator":            types.StringType,
@@ -101,12 +101,12 @@ func chartAlertAdditionalConditionsAttrTypes() map[string]attr.Type {
 	}
 }
 
-// expandChartAlertAdditionalConditions marshals a nested ChartAlertAdditionalConditions object into its request map.
-func expandChartAlertAdditionalConditions(ctx context.Context, o types.Object) map[string]interface{} {
+// expandAlertAdditionalConditions marshals a nested AlertAdditionalConditions object into its request map.
+func expandAlertAdditionalConditions(ctx context.Context, o types.Object) map[string]interface{} {
 	if o.IsNull() || o.IsUnknown() {
 		return nil
 	}
-	var m ChartAlertAdditionalConditionsModel
+	var m AlertAdditionalConditionsModel
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
 	if !m.AlertType.IsNull() && !m.AlertType.IsUnknown() {
@@ -134,10 +134,10 @@ func expandChartAlertAdditionalConditions(ctx context.Context, o types.Object) m
 	return out
 }
 
-// flattenChartAlertAdditionalConditions refreshes a typed ChartAlertAdditionalConditions object from a response map,
+// flattenAlertAdditionalConditions refreshes a typed AlertAdditionalConditions object from a response map,
 // merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
-func flattenChartAlertAdditionalConditions(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
-	var m ChartAlertAdditionalConditionsModel
+func flattenAlertAdditionalConditions(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m AlertAdditionalConditionsModel
 	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
 	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
 	m.SeriesNames = types.ListNull(types.StringType)
@@ -177,17 +177,17 @@ func flattenChartAlertAdditionalConditions(ctx context.Context, prior types.Obje
 		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
 		m.SeriesNamesExcept = lv
 	}
-	obj, _ := types.ObjectValueFrom(ctx, chartAlertAdditionalConditionsAttrTypes(), m)
+	obj, _ := types.ObjectValueFrom(ctx, alertAdditionalConditionsAttrTypes(), m)
 	return obj
 }
 
-type ChartAlertVariableValuesModel struct {
+type AlertVariableValuesModel struct {
 	Name          types.String `tfsdk:"name"`
 	SelectedLabel types.String `tfsdk:"selected_label"`
 	Values        types.List   `tfsdk:"values"`
 }
 
-func chartAlertVariableValuesAttrTypes() map[string]attr.Type {
+func alertVariableValuesAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"name":           types.StringType,
 		"selected_label": types.StringType,
@@ -195,12 +195,12 @@ func chartAlertVariableValuesAttrTypes() map[string]attr.Type {
 	}
 }
 
-// expandChartAlertVariableValues marshals a nested ChartAlertVariableValues object into its request map.
-func expandChartAlertVariableValues(ctx context.Context, o types.Object) map[string]interface{} {
+// expandAlertVariableValues marshals a nested AlertVariableValues object into its request map.
+func expandAlertVariableValues(ctx context.Context, o types.Object) map[string]interface{} {
 	if o.IsNull() || o.IsUnknown() {
 		return nil
 	}
-	var m ChartAlertVariableValuesModel
+	var m AlertVariableValuesModel
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
 	if !m.Name.IsNull() && !m.Name.IsUnknown() {
@@ -217,10 +217,10 @@ func expandChartAlertVariableValues(ctx context.Context, o types.Object) map[str
 	return out
 }
 
-// flattenChartAlertVariableValues refreshes a typed ChartAlertVariableValues object from a response map,
+// flattenAlertVariableValues refreshes a typed AlertVariableValues object from a response map,
 // merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
-func flattenChartAlertVariableValues(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
-	var m ChartAlertVariableValuesModel
+func flattenAlertVariableValues(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m AlertVariableValuesModel
 	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
 	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
 	m.Values = types.ListNull(types.StringType)
@@ -243,15 +243,15 @@ func flattenChartAlertVariableValues(ctx context.Context, prior types.Object, ra
 		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
 		m.Values = lv
 	}
-	obj, _ := types.ObjectValueFrom(ctx, chartAlertVariableValuesAttrTypes(), m)
+	obj, _ := types.ObjectValueFrom(ctx, alertVariableValuesAttrTypes(), m)
 	return obj
 }
 
-func (r *ChartAlertResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_chart_alert"
+func (r *AlertResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_alert"
 }
 
-func (r *ChartAlertResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *AlertResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "An alert on a dashboard chart or a saved exploration that opens an incident when its condition is met.",
 		Attributes: map[string]schema.Attribute{
@@ -263,12 +263,12 @@ func (r *ChartAlertResource) Schema(ctx context.Context, req resource.SchemaRequ
 			"anomaly_training_range_days": schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(7), Description: "Days of history the anomaly model is first trained on, from 1 to 30. For `anomaly_rrcf` alerts only. `null` on threshold and relative alerts."},
 			"anomaly_trigger":             schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("any"), Description: "Which direction of anomaly fires the alert, for `anomaly_rrcf` alerts only. `null` on threshold and relative alerts.", Validators: []validator.String{stringvalidator.OneOf("any", "higher", "lower")}},
 			"call":                        schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Trigger phone-call alerts."},
-			"chart_id":                    schema.Int64Attribute{Required: true, Description: "Chart this alert watches. It can't be changed after the alert is created. The alert belongs to the chart's dashboard or exploration.", PlanModifiers: []planmodifier.Int64{replaceWarningInt64{int64planmodifier.RequiresReplace(), "betterstack_chart_alert"}}},
+			"chart_id":                    schema.Int64Attribute{Required: true, Description: "Chart this alert watches. It can't be changed after the alert is created. The alert belongs to the chart's dashboard or exploration.", PlanModifiers: []planmodifier.Int64{replaceWarningInt64{int64planmodifier.RequiresReplace(), "betterstack_alert"}}},
 			"check_period":                schema.Int64Attribute{Optional: true, Description: "How often the alert is evaluated, in seconds. Required when creating a threshold or relative alert. Not returned for anomaly alerts. An update that sends `check_period` without `query_period` or `aggregation_interval` sets both to it."},
 			"confirmation_period":         schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(60), Description: "Seconds the condition must hold before the incident opens."},
 			"created_at":                  schema.StringAttribute{Computed: true, Description: "When the alert was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"critical_alert":              schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Trigger critical push alerts that bypass silent mode."},
-			"dashboard_id":                schema.Int64Attribute{Required: true, Description: "Dashboard of the chart this alert watches. `null` for an alert on an exploration.", PlanModifiers: []planmodifier.Int64{replaceWarningInt64{int64planmodifier.RequiresReplace(), "betterstack_chart_alert"}}},
+			"dashboard_id":                schema.Int64Attribute{Required: true, Description: "Dashboard of the chart this alert watches. `null` for an alert on an exploration.", PlanModifiers: []planmodifier.Int64{replaceWarningInt64{int64planmodifier.RequiresReplace(), "betterstack_alert"}}},
 			"email":                       schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Trigger e-mail alerts."},
 			"escalation_target":           schema.DynamicAttribute{Optional: true, Computed: true, Description: "Where the incident is routed: the string `current_team`, which is the default, an object with a numeric `policy_id` and `policy_name`, or an object with `team_id` and `team_name`. Reads return the string `unknown` when the target can't be looked up or no longer exists. When writing, name the policy or team by ID, by name or both. Naming both a policy and a team, an unknown one, or a name several match without an ID returns 422.", PlanModifiers: []planmodifier.Dynamic{dynamicplanmodifier.UseStateForUnknown()}},
 			"exploration_id":              schema.Int64Attribute{Computed: true, Description: "Exploration this alert watches. `null` for an alert on a dashboard chart.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
@@ -299,7 +299,7 @@ func (r *ChartAlertResource) Schema(ctx context.Context, req resource.SchemaRequ
 	pulumiSchemaDocs(resp.Schema.Attributes)
 }
 
-func (r *ChartAlertResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *AlertResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -308,7 +308,7 @@ func (r *ChartAlertResource) Configure(ctx context.Context, req resource.Configu
 
 // body marshals the writable attributes into the request. The envelope decides whether they travel
 // flat or wrapped; that is the binding's job, not this function's.
-func (r *ChartAlertResource) body(ctx context.Context, m ChartAlertModel) map[string]interface{} {
+func (r *AlertResource) body(ctx context.Context, m AlertModel) map[string]interface{} {
 	body := map[string]interface{}{}
 	if !m.Name.IsNull() && !m.Name.IsUnknown() {
 		body["name"] = m.Name.ValueString()
@@ -391,7 +391,7 @@ func (r *ChartAlertResource) body(ctx context.Context, m ChartAlertModel) map[st
 		items := make([]map[string]interface{}, 0, len(m.AdditionalConditions.Elements()))
 		for _, el := range m.AdditionalConditions.Elements() {
 			if obj, ok := el.(types.Object); ok {
-				items = append(items, expandChartAlertAdditionalConditions(ctx, obj))
+				items = append(items, expandAlertAdditionalConditions(ctx, obj))
 			}
 		}
 		body["additional_conditions"] = items
@@ -400,7 +400,7 @@ func (r *ChartAlertResource) body(ctx context.Context, m ChartAlertModel) map[st
 		items := make([]map[string]interface{}, 0, len(m.VariableValues.Elements()))
 		for _, el := range m.VariableValues.Elements() {
 			if obj, ok := el.(types.Object); ok {
-				items = append(items, expandChartAlertVariableValues(ctx, obj))
+				items = append(items, expandAlertVariableValues(ctx, obj))
 			}
 		}
 		body["variable_values"] = items
@@ -436,7 +436,7 @@ func (r *ChartAlertResource) body(ctx context.Context, m ChartAlertModel) map[st
 }
 
 // updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
-func (r *ChartAlertResource) updateBody(ctx context.Context, config, plan, state ChartAlertModel) map[string]interface{} {
+func (r *AlertResource) updateBody(ctx context.Context, config, plan, state AlertModel) map[string]interface{} {
 	body := r.body(ctx, config)
 	if !state.Value.IsNull() && !state.Value.IsUnknown() && plan.Value.IsNull() {
 		body["value"] = nil
@@ -462,10 +462,10 @@ func (r *ChartAlertResource) updateBody(ctx context.Context, config, plan, state
 	return body
 }
 
-func (r *ChartAlertResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan ChartAlertModel
+func (r *AlertResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan AlertModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	var request ChartAlertModel
+	var request AlertModel
 	resp.Diagnostics.Append(configWithPlannedUnknowns(ctx, req.Config, req.Plan, nullValue(req.Plan.Raw.Type()), &request)...)
 	request.AnomalySensitivity = plan.AnomalySensitivity             // its schema default travels when unset, so removing the line resets it
 	request.AnomalyTrainingRangeDays = plan.AnomalyTrainingRangeDays // its schema default travels when unset, so removing the line resets it
@@ -486,9 +486,9 @@ func (r *ChartAlertResource) Create(ctx context.Context, req resource.CreateRequ
 	vars := map[string]string{}
 	vars["dashboard_id"] = strconv.FormatInt(plan.DashboardId.ValueInt64(), 10)
 	vars["chart_id"] = strconv.FormatInt(plan.ChartId.ValueInt64(), 10)
-	out, err := r.client.Create(ctx, chartAlertBinding, vars, r.body(ctx, request))
+	out, err := r.client.Create(ctx, alertBinding, vars, r.body(ctx, request))
 	if err != nil {
-		addAPIError(&resp.Diagnostics, "creating chart_alert", err, req.Plan.Raw.Type())
+		addAPIError(&resp.Diagnostics, "creating alert", err, req.Plan.Raw.Type())
 		return
 	}
 	if out == nil {
@@ -496,7 +496,7 @@ func (r *ChartAlertResource) Create(ctx context.Context, req resource.CreateRequ
 	}
 	id, err := idFromResponse(out, "id")
 	if err != nil {
-		resp.Diagnostics.AddError("creating chart_alert", err.Error())
+		resp.Diagnostics.AddError("creating alert", err.Error())
 		return
 	}
 	out["id"] = id
@@ -505,8 +505,8 @@ func (r *ChartAlertResource) Create(ctx context.Context, req resource.CreateRequ
 	resp.State.Raw = stateFromPlan(req.Plan.Raw, nullValue(req.Plan.Raw.Type()), out)
 }
 
-func (r *ChartAlertResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state ChartAlertModel
+func (r *AlertResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state AlertModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -515,22 +515,22 @@ func (r *ChartAlertResource) Read(ctx context.Context, req resource.ReadRequest,
 	vars["dashboard_id"] = strconv.FormatInt(state.DashboardId.ValueInt64(), 10)
 	vars["chart_id"] = strconv.FormatInt(state.ChartId.ValueInt64(), 10)
 	vars["id"] = state.Id.ValueString()
-	out, found, err := r.client.Get(ctx, chartAlertBinding, vars)
+	out, found, err := r.client.Get(ctx, alertBinding, vars)
 	if err != nil {
-		addAPIError(&resp.Diagnostics, "reading chart_alert", err, req.State.Raw.Type())
+		addAPIError(&resp.Diagnostics, "reading alert", err, req.State.Raw.Type())
 		return
 	}
 	if !found {
 		resp.State.RemoveResource(ctx)
 		return
 	}
-	populateChartAlert(ctx, &state, out)
+	populateAlert(ctx, &state, out)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-// populateChartAlert refreshes attributes from the flattened response map; absent keys keep
+// populateAlert refreshes attributes from the flattened response map; absent keys keep
 // their prior value, so an attribute the API never echoes does not thrash.
-func populateChartAlert(ctx context.Context, m *ChartAlertModel, attrs map[string]interface{}) {
+func populateAlert(ctx context.Context, m *AlertModel, attrs map[string]interface{}) {
 	if attrs == nil {
 		return
 	}
@@ -718,22 +718,22 @@ func populateChartAlert(ctx context.Context, m *ChartAlertModel, attrs map[strin
 		items := make([]types.Object, 0, len(raw))
 		for _, e := range raw {
 			if mp, ok := e.(map[string]interface{}); ok {
-				prior := types.ObjectNull(chartAlertAdditionalConditionsAttrTypes())
-				items = append(items, flattenChartAlertAdditionalConditions(ctx, prior, mp))
+				prior := types.ObjectNull(alertAdditionalConditionsAttrTypes())
+				items = append(items, flattenAlertAdditionalConditions(ctx, prior, mp))
 			}
 		}
-		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: chartAlertAdditionalConditionsAttrTypes()}, items)
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: alertAdditionalConditionsAttrTypes()}, items)
 		m.AdditionalConditions = lv
 	}
 	if raw, ok := attrs["variable_values"].([]interface{}); ok {
 		items := make([]types.Object, 0, len(raw))
 		for _, e := range raw {
 			if mp, ok := e.(map[string]interface{}); ok {
-				prior := types.ObjectNull(chartAlertVariableValuesAttrTypes())
-				items = append(items, flattenChartAlertVariableValues(ctx, prior, mp))
+				prior := types.ObjectNull(alertVariableValuesAttrTypes())
+				items = append(items, flattenAlertVariableValues(ctx, prior, mp))
 			}
 		}
-		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: chartAlertVariableValuesAttrTypes()}, items)
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: alertVariableValuesAttrTypes()}, items)
 		m.VariableValues = lv
 	}
 	if v, ok := stringFromAPI(attrs["on_missing_data"]); ok {
@@ -771,12 +771,12 @@ func populateChartAlert(ctx context.Context, m *ChartAlertModel, attrs map[strin
 	}
 }
 
-func (r *ChartAlertResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan ChartAlertModel
+func (r *AlertResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan AlertModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	var request ChartAlertModel
+	var request AlertModel
 	resp.Diagnostics.Append(configWithPlannedUnknowns(ctx, req.Config, req.Plan, req.State.Raw, &request)...)
-	var state ChartAlertModel
+	var state AlertModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -826,9 +826,9 @@ func (r *ChartAlertResource) Update(ctx context.Context, req resource.UpdateRequ
 	vars["dashboard_id"] = strconv.FormatInt(plan.DashboardId.ValueInt64(), 10)
 	vars["chart_id"] = strconv.FormatInt(plan.ChartId.ValueInt64(), 10)
 	vars["id"] = plan.Id.ValueString()
-	out, err := r.client.Update(ctx, chartAlertBinding, vars, r.updateBody(ctx, request, plan, state))
+	out, err := r.client.Update(ctx, alertBinding, vars, r.updateBody(ctx, request, plan, state))
 	if err != nil {
-		addAPIError(&resp.Diagnostics, "updating chart_alert", err, req.Plan.Raw.Type())
+		addAPIError(&resp.Diagnostics, "updating alert", err, req.Plan.Raw.Type())
 		return
 	}
 	if out == nil {
@@ -837,8 +837,8 @@ func (r *ChartAlertResource) Update(ctx context.Context, req resource.UpdateRequ
 	resp.State.Raw = stateFromPlan(req.Plan.Raw, req.State.Raw, out)
 }
 
-func (r *ChartAlertResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state ChartAlertModel
+func (r *AlertResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state AlertModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -847,29 +847,29 @@ func (r *ChartAlertResource) Delete(ctx context.Context, req resource.DeleteRequ
 	vars["dashboard_id"] = strconv.FormatInt(state.DashboardId.ValueInt64(), 10)
 	vars["chart_id"] = strconv.FormatInt(state.ChartId.ValueInt64(), 10)
 	vars["id"] = state.Id.ValueString()
-	if err := r.client.Delete(ctx, chartAlertBinding, vars); err != nil {
-		addAPIError(&resp.Diagnostics, "deleting chart_alert", err, req.State.Raw.Type())
+	if err := r.client.Delete(ctx, alertBinding, vars); err != nil {
+		addAPIError(&resp.Diagnostics, "deleting alert", err, req.State.Raw.Type())
 	}
 }
 
 // The object hangs off a parent collection, so its address is composite:
 // dashboard_id/chart_id/id.
-func (r *ChartAlertResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *AlertResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	parts := strings.Split(req.ID, "/")
 	if len(parts) != 3 {
-		resp.Diagnostics.AddError("importing chart_alert",
+		resp.Diagnostics.AddError("importing alert",
 			fmt.Sprintf("expected an id of the form dashboard_id/chart_id/id, got %q", req.ID))
 		return
 	}
 	dashboard_idValue, err := strconv.ParseInt(parts[0], 10, 64)
 	if err != nil {
-		resp.Diagnostics.AddError("importing chart_alert", fmt.Sprintf("%q is not a valid dashboard_id", parts[0]))
+		resp.Diagnostics.AddError("importing alert", fmt.Sprintf("%q is not a valid dashboard_id", parts[0]))
 		return
 	}
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dashboard_id"), dashboard_idValue)...)
 	chart_idValue, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
-		resp.Diagnostics.AddError("importing chart_alert", fmt.Sprintf("%q is not a valid chart_id", parts[1]))
+		resp.Diagnostics.AddError("importing alert", fmt.Sprintf("%q is not a valid chart_id", parts[1]))
 		return
 	}
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("chart_id"), chart_idValue)...)

@@ -266,13 +266,19 @@ func TestADatetimeRefreshKeepsTheSameInstantAsWritten(t *testing.T) {
 	if got := datetimeValue(written, "2026-11-23T01:00:00+01:00"); !got.Equal(written) {
 		t.Fatalf("an offset naming the same instant must keep the configured form, got %s", got)
 	}
-	if got := datetimeValue(written, "2026-11-24T00:00:00.000Z"); got.ValueString() != "2026-11-24T00:00:00.000Z" {
+	if got := datetimeValue(written, "2026-11-24T00:00:00.000Z"); got.ValueString() != "2026-11-24T00:00:00Z" {
 		t.Fatalf("a different instant is drift and must be refreshed, got %s", got)
 	}
-	if got := datetimeValue(types.StringNull(), "2026-11-23T00:00:00.000Z"); got.ValueString() != "2026-11-23T00:00:00.000Z" {
-		t.Fatalf("with no prior value the API's form is stored, got %s", got)
+	if got := datetimeValue(types.StringNull(), "2026-11-23T00:00:00.000Z"); got.ValueString() != "2026-11-23T00:00:00Z" {
+		t.Fatalf("with no prior value, as after an import, the instant is stored in its shortest form, got %s", got)
 	}
-	if got := datetimeValue(types.StringValue("not a time"), "2026-11-23T00:00:00.000Z"); got.ValueString() != "2026-11-23T00:00:00.000Z" {
+	if got := datetimeValue(types.StringNull(), "2026-11-23T01:00:00.250+01:00"); got.ValueString() != "2026-11-23T01:00:00.25+01:00" {
+		t.Fatalf("the shortest form keeps the API's offset and a nonzero fraction, got %s", got)
+	}
+	if got := datetimeValue(types.StringNull(), "next tuesday"); got.ValueString() != "next tuesday" {
+		t.Fatalf("a value that isn't RFC 3339 is stored as the API sent it, got %s", got)
+	}
+	if got := datetimeValue(types.StringValue("not a time"), "2026-11-23T00:00:00.000Z"); got.ValueString() != "2026-11-23T00:00:00Z" {
 		t.Fatalf("an unparsable prior value is replaced, got %s", got)
 	}
 }

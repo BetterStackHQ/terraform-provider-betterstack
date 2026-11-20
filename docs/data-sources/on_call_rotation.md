@@ -2,12 +2,12 @@
 page_title: "betterstack_on_call_rotation Data Source - terraform-provider-betterstack"
 subcategory: "Incidents"
 description: |-
-  An on-call rotation: the recurring shift configuration for an on-call calendar.
+  An on-call rotation: the recurring shift configuration for an on-call schedule.
 ---
 
 # betterstack_on_call_rotation (Data Source)
 
-An on-call rotation: the recurring shift configuration for an on-call calendar.
+An on-call rotation: the recurring shift configuration for an on-call schedule.
 
 ## Example Usage
 
@@ -25,7 +25,7 @@ data "betterstack_on_call_rotation" "example" {
 
 ### Read-Only
 
-- `users` (List of String) E-mail addresses of users in the rotation, in shift order. Each must be a responder in the calendar's team.
+- `users` (List of String) E-mail addresses of users in the rotation, in shift order. Each must be a responder in the schedule's team.
 - `rotation_length` (Number) Number of intervals each shift lasts.
 - `rotation_interval` (String) Unit for the rotation length. Valid values: `hour`, `day`, `week`.
 - `start_rotations_at` (String (RFC 3339)) When the rotation schedule starts.

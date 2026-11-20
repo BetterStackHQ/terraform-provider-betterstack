@@ -141,10 +141,10 @@ Replace the data source type and retain url and selected provider team; refresh 
 ### Data source: `betteruptime_on_call_calendar`
 
 - Source provider: `registry.terraform.io/BetterStackHQ/better-uptime`.
-- Destination: `betterstack_on_call_calendar`.
+- Destination: `betterstack_on_call_schedule`.
 - Supported state schema versions: `0`.
 - Handling: guided configuration/state transition.
-- Rename to data.betterstack_on_call_calendar. Exact name lookup remains available; an omitted or empty name selects the default calendar through the documented default id alias.
+- Rename to data.betterstack_on_call_schedule. Exact name lookup remains available; an omitted or empty name selects the default schedule through the documented default id alias.
 
 Replace the data-source type and retain the provider team and optional name. Rewrite references to inline on_call_rotation through data.betterstack_on_call_rotation at the same calendar id. Refresh data sources; do not import, recreate, or regenerate schedules.
 
@@ -388,12 +388,12 @@ Read GET /api/v4/metadata?owner_type=TYPE&owner_id=OWNER with the proved provide
 ### Resource: `betteruptime_on_call_calendar`
 
 - Source provider: `registry.terraform.io/BetterStackHQ/better-uptime`.
-- Destination: `betterstack_on_call_calendar`.
+- Destination: `betterstack_on_call_schedule`.
 - Supported state schema versions: `0`.
 - Handling: guided configuration; `betterstack terraform migrate` verifies the current ID and emits `removed` (state-only) plus `import` blocks.
-- Keep the existing calendar id and name: the legacy provider wrote the same /api/v2/on-calls fields. Move team_name to the provider's team_id or alias. Split the legacy on_call_rotation block into a betterstack_on_call_rotation resource addressed by the calendar id. Preserve user ordering, length, rotation_start, rotation_end, timezone and working_hours. Preserve an omitted rotation rather than creating one.
+- Keep the existing schedule id and name: the legacy provider wrote the same /api/v2/on-calls fields. Move team_name to the provider's team_id or alias. Split the legacy on_call_rotation block into a betterstack_on_call_rotation resource addressed by the schedule id. Preserve user ordering, length, rotation_start, rotation_end, timezone and working_hours. Preserve an omitted rotation rather than creating one.
 
-Back up state and stop concurrent applies. Read GET /api/v2/on-calls/:id and GET /api/v2/on-calls/:id/rotation under the same selected team. Review state-only removal of the old calendar address, import betterstack_on_call_calendar at the original calendar id, and, when the legacy state holds a rotation and the read returns one, import betterstack_on_call_rotation at the same calendar id. POST would replace the rotation and regenerate future shifts, and DELETE would remove shifts: neither is a migration operation. Keep the original schedule events and require a no-op plan.
+Back up state and stop concurrent applies. Read GET /api/v2/on-calls/:id and GET /api/v2/on-calls/:id/rotation under the same selected team. Review state-only removal of the old calendar address, import betterstack_on_call_schedule at the original calendar id, and, when the legacy state holds a rotation and the read returns one, import betterstack_on_call_rotation at the same calendar id. POST would replace the rotation and regenerate future shifts, and DELETE would remove shifts: neither is a migration operation. Keep the original schedule events and require a no-op plan.
 
 ### Resource: `betteruptime_outgoing_webhook`
 
@@ -553,7 +553,7 @@ Replace the data source type with data.betterstack_dashboard and keep the same i
 ### Data source: `logtail_dashboard_alert`
 
 - Source provider: `registry.terraform.io/BetterStackHQ/logtail`.
-- Destination: `betterstack_chart_alert`.
+- Destination: `betterstack_alert`.
 - Supported state schema versions: `0`.
 - Handling: guided configuration/state transition.
 
@@ -625,7 +625,7 @@ Rename to data.betterstack_exploration, retaining exact name lookup in the verif
 ### Data source: `logtail_exploration_alert`
 
 - Source provider: `registry.terraform.io/BetterStackHQ/logtail`.
-- Destination: `betterstack_chart_alert`.
+- Destination: `betterstack_alert`.
 - Supported state schema versions: `0`.
 - Handling: guided configuration/state transition.
 
@@ -643,7 +643,7 @@ Rename to data.betterstack_exploration_group and preserve exact name lookup in t
 ### Data source: `logtail_metric`
 
 - Source provider: `registry.terraform.io/BetterStackHQ/logtail`.
-- Destination: `betterstack_metric_expression`.
+- Destination: `betterstack_metric`.
 - Supported state schema versions: `0`.
 - Handling: guided configuration/state transition.
 
@@ -723,7 +723,7 @@ betterstack terraform migrate moves the collector and imports one betterstack_co
 ### Resource: `logtail_dashboard_alert`
 
 - Source provider: `registry.terraform.io/BetterStackHQ/logtail`.
-- Destination: `betterstack_chart_alert`.
+- Destination: `betterstack_alert`.
 - Supported state schema versions: `0`.
 - Handling: guided configuration; `betterstack terraform migrate` verifies the current ID and emits `removed` (state-only) plus `import` blocks.
 - Rename `variable_value` to `variable_values` in configuration and dependent expressions.
@@ -815,7 +815,7 @@ Back up state, verify the global team, and resolve the old dashboard/chart/alert
 ### Resource: `logtail_exploration_alert`
 
 - Source provider: `registry.terraform.io/BetterStackHQ/logtail`.
-- Destination: `betterstack_chart_alert`.
+- Destination: `betterstack_alert`.
 - Supported state schema versions: `0`.
 - Handling: guided configuration; `betterstack terraform migrate` verifies the current ID and emits `removed` (state-only) plus `import` blocks.
 - Rename `variable_value` to `variable_values` in configuration and dependent expressions.
@@ -835,7 +835,7 @@ Back up state and resolve the old exploration/alert composite identity with GET 
 ### Resource: `logtail_metric`
 
 - Source provider: `registry.terraform.io/BetterStackHQ/logtail`.
-- Destination: `betterstack_metric_expression`.
+- Destination: `betterstack_metric`.
 - Supported state schema versions: `0`.
 - Handling: one-to-one moved state, subject to whole-state and ownership validation.
 - Keep every attribute and the existing prefixed id: the legacy provider called the same /api/v2/sources/:source_id/metrics endpoints.

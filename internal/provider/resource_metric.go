@@ -20,19 +20,19 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 )
 
-var _ resource.Resource = &MetricExpressionResource{}
-var _ resource.ResourceWithConfigure = &MetricExpressionResource{}
-var _ resource.ResourceWithImportState = &MetricExpressionResource{}
+var _ resource.Resource = &MetricResource{}
+var _ resource.ResourceWithConfigure = &MetricResource{}
+var _ resource.ResourceWithImportState = &MetricResource{}
 
-type MetricExpressionResource struct {
+type MetricResource struct {
 	client *Client
 }
 
-func NewMetricExpressionResource() resource.Resource {
-	return &MetricExpressionResource{}
+func NewMetricResource() resource.Resource {
+	return &MetricResource{}
 }
 
-type MetricExpressionModel struct {
+type MetricModel struct {
 	Id            types.String `tfsdk:"id"`
 	Aggregations  types.List   `tfsdk:"aggregations"`
 	BuildType     types.String `tfsdk:"build_type"`
@@ -42,11 +42,11 @@ type MetricExpressionModel struct {
 	Type          types.String `tfsdk:"type"`
 }
 
-func (r *MetricExpressionResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_metric_expression"
+func (r *MetricResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_metric"
 }
 
-func (r *MetricExpressionResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *MetricResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "A rule that extracts a metric, or a label, from a source's logs using a SQL expression.",
 		Attributes: map[string]schema.Attribute{
@@ -54,7 +54,7 @@ func (r *MetricExpressionResource) Schema(ctx context.Context, req resource.Sche
 			"aggregations":   schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Aggregations to precompute: `avg`, `count`, `uniq`, `max`, `min`, `sum` or `histogram`. An empty array makes this a label rather than a metric.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
 			"build_type":     schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("new_data"), Description: "Whether this change also applies to logs already stored. `new_data` applies the rule to new logs only. `historical_logs` also rebuilds the stored metrics, which is expensive.", Validators: []validator.String{stringvalidator.OneOf("new_data", "historical_logs")}},
 			"name":           schema.StringAttribute{Required: true, Description: "Metric or label name."},
-			"source_id":      schema.StringAttribute{Required: true, Description: "Id of the parent this source belongs to.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_metric_expression"}}},
+			"source_id":      schema.StringAttribute{Required: true, Description: "Id of the parent this source belongs to.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_metric"}}},
 			"sql_expression": schema.StringAttribute{Required: true, Description: "SQL expression evaluated for each log. Log fields are in the `raw` JSON field, so read them with `JSONExtract(raw, ..., 'Nullable(Type)')`."},
 			"type":           schema.StringAttribute{Optional: true, Computed: true, Description: "Stored ClickHouse type.", Validators: []validator.String{stringvalidator.OneOf("string", "string_low_cardinality", "int64_delta", "int64", "uint64_delta", "uint64", "float64_delta", "datetime64_delta", "boolean")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 		},
@@ -62,7 +62,7 @@ func (r *MetricExpressionResource) Schema(ctx context.Context, req resource.Sche
 	pulumiSchemaDocs(resp.Schema.Attributes)
 }
 
-func (r *MetricExpressionResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *MetricResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -71,7 +71,7 @@ func (r *MetricExpressionResource) Configure(ctx context.Context, req resource.C
 
 // body marshals the writable attributes into the request. The envelope decides whether they travel
 // flat or wrapped; that is the binding's job, not this function's.
-func (r *MetricExpressionResource) body(ctx context.Context, m MetricExpressionModel) map[string]interface{} {
+func (r *MetricResource) body(ctx context.Context, m MetricModel) map[string]interface{} {
 	body := map[string]interface{}{}
 	if !m.Name.IsNull() && !m.Name.IsUnknown() {
 		body["name"] = m.Name.ValueString()
@@ -93,10 +93,10 @@ func (r *MetricExpressionResource) body(ctx context.Context, m MetricExpressionM
 	return body
 }
 
-func (r *MetricExpressionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan MetricExpressionModel
+func (r *MetricResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan MetricModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	var request MetricExpressionModel
+	var request MetricModel
 	resp.Diagnostics.Append(configWithPlannedUnknowns(ctx, req.Config, req.Plan, nullValue(req.Plan.Raw.Type()), &request)...)
 	request.BuildType = plan.BuildType // its schema default travels when unset, so removing the line resets it
 	if resp.Diagnostics.HasError() {
@@ -104,9 +104,9 @@ func (r *MetricExpressionResource) Create(ctx context.Context, req resource.Crea
 	}
 	vars := map[string]string{}
 	vars["source_id"] = plan.SourceId.ValueString()
-	out, err := r.client.Create(ctx, metricExpressionBinding, vars, r.body(ctx, request))
+	out, err := r.client.Create(ctx, metricBinding, vars, r.body(ctx, request))
 	if err != nil {
-		addAPIError(&resp.Diagnostics, "creating metric_expression", err, req.Plan.Raw.Type())
+		addAPIError(&resp.Diagnostics, "creating metric", err, req.Plan.Raw.Type())
 		return
 	}
 	if out == nil {
@@ -114,7 +114,7 @@ func (r *MetricExpressionResource) Create(ctx context.Context, req resource.Crea
 	}
 	id, err := idFromResponse(out, "id")
 	if err != nil {
-		resp.Diagnostics.AddError("creating metric_expression", err.Error())
+		resp.Diagnostics.AddError("creating metric", err.Error())
 		return
 	}
 	out["id"] = id
@@ -123,8 +123,8 @@ func (r *MetricExpressionResource) Create(ctx context.Context, req resource.Crea
 	resp.State.Raw = stateFromPlan(req.Plan.Raw, nullValue(req.Plan.Raw.Type()), out)
 }
 
-func (r *MetricExpressionResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state MetricExpressionModel
+func (r *MetricResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state MetricModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -134,22 +134,22 @@ func (r *MetricExpressionResource) Read(ctx context.Context, req resource.ReadRe
 	// The API describes no member GET, so Read goes through the list (narrowed by state-known
 	// filters) and matches the id client-side.
 	q := url.Values{}
-	out, found, err := r.client.FindInList(ctx, metricExpressionBinding, vars, state.Id.ValueString(), q)
+	out, found, err := r.client.FindInList(ctx, metricBinding, vars, state.Id.ValueString(), q)
 	if err != nil {
-		addAPIError(&resp.Diagnostics, "reading metric_expression", err, req.State.Raw.Type())
+		addAPIError(&resp.Diagnostics, "reading metric", err, req.State.Raw.Type())
 		return
 	}
 	if !found {
 		resp.State.RemoveResource(ctx)
 		return
 	}
-	populateMetricExpression(ctx, &state, out)
+	populateMetric(ctx, &state, out)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-// populateMetricExpression refreshes attributes from the flattened response map; absent keys keep
+// populateMetric refreshes attributes from the flattened response map; absent keys keep
 // their prior value, so an attribute the API never echoes does not thrash.
-func populateMetricExpression(ctx context.Context, m *MetricExpressionModel, attrs map[string]interface{}) {
+func populateMetric(ctx context.Context, m *MetricModel, attrs map[string]interface{}) {
 	if attrs == nil {
 		return
 	}
@@ -174,7 +174,7 @@ func populateMetricExpression(ctx context.Context, m *MetricExpressionModel, att
 	}
 }
 
-func (r *MetricExpressionResource) mergeResponse(ctx context.Context, m MetricExpressionModel, attrs map[string]interface{}) {
+func (r *MetricResource) mergeResponse(ctx context.Context, m MetricModel, attrs map[string]interface{}) {
 	if raw, ok := attrs["build_type"]; ok && !m.BuildType.IsNull() && !m.BuildType.IsUnknown() {
 		if tv, err := m.BuildType.ToTerraformValue(ctx); err == nil {
 			if prior, err := tftypesToAPI(tv); err == nil {
@@ -184,12 +184,12 @@ func (r *MetricExpressionResource) mergeResponse(ctx context.Context, m MetricEx
 	}
 }
 
-func (r *MetricExpressionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan MetricExpressionModel
+func (r *MetricResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan MetricModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	var request MetricExpressionModel
+	var request MetricModel
 	resp.Diagnostics.Append(configWithPlannedUnknowns(ctx, req.Config, req.Plan, req.State.Raw, &request)...)
-	var state MetricExpressionModel
+	var state MetricModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -202,9 +202,9 @@ func (r *MetricExpressionResource) Update(ctx context.Context, req resource.Upda
 	vars := map[string]string{}
 	vars["source_id"] = plan.SourceId.ValueString()
 	vars["id"] = plan.Id.ValueString()
-	out, err := r.client.Update(ctx, metricExpressionBinding, vars, r.body(ctx, request))
+	out, err := r.client.Update(ctx, metricBinding, vars, r.body(ctx, request))
 	if err != nil {
-		addAPIError(&resp.Diagnostics, "updating metric_expression", err, req.Plan.Raw.Type())
+		addAPIError(&resp.Diagnostics, "updating metric", err, req.Plan.Raw.Type())
 		return
 	}
 	if out == nil {
@@ -214,8 +214,8 @@ func (r *MetricExpressionResource) Update(ctx context.Context, req resource.Upda
 	resp.State.Raw = stateFromPlan(req.Plan.Raw, req.State.Raw, out)
 }
 
-func (r *MetricExpressionResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state MetricExpressionModel
+func (r *MetricResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state MetricModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -223,17 +223,17 @@ func (r *MetricExpressionResource) Delete(ctx context.Context, req resource.Dele
 	vars := map[string]string{}
 	vars["source_id"] = state.SourceId.ValueString()
 	vars["id"] = state.Id.ValueString()
-	if err := r.client.Delete(ctx, metricExpressionBinding, vars); err != nil {
-		addAPIError(&resp.Diagnostics, "deleting metric_expression", err, req.State.Raw.Type())
+	if err := r.client.Delete(ctx, metricBinding, vars); err != nil {
+		addAPIError(&resp.Diagnostics, "deleting metric", err, req.State.Raw.Type())
 	}
 }
 
 // The object hangs off a parent collection, so its address is composite:
 // source_id/id.
-func (r *MetricExpressionResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *MetricResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	parts := strings.Split(req.ID, "/")
 	if len(parts) != 2 {
-		resp.Diagnostics.AddError("importing metric_expression",
+		resp.Diagnostics.AddError("importing metric",
 			fmt.Sprintf("expected an id of the form source_id/id, got %q", req.ID))
 		return
 	}
@@ -241,11 +241,11 @@ func (r *MetricExpressionResource) ImportState(ctx context.Context, req resource
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
 }
 
-var _ resource.ResourceWithMoveState = &MetricExpressionResource{}
+var _ resource.ResourceWithMoveState = &MetricResource{}
 
 // MoveState accepts `moved {}` blocks from the superseded provider resource(s):
 // logtail_metric (registry.terraform.io/BetterStackHQ/logtail).
-func (r *MetricExpressionResource) MoveState(ctx context.Context) []resource.StateMover {
+func (r *MetricResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
 		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[],\"ignored_fields\":[],\"instructions\":[\"Keep every attribute and the existing prefixed id: the legacy provider called the same /api/v2/sources/:source_id/metrics endpoints.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_metric\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"description\":\"The list of aggregations to perform on the metric. Optional: omit it (or set it to an empty list) to create a Label (a group-by dimension) instead of a Metric.\",\"name\":\"aggregations\",\"optional\":true,\"type\":\"list(string)\",\"note\":\"always sent; [] means Label rather than Metric\",\"json\":\"aggregations\"},{\"computed\":true,\"description\":\"The ID of this metric.\",\"name\":\"id\",\"type\":\"string\",\"json\":\"data.id\"},{\"description\":\"The name of this metric.\",\"name\":\"name\",\"required\":true,\"type\":\"string\",\"json\":\"name\"},{\"description\":\"The ID of the source this metric belongs to.\",\"force_new\":true,\"name\":\"source_id\",\"required\":true,\"type\":\"string\",\"json\":\"(URL path)\"},{\"description\":\"The SQL expression used to extract the metric value.\",\"name\":\"sql_expression\",\"required\":true,\"type\":\"string\",\"json\":\"sql_expression\"},{\"computed\":true,\"deprecated\":\"This property is deprecated, and safe to omit. Labels are represented by strings and Metric values by floats.\",\"description\":\"The type of the metric.\",\"name\":\"type\",\"optional\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func56\",\"json\":\"type\"}],\"response_projections\":[]}"),
 	}

@@ -626,7 +626,7 @@
       "transforms": [],
       "ignored_fields": [],
       "instructions": [
-        "Rename to data.betterstack_on_call_calendar. Exact name lookup remains available; an omitted or empty name selects the default calendar through the documented default id alias."
+        "Rename to data.betterstack_on_call_schedule. Exact name lookup remains available; an omitted or empty name selects the default schedule through the documented default id alias."
       ],
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
       "source_type": "betteruptime_on_call_calendar",
@@ -637,7 +637,7 @@
       "handling": "guided",
       "identity": "lookup",
       "recipe": "Replace the data-source type and retain the provider team and optional name. Rewrite references to inline on_call_rotation through data.betterstack_on_call_rotation at the same calendar id. Refresh data sources; do not import, recreate, or regenerate schedules.",
-      "target_type": "betterstack_on_call_calendar"
+      "target_type": "betterstack_on_call_schedule"
     },
     {
       "renames": {},
@@ -647,7 +647,7 @@
         "team_name"
       ],
       "instructions": [
-        "Keep the existing calendar id and name: the legacy provider wrote the same /api/v2/on-calls fields. Move team_name to the provider's team_id or alias. Split the legacy on_call_rotation block into a betterstack_on_call_rotation resource addressed by the calendar id. Preserve user ordering, length, rotation_start, rotation_end, timezone and working_hours. Preserve an omitted rotation rather than creating one."
+        "Keep the existing schedule id and name: the legacy provider wrote the same /api/v2/on-calls fields. Move team_name to the provider's team_id or alias. Split the legacy on_call_rotation block into a betterstack_on_call_rotation resource addressed by the schedule id. Preserve user ordering, length, rotation_start, rotation_end, timezone and working_hours. Preserve an omitted rotation rather than creating one."
       ],
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
       "source_type": "betteruptime_on_call_calendar",
@@ -663,8 +663,8 @@
         "param": "id"
       },
       "identity": "preserve",
-      "recipe": "Back up state and stop concurrent applies. Read GET /api/v2/on-calls/:id and GET /api/v2/on-calls/:id/rotation under the same selected team. Review state-only removal of the old calendar address, import betterstack_on_call_calendar at the original calendar id, and, when the legacy state holds a rotation and the read returns one, import betterstack_on_call_rotation at the same calendar id. POST would replace the rotation and regenerate future shifts, and DELETE would remove shifts: neither is a migration operation. Keep the original schedule events and require a no-op plan.",
-      "target_type": "betterstack_on_call_calendar"
+      "recipe": "Back up state and stop concurrent applies. Read GET /api/v2/on-calls/:id and GET /api/v2/on-calls/:id/rotation under the same selected team. Review state-only removal of the old calendar address, import betterstack_on_call_schedule at the original calendar id, and, when the legacy state holds a rotation and the read returns one, import betterstack_on_call_rotation at the same calendar id. POST would replace the rotation and regenerate future shifts, and DELETE would remove shifts: neither is a migration operation. Keep the original schedule events and require a no-op plan.",
+      "target_type": "betterstack_on_call_schedule"
     },
     {
       "renames": {},
@@ -1352,7 +1352,7 @@
         }
       },
       "recipe": "Rename to data.betterstack_chart_alert and retain dashboard_id, the bare chart_id and exact name as intersecting lookup constraints. Duplicate names require the explicit returned bare alert ID. Rename variable_value accesses to variable_values and singleton escalation_target accesses to the polymorphic string/object output. Explicit null recovery means never; zero means immediate. Refresh only; do not import or recreate an alert.",
-      "target_type": "betterstack_chart_alert"
+      "target_type": "betterstack_alert"
     },
     {
       "renames": {
@@ -1395,7 +1395,7 @@
         "id_part": 2
       },
       "recipe": "Back up state, verify the global team, and resolve the old dashboard/chart/alert composite identity with GET /api/v2/alerts?dashboard_id=<dashboard_id>&chart_id=<bare chart_id>; require the returned alert's name, dashboard_id and chart_id to match. Rename to betterstack_chart_alert, keeping the same dashboard_id, bare chart_id and alert id. State-only forget the old address and import the same alert; never create/delete it or discard incident history. Every attribute keeps its wire name: the legacy provider wrote the same /api/v2 alert fields. Translate recovery_period=-1 to an explicitly configured null (never auto-recover), retaining 0 as immediate and every positive duration unchanged. Rename the variable_value blocks to variable_values, preserving selected_label, values and additional_conditions. Convert escalation_target from a singleton block to its wire form: an object with policy_id/policy_name or team_id/team_name, or the literal current_team when no block was set. Never convert unknown/stale routing to current_team: resolve the actual target first. Keep metadata values as strings or lists of strings; keep source modes/platforms/variables, incident cause/per-series, notification flags, anomaly settings, missing-data behavior and paused state. Review full readback and require a subsequent no-op plan.",
-      "target_type": "betterstack_chart_alert"
+      "target_type": "betterstack_alert"
     },
     {
       "renames": {},
@@ -1822,7 +1822,7 @@
         }
       },
       "recipe": "Rename to data.betterstack_chart_alert, keeping exploration_id plus exact name as intersecting lookup constraints; select the authoritative bare alert ID if names duplicate. An exploration's alert carries no chart_id. Rename variable_value accesses to variable_values and singleton target accesses to the polymorphic escalation_target. Null recovery retains never-auto-recover. Refresh only; never import or recreate an alert.",
-      "target_type": "betterstack_chart_alert"
+      "target_type": "betterstack_alert"
     },
     {
       "renames": {
@@ -1864,7 +1864,7 @@
         "id_part": 1
       },
       "recipe": "Back up state and resolve the old exploration/alert composite identity with GET /api/v2/alerts?exploration_id=<existing exploration_id> in the verified global team; require matching exploration_id and name and keep the returned bare alert ID. The managed betterstack_chart_alert creates through a dashboard chart (POST /api/v2/dashboards/:dashboard_id/charts/:chart_id/alerts), which an exploration's chart is not, so an exploration alert stays on the legacy provider or is managed through the API directly; never delete and recreate it, which discards its incident history. Every attribute keeps its wire name. recovery_period=-1 becomes explicit null, 0 remains immediate and positive durations remain unchanged. Rename variable_value to variable_values and convert the singleton escalation_target to its wire object or the literal current_team; resolve unknown routing rather than defaulting it. Verify exact readback.",
-      "target_type": "betterstack_chart_alert"
+      "target_type": "betterstack_alert"
     },
     {
       "renames": {},
@@ -1927,7 +1927,7 @@
         }
       },
       "recipe": "Rename to data.betterstack_metric_expression and preserve both source_id and exact name. Require exactly one rule matching the name on that source; duplicate names fail closed. Keep SQL/type/aggregation outputs, refresh only and never import a data source.",
-      "target_type": "betterstack_metric_expression"
+      "target_type": "betterstack_metric"
     },
     {
       "renames": {},
@@ -1945,7 +1945,7 @@
       ],
       "handling": "move",
       "identity": "preserve",
-      "target_type": "betterstack_metric_expression"
+      "target_type": "betterstack_metric"
     },
     {
       "renames": {},
@@ -2315,7 +2315,7 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_metric_expression"
+      "target_type": "betterstack_metric"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",

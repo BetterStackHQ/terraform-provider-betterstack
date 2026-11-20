@@ -1,18 +1,18 @@
 ---
-page_title: "betterstack_metric_expression Data Source - terraform-provider-betterstack"
+page_title: "betterstack_metric Data Source - terraform-provider-betterstack"
 subcategory: "Telemetry"
 description: |-
   A rule that extracts a metric, or a label, from a source's logs using a SQL expression.
 ---
 
-# betterstack_metric_expression (Data Source)
+# betterstack_metric (Data Source)
 
 A rule that extracts a metric, or a label, from a source's logs using a SQL expression.
 
 ## Example Usage
 
 ```terraform
-data "betterstack_metric_expression" "example" {
+data "betterstack_metric" "example" {
   source_id = "12345"
   name      = "level"
 }

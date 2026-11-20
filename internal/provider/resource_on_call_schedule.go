@@ -15,19 +15,19 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
-var _ resource.Resource = &OnCallCalendarResource{}
-var _ resource.ResourceWithConfigure = &OnCallCalendarResource{}
-var _ resource.ResourceWithImportState = &OnCallCalendarResource{}
+var _ resource.Resource = &OnCallScheduleResource{}
+var _ resource.ResourceWithConfigure = &OnCallScheduleResource{}
+var _ resource.ResourceWithImportState = &OnCallScheduleResource{}
 
-type OnCallCalendarResource struct {
+type OnCallScheduleResource struct {
 	client *Client
 }
 
-func NewOnCallCalendarResource() resource.Resource {
-	return &OnCallCalendarResource{}
+func NewOnCallScheduleResource() resource.Resource {
+	return &OnCallScheduleResource{}
 }
 
-type OnCallCalendarModel struct {
+type OnCallScheduleModel struct {
 	Id                    types.String `tfsdk:"id"`
 	DefaultCalendar       types.Bool   `tfsdk:"default_calendar"`
 	Name                  types.String `tfsdk:"name"`
@@ -38,7 +38,7 @@ type OnCallCalendarModel struct {
 	UseExistingSlackGroup types.Bool   `tfsdk:"use_existing_slack_group"`
 }
 
-type OnCallCalendarSlackGroupsModel struct {
+type OnCallScheduleSlackGroupsModel struct {
 	SlackWorkspaceId   types.String `tfsdk:"slack_workspace_id"`
 	SlackWorkspaceName types.String `tfsdk:"slack_workspace_name"`
 	Status             types.String `tfsdk:"status"`
@@ -46,22 +46,22 @@ type OnCallCalendarSlackGroupsModel struct {
 	UnconnectedUsers   types.List   `tfsdk:"unconnected_users"`
 }
 
-func onCallCalendarSlackGroupsAttrTypes() map[string]attr.Type {
+func onCallScheduleSlackGroupsAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"slack_workspace_id":   types.StringType,
 		"slack_workspace_name": types.StringType,
 		"status":               types.StringType,
 		"error":                types.StringType,
-		"unconnected_users":    types.ListType{ElemType: types.ObjectType{AttrTypes: onCallCalendarSlackGroupsUnconnectedUsersAttrTypes()}},
+		"unconnected_users":    types.ListType{ElemType: types.ObjectType{AttrTypes: onCallScheduleSlackGroupsUnconnectedUsersAttrTypes()}},
 	}
 }
 
-// expandOnCallCalendarSlackGroups marshals a nested OnCallCalendarSlackGroups object into its request map.
-func expandOnCallCalendarSlackGroups(ctx context.Context, o types.Object) map[string]interface{} {
+// expandOnCallScheduleSlackGroups marshals a nested OnCallScheduleSlackGroups object into its request map.
+func expandOnCallScheduleSlackGroups(ctx context.Context, o types.Object) map[string]interface{} {
 	if o.IsNull() || o.IsUnknown() {
 		return nil
 	}
-	var m OnCallCalendarSlackGroupsModel
+	var m OnCallScheduleSlackGroupsModel
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
 	if !m.SlackWorkspaceId.IsNull() && !m.SlackWorkspaceId.IsUnknown() {
@@ -80,7 +80,7 @@ func expandOnCallCalendarSlackGroups(ctx context.Context, o types.Object) map[st
 		items := make([]map[string]interface{}, 0, len(m.UnconnectedUsers.Elements()))
 		for _, el := range m.UnconnectedUsers.Elements() {
 			if obj, ok := el.(types.Object); ok {
-				items = append(items, expandOnCallCalendarSlackGroupsUnconnectedUsers(ctx, obj))
+				items = append(items, expandOnCallScheduleSlackGroupsUnconnectedUsers(ctx, obj))
 			}
 		}
 		out["unconnected_users"] = items
@@ -88,13 +88,13 @@ func expandOnCallCalendarSlackGroups(ctx context.Context, o types.Object) map[st
 	return out
 }
 
-// flattenOnCallCalendarSlackGroups refreshes a typed OnCallCalendarSlackGroups object from a response map,
+// flattenOnCallScheduleSlackGroups refreshes a typed OnCallScheduleSlackGroups object from a response map,
 // merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
-func flattenOnCallCalendarSlackGroups(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
-	var m OnCallCalendarSlackGroupsModel
+func flattenOnCallScheduleSlackGroups(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m OnCallScheduleSlackGroupsModel
 	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
 	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
-	m.UnconnectedUsers = types.ListNull(types.ObjectType{AttrTypes: onCallCalendarSlackGroupsUnconnectedUsersAttrTypes()})
+	m.UnconnectedUsers = types.ListNull(types.ObjectType{AttrTypes: onCallScheduleSlackGroupsUnconnectedUsersAttrTypes()})
 	if !prior.IsNull() && !prior.IsUnknown() {
 		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
 	}
@@ -132,30 +132,30 @@ func flattenOnCallCalendarSlackGroups(ctx context.Context, prior types.Object, r
 		items := make([]types.Object, 0, len(raw))
 		for _, e := range raw {
 			if mp, ok := e.(map[string]interface{}); ok {
-				prior := types.ObjectNull(onCallCalendarSlackGroupsUnconnectedUsersAttrTypes())
+				prior := types.ObjectNull(onCallScheduleSlackGroupsUnconnectedUsersAttrTypes())
 				if identity := stringifyScalar(mp["id"]); identity != "" {
 					if existing, ok := priorByID[identity]; ok {
 						prior = existing
 					}
 				}
-				items = append(items, flattenOnCallCalendarSlackGroupsUnconnectedUsers(ctx, prior, mp))
+				items = append(items, flattenOnCallScheduleSlackGroupsUnconnectedUsers(ctx, prior, mp))
 			}
 		}
-		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: onCallCalendarSlackGroupsUnconnectedUsersAttrTypes()}, items)
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: onCallScheduleSlackGroupsUnconnectedUsersAttrTypes()}, items)
 		m.UnconnectedUsers = lv
 	}
-	obj, _ := types.ObjectValueFrom(ctx, onCallCalendarSlackGroupsAttrTypes(), m)
+	obj, _ := types.ObjectValueFrom(ctx, onCallScheduleSlackGroupsAttrTypes(), m)
 	return obj
 }
 
-type OnCallCalendarSlackGroupsUnconnectedUsersModel struct {
+type OnCallScheduleSlackGroupsUnconnectedUsersModel struct {
 	Id        types.String `tfsdk:"id"`
 	FirstName types.String `tfsdk:"first_name"`
 	LastName  types.String `tfsdk:"last_name"`
 	Email     types.String `tfsdk:"email"`
 }
 
-func onCallCalendarSlackGroupsUnconnectedUsersAttrTypes() map[string]attr.Type {
+func onCallScheduleSlackGroupsUnconnectedUsersAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"id":         types.StringType,
 		"first_name": types.StringType,
@@ -164,12 +164,12 @@ func onCallCalendarSlackGroupsUnconnectedUsersAttrTypes() map[string]attr.Type {
 	}
 }
 
-// expandOnCallCalendarSlackGroupsUnconnectedUsers marshals a nested OnCallCalendarSlackGroupsUnconnectedUsers object into its request map.
-func expandOnCallCalendarSlackGroupsUnconnectedUsers(ctx context.Context, o types.Object) map[string]interface{} {
+// expandOnCallScheduleSlackGroupsUnconnectedUsers marshals a nested OnCallScheduleSlackGroupsUnconnectedUsers object into its request map.
+func expandOnCallScheduleSlackGroupsUnconnectedUsers(ctx context.Context, o types.Object) map[string]interface{} {
 	if o.IsNull() || o.IsUnknown() {
 		return nil
 	}
-	var m OnCallCalendarSlackGroupsUnconnectedUsersModel
+	var m OnCallScheduleSlackGroupsUnconnectedUsersModel
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
 	if !m.Id.IsNull() && !m.Id.IsUnknown() {
@@ -187,10 +187,10 @@ func expandOnCallCalendarSlackGroupsUnconnectedUsers(ctx context.Context, o type
 	return out
 }
 
-// flattenOnCallCalendarSlackGroupsUnconnectedUsers refreshes a typed OnCallCalendarSlackGroupsUnconnectedUsers object from a response map,
+// flattenOnCallScheduleSlackGroupsUnconnectedUsers refreshes a typed OnCallScheduleSlackGroupsUnconnectedUsers object from a response map,
 // merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
-func flattenOnCallCalendarSlackGroupsUnconnectedUsers(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
-	var m OnCallCalendarSlackGroupsUnconnectedUsersModel
+func flattenOnCallScheduleSlackGroupsUnconnectedUsers(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m OnCallScheduleSlackGroupsUnconnectedUsersModel
 	if !prior.IsNull() && !prior.IsUnknown() {
 		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
 	}
@@ -206,11 +206,11 @@ func flattenOnCallCalendarSlackGroupsUnconnectedUsers(ctx context.Context, prior
 	if v, ok := stringFromAPI(raw["email"]); ok {
 		m.Email = types.StringValue(v)
 	}
-	obj, _ := types.ObjectValueFrom(ctx, onCallCalendarSlackGroupsUnconnectedUsersAttrTypes(), m)
+	obj, _ := types.ObjectValueFrom(ctx, onCallScheduleSlackGroupsUnconnectedUsersAttrTypes(), m)
 	return obj
 }
 
-type OnCallCalendarOnCallUsersModel struct {
+type OnCallScheduleOnCallUsersModel struct {
 	Id           types.String `tfsdk:"id"`
 	FirstName    types.String `tfsdk:"first_name"`
 	LastName     types.String `tfsdk:"last_name"`
@@ -218,7 +218,7 @@ type OnCallCalendarOnCallUsersModel struct {
 	PhoneNumbers types.List   `tfsdk:"phone_numbers"`
 }
 
-func onCallCalendarOnCallUsersAttrTypes() map[string]attr.Type {
+func onCallScheduleOnCallUsersAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"id":            types.StringType,
 		"first_name":    types.StringType,
@@ -228,12 +228,12 @@ func onCallCalendarOnCallUsersAttrTypes() map[string]attr.Type {
 	}
 }
 
-// expandOnCallCalendarOnCallUsers marshals a nested OnCallCalendarOnCallUsers object into its request map.
-func expandOnCallCalendarOnCallUsers(ctx context.Context, o types.Object) map[string]interface{} {
+// expandOnCallScheduleOnCallUsers marshals a nested OnCallScheduleOnCallUsers object into its request map.
+func expandOnCallScheduleOnCallUsers(ctx context.Context, o types.Object) map[string]interface{} {
 	if o.IsNull() || o.IsUnknown() {
 		return nil
 	}
-	var m OnCallCalendarOnCallUsersModel
+	var m OnCallScheduleOnCallUsersModel
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
 	if !m.Id.IsNull() && !m.Id.IsUnknown() {
@@ -256,10 +256,10 @@ func expandOnCallCalendarOnCallUsers(ctx context.Context, o types.Object) map[st
 	return out
 }
 
-// flattenOnCallCalendarOnCallUsers refreshes a typed OnCallCalendarOnCallUsers object from a response map,
+// flattenOnCallScheduleOnCallUsers refreshes a typed OnCallScheduleOnCallUsers object from a response map,
 // merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
-func flattenOnCallCalendarOnCallUsers(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
-	var m OnCallCalendarOnCallUsersModel
+func flattenOnCallScheduleOnCallUsers(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m OnCallScheduleOnCallUsersModel
 	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
 	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
 	m.PhoneNumbers = types.ListNull(types.StringType)
@@ -288,32 +288,32 @@ func flattenOnCallCalendarOnCallUsers(ctx context.Context, prior types.Object, r
 		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
 		m.PhoneNumbers = lv
 	}
-	obj, _ := types.ObjectValueFrom(ctx, onCallCalendarOnCallUsersAttrTypes(), m)
+	obj, _ := types.ObjectValueFrom(ctx, onCallScheduleOnCallUsersAttrTypes(), m)
 	return obj
 }
 
-func (r *OnCallCalendarResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_on_call_calendar"
+func (r *OnCallScheduleResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_on_call_schedule"
 }
 
-func (r *OnCallCalendarResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *OnCallScheduleResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "An on-call calendar: a named schedule of who is on call and when.",
+		Description: "An on-call schedule: who is on call and when.",
 		Attributes: map[string]schema.Attribute{
 			"id":                       schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"default_calendar":         schema.BoolAttribute{Computed: true, Description: "Whether this is the team's default on-call calendar."},
-			"name":                     schema.StringAttribute{Required: true, Description: "Calendar name."},
-			"on_call_users":            schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true}, "first_name": schema.StringAttribute{Computed: true}, "last_name": schema.StringAttribute{Computed: true}, "email": schema.StringAttribute{Computed: true}, "phone_numbers": schema.ListAttribute{Computed: true, ElementType: types.StringType}}}, Description: "Users on call now, with their id, name, e-mail and phone numbers. When getting a single calendar, date picks another time. Each user's entry under relationships also has meta with email, on_holiday and holiday_ends_at."},
+			"default_calendar":         schema.BoolAttribute{Computed: true, Description: "Whether this is the team's default on-call schedule."},
+			"name":                     schema.StringAttribute{Required: true, Description: "Schedule name."},
+			"on_call_users":            schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true}, "first_name": schema.StringAttribute{Computed: true}, "last_name": schema.StringAttribute{Computed: true}, "email": schema.StringAttribute{Computed: true}, "phone_numbers": schema.ListAttribute{Computed: true, ElementType: types.StringType}}}, Description: "Users on call now, with their id, name, e-mail and phone numbers. When getting a single schedule, date picks another time. Each user's entry under relationships also has meta with email, on_holiday and holiday_ends_at."},
 			"slack_group_handle":       schema.StringAttribute{Optional: true, Description: "Handle of the Slack user group that follows who is on call, without the @. Null when none."},
-			"slack_groups":             schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"slack_workspace_id": schema.StringAttribute{Computed: true}, "slack_workspace_name": schema.StringAttribute{Computed: true}, "status": schema.StringAttribute{Computed: true}, "error": schema.StringAttribute{Computed: true}, "unconnected_users": schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true}, "first_name": schema.StringAttribute{Computed: true}, "last_name": schema.StringAttribute{Computed: true}, "email": schema.StringAttribute{Computed: true}}}}}}, Description: "How each connected Slack workspace took the handle. status is pending while Better Stack sets the group up, then shows the state of the link, or reinstall_required. error explains a failure. unconnected_users lists the on-call users the group doesn't include, and only appears when getting a single calendar."},
-			"team_name":                schema.StringAttribute{Computed: true, Description: "Name of the team that owns the calendar."},
-			"use_existing_slack_group": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether slack_group_handle names an existing Slack user group to take over instead of one created for the calendar. Sending `null` or leaving it out keeps the current setting.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
+			"slack_groups":             schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"slack_workspace_id": schema.StringAttribute{Computed: true}, "slack_workspace_name": schema.StringAttribute{Computed: true}, "status": schema.StringAttribute{Computed: true}, "error": schema.StringAttribute{Computed: true}, "unconnected_users": schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true}, "first_name": schema.StringAttribute{Computed: true}, "last_name": schema.StringAttribute{Computed: true}, "email": schema.StringAttribute{Computed: true}}}}}}, Description: "How each connected Slack workspace took the handle. status is pending while Better Stack sets the group up, then shows the state of the link, or reinstall_required. error explains a failure. unconnected_users lists the on-call users the group doesn't include, and only appears when getting a single schedule."},
+			"team_name":                schema.StringAttribute{Computed: true, Description: "Name of the team that owns the schedule."},
+			"use_existing_slack_group": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether slack_group_handle names an existing Slack user group to take over instead of one created for the schedule. Sending `null` or leaving it out keeps the current setting.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
 }
 
-func (r *OnCallCalendarResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *OnCallScheduleResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -322,7 +322,7 @@ func (r *OnCallCalendarResource) Configure(ctx context.Context, req resource.Con
 
 // body marshals the writable attributes into the request. The envelope decides whether they travel
 // flat or wrapped; that is the binding's job, not this function's.
-func (r *OnCallCalendarResource) body(ctx context.Context, m OnCallCalendarModel) map[string]interface{} {
+func (r *OnCallScheduleResource) body(ctx context.Context, m OnCallScheduleModel) map[string]interface{} {
 	body := map[string]interface{}{}
 	if !m.Name.IsNull() && !m.Name.IsUnknown() {
 		body["name"] = m.Name.ValueString()
@@ -337,7 +337,7 @@ func (r *OnCallCalendarResource) body(ctx context.Context, m OnCallCalendarModel
 }
 
 // updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
-func (r *OnCallCalendarResource) updateBody(ctx context.Context, config, plan, state OnCallCalendarModel) map[string]interface{} {
+func (r *OnCallScheduleResource) updateBody(ctx context.Context, config, plan, state OnCallScheduleModel) map[string]interface{} {
 	body := r.body(ctx, config)
 	if !state.SlackGroupHandle.IsNull() && !state.SlackGroupHandle.IsUnknown() && plan.SlackGroupHandle.IsNull() {
 		body["slack_group_handle"] = nil
@@ -345,18 +345,18 @@ func (r *OnCallCalendarResource) updateBody(ctx context.Context, config, plan, s
 	return body
 }
 
-func (r *OnCallCalendarResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan OnCallCalendarModel
+func (r *OnCallScheduleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan OnCallScheduleModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	var request OnCallCalendarModel
+	var request OnCallScheduleModel
 	resp.Diagnostics.Append(configWithPlannedUnknowns(ctx, req.Config, req.Plan, nullValue(req.Plan.Raw.Type()), &request)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	vars := map[string]string{}
-	out, err := r.client.Create(ctx, onCallCalendarBinding, vars, r.body(ctx, request))
+	out, err := r.client.Create(ctx, onCallScheduleBinding, vars, r.body(ctx, request))
 	if err != nil {
-		addAPIError(&resp.Diagnostics, "creating on_call_calendar", err, req.Plan.Raw.Type())
+		addAPIError(&resp.Diagnostics, "creating on_call_schedule", err, req.Plan.Raw.Type())
 		return
 	}
 	if out == nil {
@@ -364,7 +364,7 @@ func (r *OnCallCalendarResource) Create(ctx context.Context, req resource.Create
 	}
 	id, err := idFromResponse(out, "id")
 	if err != nil {
-		resp.Diagnostics.AddError("creating on_call_calendar", err.Error())
+		resp.Diagnostics.AddError("creating on_call_schedule", err.Error())
 		return
 	}
 	out["id"] = id
@@ -373,30 +373,30 @@ func (r *OnCallCalendarResource) Create(ctx context.Context, req resource.Create
 	resp.State.Raw = stateFromPlan(req.Plan.Raw, nullValue(req.Plan.Raw.Type()), out)
 }
 
-func (r *OnCallCalendarResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state OnCallCalendarModel
+func (r *OnCallScheduleResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state OnCallScheduleModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
-	out, found, err := r.client.Get(ctx, onCallCalendarBinding, vars)
+	out, found, err := r.client.Get(ctx, onCallScheduleBinding, vars)
 	if err != nil {
-		addAPIError(&resp.Diagnostics, "reading on_call_calendar", err, req.State.Raw.Type())
+		addAPIError(&resp.Diagnostics, "reading on_call_schedule", err, req.State.Raw.Type())
 		return
 	}
 	if !found {
 		resp.State.RemoveResource(ctx)
 		return
 	}
-	populateOnCallCalendar(ctx, &state, out)
+	populateOnCallSchedule(ctx, &state, out)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-// populateOnCallCalendar refreshes attributes from the flattened response map; absent keys keep
+// populateOnCallSchedule refreshes attributes from the flattened response map; absent keys keep
 // their prior value, so an attribute the API never echoes does not thrash.
-func populateOnCallCalendar(ctx context.Context, m *OnCallCalendarModel, attrs map[string]interface{}) {
+func populateOnCallSchedule(ctx context.Context, m *OnCallScheduleModel, attrs map[string]interface{}) {
 	if attrs == nil {
 		return
 	}
@@ -425,11 +425,11 @@ func populateOnCallCalendar(ctx context.Context, m *OnCallCalendarModel, attrs m
 		items := make([]types.Object, 0, len(raw))
 		for _, e := range raw {
 			if mp, ok := e.(map[string]interface{}); ok {
-				prior := types.ObjectNull(onCallCalendarSlackGroupsAttrTypes())
-				items = append(items, flattenOnCallCalendarSlackGroups(ctx, prior, mp))
+				prior := types.ObjectNull(onCallScheduleSlackGroupsAttrTypes())
+				items = append(items, flattenOnCallScheduleSlackGroups(ctx, prior, mp))
 			}
 		}
-		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: onCallCalendarSlackGroupsAttrTypes()}, items)
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: onCallScheduleSlackGroupsAttrTypes()}, items)
 		m.SlackGroups = lv
 	}
 	if raw, ok := attrs["on_call_users"].([]interface{}); ok {
@@ -448,35 +448,35 @@ func populateOnCallCalendar(ctx context.Context, m *OnCallCalendarModel, attrs m
 		items := make([]types.Object, 0, len(raw))
 		for _, e := range raw {
 			if mp, ok := e.(map[string]interface{}); ok {
-				prior := types.ObjectNull(onCallCalendarOnCallUsersAttrTypes())
+				prior := types.ObjectNull(onCallScheduleOnCallUsersAttrTypes())
 				if identity := stringifyScalar(mp["id"]); identity != "" {
 					if existing, ok := priorByID[identity]; ok {
 						prior = existing
 					}
 				}
-				items = append(items, flattenOnCallCalendarOnCallUsers(ctx, prior, mp))
+				items = append(items, flattenOnCallScheduleOnCallUsers(ctx, prior, mp))
 			}
 		}
-		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: onCallCalendarOnCallUsersAttrTypes()}, items)
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: onCallScheduleOnCallUsersAttrTypes()}, items)
 		m.OnCallUsers = lv
 	}
 }
 
-func (r *OnCallCalendarResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan OnCallCalendarModel
+func (r *OnCallScheduleResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan OnCallScheduleModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	var request OnCallCalendarModel
+	var request OnCallScheduleModel
 	resp.Diagnostics.Append(configWithPlannedUnknowns(ctx, req.Config, req.Plan, req.State.Raw, &request)...)
-	var state OnCallCalendarModel
+	var state OnCallScheduleModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
-	out, err := r.client.Update(ctx, onCallCalendarBinding, vars, r.updateBody(ctx, request, plan, state))
+	out, err := r.client.Update(ctx, onCallScheduleBinding, vars, r.updateBody(ctx, request, plan, state))
 	if err != nil {
-		addAPIError(&resp.Diagnostics, "updating on_call_calendar", err, req.Plan.Raw.Type())
+		addAPIError(&resp.Diagnostics, "updating on_call_schedule", err, req.Plan.Raw.Type())
 		return
 	}
 	if out == nil {
@@ -485,19 +485,19 @@ func (r *OnCallCalendarResource) Update(ctx context.Context, req resource.Update
 	resp.State.Raw = stateFromPlan(req.Plan.Raw, req.State.Raw, out)
 }
 
-func (r *OnCallCalendarResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state OnCallCalendarModel
+func (r *OnCallScheduleResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state OnCallScheduleModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
-	if err := r.client.Delete(ctx, onCallCalendarBinding, vars); err != nil {
-		addAPIError(&resp.Diagnostics, "deleting on_call_calendar", err, req.State.Raw.Type())
+	if err := r.client.Delete(ctx, onCallScheduleBinding, vars); err != nil {
+		addAPIError(&resp.Diagnostics, "deleting on_call_schedule", err, req.State.Raw.Type())
 	}
 }
 
-func (r *OnCallCalendarResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *OnCallScheduleResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

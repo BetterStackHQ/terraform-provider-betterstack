@@ -102,7 +102,7 @@ func (r *OnCallRotationResource) Metadata(ctx context.Context, req resource.Meta
 
 func (r *OnCallRotationResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "An on-call rotation: the recurring shift configuration for an on-call calendar.",
+		Description: "An on-call rotation: the recurring shift configuration for an on-call schedule.",
 		Attributes: map[string]schema.Attribute{
 			// The declared lifecycle addresses an existing object, so identity is configured.
 			"id":                 schema.StringAttribute{Required: true, Description: "Id of the object this resource belongs to; it is also this resource's id.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_on_call_rotation"}}},
@@ -112,7 +112,7 @@ func (r *OnCallRotationResource) Schema(ctx context.Context, req resource.Schema
 			"rotation_length":    schema.Int64Attribute{Required: true, Description: "Number of intervals each shift lasts."},
 			"start_rotations_at": schema.StringAttribute{Required: true, Description: "When the rotation schedule starts."},
 			"timezone":           schema.StringAttribute{Optional: true, Description: "Time zone for working hours and for handovers across daylight saving changes. If you leave it out, the previous rotation's time zone is kept. A new rotation with working hours defaults to UTC."},
-			"users":              schema.ListAttribute{Required: true, ElementType: types.StringType, Description: "E-mail addresses of users in the rotation, in shift order. Each must be a responder in the calendar's team."},
+			"users":              schema.ListAttribute{Required: true, ElementType: types.StringType, Description: "E-mail addresses of users in the rotation, in shift order. Each must be a responder in the schedule's team."},
 			"working_hours":      schema.SetNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"day": schema.StringAttribute{Optional: true, Computed: true, Validators: []validator.String{stringvalidator.OneOf("sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday")}}, "start_time": schema.StringAttribute{Optional: true, Computed: true}, "end_time": schema.StringAttribute{Optional: true, Computed: true}}}, Description: "Working hours, as up to 50 windows in local time. They are returned as `HH:MM`, sorted by day. A window that ends at or before its start runs overnight, and one with the same start and end covers the whole day. Leave it out or send `[]` for none.", PlanModifiers: []planmodifier.Set{setplanmodifier.UseStateForUnknown()}},
 		},
 	}

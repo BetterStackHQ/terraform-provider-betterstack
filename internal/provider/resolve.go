@@ -608,13 +608,21 @@ func stringifyScalar(v interface{}) string {
 // "2026-11-23T00:00:00.000Z"), the prior value stays, so a refresh never plans a change, or a
 // replacement, the user didn't make. It is the semantic equality HashiCorp's timetypes.RFC3339
 // gives, kept to the refresh so every datetime stays a plain string on every surface.
+//
+// Otherwise the API's instant is stored in its shortest RFC 3339 form, keeping the API's offset:
+// "2026-11-23T00:00:00.000Z" becomes "2026-11-23T00:00:00Z". An import has no prior value, and
+// Terraform requires a configured attribute to plan exactly as written, so this is the form that
+// lets a configuration written the usual way plan clean after an import.
 func datetimeValue(prior types.String, v string) types.String {
+	after, errAfter := time.Parse(time.RFC3339Nano, v)
 	if !prior.IsNull() && !prior.IsUnknown() && prior.ValueString() != v {
 		before, errBefore := time.Parse(time.RFC3339Nano, prior.ValueString())
-		after, errAfter := time.Parse(time.RFC3339Nano, v)
 		if errBefore == nil && errAfter == nil && before.Equal(after) {
 			return prior
 		}
+	}
+	if errAfter == nil {
+		return types.StringValue(after.Format(time.RFC3339Nano))
 	}
 	return types.StringValue(v)
 }

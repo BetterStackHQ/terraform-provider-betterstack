@@ -1,18 +1,18 @@
 ---
-page_title: "betterstack_chart_alert Resource - terraform-provider-betterstack"
+page_title: "betterstack_alert Resource - terraform-provider-betterstack"
 subcategory: "Telemetry"
 description: |-
   An alert on a dashboard chart or a saved exploration that opens an incident when its condition is met.
 ---
 
-# betterstack_chart_alert (Resource)
+# betterstack_alert (Resource)
 
 An alert on a dashboard chart or a saved exploration that opens an incident when its condition is met.
 
 ## Example Usage
 
 ```terraform
-resource "betterstack_chart_alert" "example" {
+resource "betterstack_alert" "example" {
   dashboard_id = 1
   chart_id     = 1
   name         = "High Error Rate"
@@ -71,7 +71,7 @@ Optional attributes are also computed: left unset, they take the server-side def
 
 ### Read-Only
 
-- `id` (String) The id of this chart_alert.
+- `id` (String) The id of this alert.
 - `exploration_id` (Number) Exploration this alert watches. `null` for an alert on a dashboard chart.
 - `paused_reason` (String) Why the alert is paused: `manual`, `too_complex`, `query_errors`, `sources_not_eligible`, `anomaly_training_no_data` or `chart_not_alertable`. `null` when the alert isn't paused.
 - `created_at` (String (RFC 3339)) When the alert was created.
@@ -115,5 +115,5 @@ Optional attributes are also computed: left unset, they take the server-side def
 ## Import
 
 ```shell
-terraform import betterstack_chart_alert.example <dashboard_id>/<chart_id>/12345
+terraform import betterstack_alert.example <dashboard_id>/<chart_id>/12345
 ```

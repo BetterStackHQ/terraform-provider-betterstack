@@ -1,11 +1,11 @@
 ---
-page_title: "betterstack_metric_expression Resource - terraform-provider-betterstack"
+page_title: "betterstack_metric Resource - terraform-provider-betterstack"
 subcategory: "Telemetry"
 description: |-
   A rule that extracts a metric, or a label, from a source's logs using a SQL expression.
 ---
 
-# betterstack_metric_expression (Resource)
+# betterstack_metric (Resource)
 
 A rule that extracts a metric, or a label, from a source's logs using a SQL expression.
 
@@ -14,7 +14,7 @@ A rule that extracts a metric, or a label, from a source's logs using a SQL expr
 ## Example Usage
 
 ```terraform
-resource "betterstack_metric_expression" "example" {
+resource "betterstack_metric" "example" {
   source_id      = "12345"
   name           = "level"
   sql_expression = "JSONExtract(raw, 'level', 'Nullable(String)')"
@@ -44,7 +44,7 @@ Optional attributes are also computed: left unset, they take the server-side def
 
 ### Read-Only
 
-- `id` (String) The id of this metric_expression.
+- `id` (String) The id of this metric.
 
 ## Endpoints
 
@@ -58,5 +58,5 @@ Optional attributes are also computed: left unset, they take the server-side def
 ## Import
 
 ```shell
-terraform import betterstack_metric_expression.example <source_id>/12345
+terraform import betterstack_metric.example <source_id>/12345
 ```

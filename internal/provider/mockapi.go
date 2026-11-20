@@ -209,6 +209,12 @@ func (m *MockAPI) assignItemIDs(object map[string]interface{}, path []string) {
 // Seed places an empty record under an existing id, for resources the provider adopts rather
 // than creates. vars are the parent path variables scoping the collection.
 func (m *MockAPI) Seed(resource string, vars map[string]string, id string) error {
+	return m.SeedRecord(resource, vars, id, map[string]interface{}{})
+}
+
+// SeedRecord places a record with these attributes under an existing id, for data sources that
+// read what no resource creates.
+func (m *MockAPI) SeedRecord(resource string, vars map[string]string, id string, attrs map[string]interface{}) error {
 	b := bindingFor(resource)
 	if b == nil {
 		return fmt.Errorf("mock API: no binding describes %q", resource)
@@ -219,7 +225,7 @@ func (m *MockAPI) Seed(resource string, vars map[string]string, id string) error
 	if m.store[key] == nil {
 		m.store[key] = map[string]map[string]interface{}{}
 	}
-	m.store[key][id] = map[string]interface{}{}
+	m.store[key][id] = attrs
 	m.order[key] = append(m.order[key], id)
 	return nil
 }
@@ -372,16 +378,26 @@ func (m *MockAPI) handle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// route picks the endpoint a request is for. When several templates match, the one with the fewest
+// variables wins (the first of equals): GET /api/v3/dashboards/templates lists templates, not the
+// dashboard "templates", as in the apps' routers.
 func (m *MockAPI) route(r *http.Request) (mockRoute, map[string]string, bool) {
+	var best mockRoute
+	var bestVars map[string]string
+	found := false
 	for _, route := range mockRoutes() {
 		if route.ep.Method != r.Method {
 			continue
 		}
-		if vars, ok := matchPath(route.ep.Path, r.URL.Path); ok {
-			return route, vars, true
+		vars, ok := matchPath(route.ep.Path, r.URL.Path)
+		if !ok {
+			continue
+		}
+		if !found || len(vars) < len(bestVars) {
+			best, bestVars, found = route, vars, true
 		}
 	}
-	return mockRoute{}, nil, false
+	return best, bestVars, found
 }
 
 func (route mockRoute) recordVar() string {
@@ -494,6 +510,11 @@ func (m *MockAPI) record(b *apiBinding, id string, attrs map[string]interface{})
 
 func (m *MockAPI) writeItem(w http.ResponseWriter, b *apiBinding, ep *endpoint, id string, attrs map[string]interface{}) {
 	w.Header().Set("Content-Type", "application/json")
+	// A keyed collection (the IP list) is the bare map the API returns: no id, no envelope.
+	if b.MapList != nil {
+		_ = json.NewEncoder(w).Encode(attrs)
+		return
+	}
 	record := m.record(b, id, m.redacted(b, attrs))
 	if ep.ListResponse {
 		_ = json.NewEncoder(w).Encode(wrapPath(b.Envelope.ListPath, []interface{}{record}))
