@@ -43,11 +43,11 @@ Optional attributes are also computed: left unset, they take the server-side def
 - `code_mapping_stack_root` (String) Stack-trace root path used to map an exception back to a source file. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `code_mapping_source_root` (String) Repository source root used to map an exception back to a source file. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `custom_bucket` (Attributes, see [nested schema](#nestedatt--custom_bucket)) Custom S3-compatible archival bucket, set on create when your plan includes custom buckets. secret_access_key is write-only and never returned. An update may send only access_key_id and secret_access_key together, which rotates the key pair after probing it against the bucket. Can only be set when creating the resource; changing it afterwards replaces the resource.
-- `vrl_transformation_exceptions` (String) Server-side VRL program applied to exception events. Reads back the seeded platform default when no program has been set, never null. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `vrl_transformation_replays` (String) Server-side VRL program applied to session-replay events. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `vrl_transformation_web_events` (String) Server-side VRL program applied to web-vitals/web events. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `vrl_transformation_logs` (String) Server-side VRL program applied to log events collected alongside errors. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `vrl_transformation_spans` (String) Server-side VRL program applied to trace spans collected alongside errors. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `vrl_transformation_exceptions` (String) Server-side VRL program applied to exception events. Reads back the seeded platform default when no program has been set, never null.
+- `vrl_transformation_replays` (String) Server-side VRL program applied to session-replay events.
+- `vrl_transformation_web_events` (String) Server-side VRL program applied to web-vitals/web events.
+- `vrl_transformation_logs` (String) Server-side VRL program applied to log events collected alongside errors.
+- `vrl_transformation_spans` (String) Server-side VRL program applied to trace spans collected alongside errors.
 - `deletion_protection` (Boolean) While true (the default), destroying or replacing this application fails, in a plan or in a pulumi destroy. Kept in Terraform or Pulumi state only: the API never sees it. Set it to false and apply that before deleting or replacing it on purpose.
 
 ### Read-Only

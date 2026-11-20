@@ -165,11 +165,11 @@ func (r *ApplicationResource) Schema(ctx context.Context, req resource.SchemaReq
 			"team_name":                     schema.StringAttribute{Computed: true, Description: "Name of the team that owns the application."},
 			"token":                         schema.StringAttribute{Computed: true, Description: "Ingestion token (the SDK's DSN).", Sensitive: true},
 			"updated_at":                    schema.StringAttribute{Computed: true, Description: "When the application was last updated."},
-			"vrl_transformation_exceptions": schema.StringAttribute{Optional: true, Description: "Server-side VRL program applied to exception events. Reads back the seeded platform default when no program has been set, never null."},
-			"vrl_transformation_logs":       schema.StringAttribute{Optional: true, Description: "Server-side VRL program applied to log events collected alongside errors."},
-			"vrl_transformation_replays":    schema.StringAttribute{Optional: true, Description: "Server-side VRL program applied to session-replay events."},
-			"vrl_transformation_spans":      schema.StringAttribute{Optional: true, Description: "Server-side VRL program applied to trace spans collected alongside errors."},
-			"vrl_transformation_web_events": schema.StringAttribute{Optional: true, Description: "Server-side VRL program applied to web-vitals/web events."},
+			"vrl_transformation_exceptions": schema.StringAttribute{Optional: true, Computed: true, Description: "Server-side VRL program applied to exception events. Reads back the seeded platform default when no program has been set, never null.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"vrl_transformation_logs":       schema.StringAttribute{Optional: true, Computed: true, Description: "Server-side VRL program applied to log events collected alongside errors.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"vrl_transformation_replays":    schema.StringAttribute{Optional: true, Computed: true, Description: "Server-side VRL program applied to session-replay events.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"vrl_transformation_spans":      schema.StringAttribute{Optional: true, Computed: true, Description: "Server-side VRL program applied to trace spans collected alongside errors.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"vrl_transformation_web_events": schema.StringAttribute{Optional: true, Computed: true, Description: "Server-side VRL program applied to web-vitals/web events.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -302,21 +302,6 @@ func (r *ApplicationResource) updateBody(ctx context.Context, config, plan, stat
 	}
 	if !state.CodeMappingSourceRoot.IsNull() && !state.CodeMappingSourceRoot.IsUnknown() && plan.CodeMappingSourceRoot.IsNull() {
 		body["code_mapping_source_root"] = nil
-	}
-	if !state.VrlTransformationExceptions.IsNull() && !state.VrlTransformationExceptions.IsUnknown() && plan.VrlTransformationExceptions.IsNull() {
-		body["vrl_transformation_exceptions"] = nil
-	}
-	if !state.VrlTransformationReplays.IsNull() && !state.VrlTransformationReplays.IsUnknown() && plan.VrlTransformationReplays.IsNull() {
-		body["vrl_transformation_replays"] = nil
-	}
-	if !state.VrlTransformationWebEvents.IsNull() && !state.VrlTransformationWebEvents.IsUnknown() && plan.VrlTransformationWebEvents.IsNull() {
-		body["vrl_transformation_web_events"] = nil
-	}
-	if !state.VrlTransformationLogs.IsNull() && !state.VrlTransformationLogs.IsUnknown() && plan.VrlTransformationLogs.IsNull() {
-		body["vrl_transformation_logs"] = nil
-	}
-	if !state.VrlTransformationSpans.IsNull() && !state.VrlTransformationSpans.IsUnknown() && plan.VrlTransformationSpans.IsNull() {
-		body["vrl_transformation_spans"] = nil
 	}
 	return body
 }
@@ -461,50 +446,20 @@ func populateApplication(ctx context.Context, m *ApplicationModel, attrs map[str
 			}
 		}
 	}
-	if rawValue, exists := attrs["vrl_transformation_exceptions"]; exists {
-		if rawValue == nil {
-			m.VrlTransformationExceptions = types.StringNull()
-		} else {
-			if v, ok := stringFromAPI(attrs["vrl_transformation_exceptions"]); ok {
-				m.VrlTransformationExceptions = types.StringValue(v)
-			}
-		}
+	if v, ok := stringFromAPI(attrs["vrl_transformation_exceptions"]); ok {
+		m.VrlTransformationExceptions = types.StringValue(v)
 	}
-	if rawValue, exists := attrs["vrl_transformation_replays"]; exists {
-		if rawValue == nil {
-			m.VrlTransformationReplays = types.StringNull()
-		} else {
-			if v, ok := stringFromAPI(attrs["vrl_transformation_replays"]); ok {
-				m.VrlTransformationReplays = types.StringValue(v)
-			}
-		}
+	if v, ok := stringFromAPI(attrs["vrl_transformation_replays"]); ok {
+		m.VrlTransformationReplays = types.StringValue(v)
 	}
-	if rawValue, exists := attrs["vrl_transformation_web_events"]; exists {
-		if rawValue == nil {
-			m.VrlTransformationWebEvents = types.StringNull()
-		} else {
-			if v, ok := stringFromAPI(attrs["vrl_transformation_web_events"]); ok {
-				m.VrlTransformationWebEvents = types.StringValue(v)
-			}
-		}
+	if v, ok := stringFromAPI(attrs["vrl_transformation_web_events"]); ok {
+		m.VrlTransformationWebEvents = types.StringValue(v)
 	}
-	if rawValue, exists := attrs["vrl_transformation_logs"]; exists {
-		if rawValue == nil {
-			m.VrlTransformationLogs = types.StringNull()
-		} else {
-			if v, ok := stringFromAPI(attrs["vrl_transformation_logs"]); ok {
-				m.VrlTransformationLogs = types.StringValue(v)
-			}
-		}
+	if v, ok := stringFromAPI(attrs["vrl_transformation_logs"]); ok {
+		m.VrlTransformationLogs = types.StringValue(v)
 	}
-	if rawValue, exists := attrs["vrl_transformation_spans"]; exists {
-		if rawValue == nil {
-			m.VrlTransformationSpans = types.StringNull()
-		} else {
-			if v, ok := stringFromAPI(attrs["vrl_transformation_spans"]); ok {
-				m.VrlTransformationSpans = types.StringValue(v)
-			}
-		}
+	if v, ok := stringFromAPI(attrs["vrl_transformation_spans"]); ok {
+		m.VrlTransformationSpans = types.StringValue(v)
 	}
 	if v, ok := stringFromAPI(attrs["token"]); ok {
 		m.Token = types.StringValue(v)
