@@ -1,0 +1,108 @@
+# Inert inside unified-api. Runs only in BetterStackHQ/terraform-provider-betterstack, with its
+# terraform-registry environment holding GPG_PRIVATE_KEY and PASSPHRASE.
+# dry_run builds, signs and verifies a snapshot with the release key and publishes nothing.
+# A release additionally needs vars.PROVIDER_RELEASE_ENABLED and an existing vX.Y.Z tag; the GitHub
+# release it creates is what the Terraform Registry ingests.
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing provider release tag (vX.Y.Z); ignored by a dry run
+        required: false
+        type: string
+      dry_run:
+        description: Build, sign and verify a snapshot with the release key; publish nothing
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  dry-run:
+    if: github.repository == 'BetterStackHQ/terraform-provider-betterstack' && inputs.dry_run
+    environment: terraform-registry
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      GOTOOLCHAIN: go1.25.9
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: "1.25.9"
+          cache: true
+      - name: Install GoReleaser
+        uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552 # v6.3.0
+        with:
+          version: v2.8.2
+          install-only: true
+      - name: Import release signing key
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@e89d40939c28e39f97cf32126055eeae86ba74ec # v6.3.0
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.PASSPHRASE }}
+      - name: Build, sign and verify a snapshot with the release key
+        env:
+          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+        run: ruby scripts/package.rb --signed-snapshot
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: signed-snapshot
+          path: dist/terraform-provider-betterstack_*
+          retention-days: 7
+
+  release:
+    if: github.repository == 'BetterStackHQ/terraform-provider-betterstack' && !inputs.dry_run && vars.PROVIDER_RELEASE_ENABLED == 'true'
+    environment: terraform-registry
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GOTOOLCHAIN: go1.25.9
+    steps:
+      - name: Validate explicit release tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || exit 1
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: "1.25.9"
+          cache: true
+      - name: Verify exported source and buildable provider
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
+          ruby scripts/package.rb --verify
+          go test -mod=readonly ./...
+          git diff --exit-code
+      - name: Import release signing key
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@e89d40939c28e39f97cf32126055eeae86ba74ec # v6.3.0
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.PASSPHRASE }}
+      - name: Publish approved provider release
+        uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552 # v6.3.0
+        with:
+          version: v2.8.2
+          args: release --clean
+        env:
+          GORELEASER_CURRENT_TAG: ${{ inputs.tag }}
+          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,2433 @@
+{
+  "minimum_provider_version": "0.1.0",
+  "mappings": [
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [
+        "Rename to data.betterstack_amazon_sns_integration with the same exact name and selected provider team. Update single extraction outputs from list indexing to objects."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_amazon_sns_integration",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "recipe": "Replace the data-source type and refresh. Exact lookup must find one SNS receiver, not an IncomingWebhook; missing or duplicate names fail. Retain topic_arn, subscription_state and URL output references. Do not import data-source state.",
+      "target_type": "betterstack_amazon_sns_integration"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "singleton",
+          "path": "cause_field"
+        },
+        {
+          "op": "singleton",
+          "path": "title_field"
+        },
+        {
+          "op": "singleton",
+          "path": "started_alert_id_field"
+        },
+        {
+          "op": "singleton",
+          "path": "acknowledged_alert_id_field"
+        },
+        {
+          "op": "singleton",
+          "path": "resolved_alert_id_field"
+        }
+      ],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Keep the AmazonSnsIntegration id, receiving URL, topic ARN and subscription state; do not recreate the receiver or restart AWS confirmation. Keep every attribute: the legacy provider wrote the same /api/v2/amazon-sns fields. Convert the five single extraction blocks to objects while keeping rules/custom fields as arrays. Preserve the SNS Subject/title and Message/body extraction defaults and every configured override explicitly. Move team_name to the provider's team_id (or a provider alias for that team). topic_arn and subscription_state remain computed, never writable."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_amazon_sns_integration",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_amazon_sns_integration"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "sentinel_null",
+          "path": "policy_id",
+          "value": 0
+        }
+      ],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Rename to betterstack_aws_cloudwatch_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same /api/v2/aws-cloudwatch-integrations fields. A policy_id of 0 becomes null. Move team_name to the provider's team_id (or a provider alias for that team)."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_aws_cloudwatch_integration",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_aws_cloudwatch_integration"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "sentinel_null",
+          "path": "policy_id",
+          "value": 0
+        }
+      ],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Rename to betterstack_azure_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same /api/v2/azure-integrations fields. A policy_id of 0 becomes null. Move team_name to the provider's team_id (or a provider alias for that team)."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_azure_integration",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_azure_integration"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "rename",
+          "path": "relation_id",
+          "to": "catalog_relation_id"
+        }
+      ],
+      "ignored_fields": [],
+      "instructions": [
+        "Rename relation_id to catalog_relation_id, retaining the existing parent, name, primary flag, position, and column values. Import uses catalog_relation_id/id. Never delete/recreate the column, which deletes its values."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_catalog_attribute",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_catalog_attribute"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "rename",
+          "path": "relation_id",
+          "to": "catalog_relation_id"
+        },
+        {
+          "op": "group_by",
+          "path": "attribute",
+          "to": "attributes",
+          "key": "attribute",
+          "into": "values"
+        }
+      ],
+      "ignored_fields": [],
+      "instructions": [
+        "Keep the relation and record ids; relation_id becomes catalog_relation_id. Group legacy attribute blocks by their attribute_id or attribute_name into attributes = [{attribute = {id/name = ...}, values = [...]}], retaining every value and its type/reference. Item types keep their wire names (Policy, Schedule, Endpoint). A Team reference's item_id now reads back as the t-prefixed public id: write it that way."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_catalog_record",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "auto_import": true,
+      "identity": "preserve",
+      "recipe": "Read GET /api/v3/catalog/relations/RELATION/records/ID with the legacy relation_id, retaining every per-column value. Back up state, stop concurrent applies, remove only the old address, then import betterstack_catalog_record as RELATION/ID. Review translated whole-set attributes carefully: entries PATCH does not name are cleared. Never call a batch verb or delete/recreate rows or columns; require a no-op plan.",
+      "target_type": "betterstack_catalog_record"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [
+        "Retain the relation id, name, description and match_mode. The relation and all of its columns and records remain organization-owned; import uses the existing relation id."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_catalog_relation",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "scope": {
+        "kind": "organization",
+        "field": "organization_id"
+      },
+      "target_type": "betterstack_catalog_relation"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "sentinel_null",
+          "path": "policy_id",
+          "value": 0
+        }
+      ],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Rename to betterstack_datadog_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same /api/v2/datadog-integrations fields. A policy_id of 0 becomes null. Move team_name to the provider's team_id (or a provider alias for that team)."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_datadog_integration",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_datadog_integration"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "sentinel_null",
+          "path": "policy_id",
+          "value": 0
+        }
+      ],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Rename to betterstack_elastic_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same /api/v2/elastic-integrations fields. A policy_id of 0 becomes null. Move team_name to the provider's team_id (or a provider alias for that team)."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_elastic_integration",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_elastic_integration"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "singleton",
+          "path": "cause_field"
+        },
+        {
+          "op": "singleton",
+          "path": "acknowledged_alert_id_field"
+        },
+        {
+          "op": "singleton",
+          "path": "resolved_alert_id_field"
+        },
+        {
+          "op": "singleton",
+          "path": "started_alert_id_field"
+        },
+        {
+          "op": "singleton",
+          "path": "title_field"
+        }
+      ],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Keep every attribute: the legacy provider wrote the same /api/v2/email-integrations fields. Convert the five single extraction blocks to objects; keep custom fields and rules as ordered arrays. Legacy target_field belongs to the shared webhook schema but has no meaning for an e-mail's from_email/subject/body targets; remove only those placeholders, not match content. Move team_name to the provider's team_id (or a provider alias for that team)."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_email_integration",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "auto_import": true,
+      "identity": "preserve",
+      "recipe": "Back up state and stop concurrent applies. Read GET /api/v2/email-integrations/:id under the same team and compare every extraction/rule/channel setting to the translated HCL, preserving effective defaults. Review a state-only old-address removal plus import of betterstack_email_integration with the same id; never call DELETE or POST. Require a no-op plan and unchanged receiving email_address afterward.",
+      "target_type": "betterstack_email_integration"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "sentinel_null",
+          "path": "policy_id",
+          "value": 0
+        }
+      ],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Rename to betterstack_google_monitoring_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same /api/v2/google-monitoring-integrations fields. A policy_id of 0 becomes null. Move team_name to the provider's team_id (or a provider alias for that team)."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_google_monitoring_integration",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_google_monitoring_integration"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "sentinel_null",
+          "path": "policy_id",
+          "value": 0
+        }
+      ],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Rename to betterstack_grafana_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same /api/v2/grafana-integrations fields. A policy_id of 0 becomes null. Move team_name to the provider's team_id (or a provider alias for that team)."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_grafana_integration",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_grafana_integration"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Keep every attribute: the legacy provider wrote the same /api/v2/heartbeats fields. Move team_name to the provider's team_id (or a provider alias for that team). Keep the existing heartbeat id, so the ping URL stays the same."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_heartbeat",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_heartbeat"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Keep every attribute: the legacy provider wrote the same /api/v2/heartbeat-groups fields. Move team_name to the provider's team_id (or a provider alias for that team). Import uses the existing group id."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_heartbeat_group",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_heartbeat_group"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [
+        "Rename to data.betterstack_incoming_webhook_integration and preserve the exact name lookup. Single extraction-field outputs are objects rather than one-element lists; update output indexing."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_incoming_webhook",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "recipe": "Replace the data-source type, keep name and the selected provider team, and refresh. Missing or duplicate names fail. Data-source state is not imported or moved.",
+      "target_type": "betterstack_incoming_webhook_integration"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "singleton",
+          "path": "cause_field"
+        },
+        {
+          "op": "singleton",
+          "path": "title_field"
+        },
+        {
+          "op": "singleton",
+          "path": "started_alert_id_field"
+        },
+        {
+          "op": "singleton",
+          "path": "acknowledged_alert_id_field"
+        },
+        {
+          "op": "singleton",
+          "path": "resolved_alert_id_field"
+        }
+      ],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Keep the existing receiver id and URL; do not recreate its secret receiving token. Keep every attribute: the legacy provider wrote the same /api/v2/incoming-webhooks fields. Convert the five single extraction blocks to nullable objects, preserving extraction target, match type and content; keep custom fields and event rules as ordered arrays. Move team_name to the provider's team_id (or a provider alias for that team)."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_incoming_webhook",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_incoming_webhook_integration"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [
+        "Rename the data source to betterstack_ip_list. Keep filter_clusters and references to ips/all_clusters; no import or state move is needed. The feed is public and requires no API token."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_ip_list",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "recipe": "Rename the data source and retain its cluster filters; refresh reads the live public IP feed and sorts addresses IPv4 before IPv6.",
+      "target_type": "betterstack_ip_list"
+    },
+    {
+      "renames": {
+        "jira_fields_json": "jira_fields"
+      },
+      "constants": {},
+      "transforms": [
+        {
+          "op": "json_decode",
+          "path": "jira_fields"
+        }
+      ],
+      "ignored_fields": [
+        "better_stack_id"
+      ],
+      "instructions": [
+        "Rename better_stack_id in HCL to the required existing-integration id input; legacy state already stores this same id. Decode jira_fields_json into the typed jira_fields object, retaining all nested Jira values. This resource adopts a connected Jira integration by GET and manages it by PATCH; create never provisions a new OAuth connection and destroy only removes Terraform state. Keep name unchanged."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_jira_integration",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_jira_integration"
+    },
+    {
+      "renames": {
+        "metadata_value": "values"
+      },
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [
+        "team_name",
+        "created_at",
+        "updated_at"
+      ],
+      "instructions": [
+        "Identity is the scoped owner_type/owner_id/key group the legacy provider already read through /api/v3/metadata. Rename metadata_value blocks to values without losing order, string contents or item references; a deprecated scalar value becomes one {type = \"String\", value = ...} entry. Item types keep their wire names (Policy, Schedule, Endpoint). A Team reference's item_id now reads back as the t-prefixed public id: write it that way. Keep owner ids and non-Team referenced ids as they are."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_metadata",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "auto_import": true,
+      "identity": "lookup",
+      "lookup": {
+        "action": "list",
+        "params": {
+          "owner_type": "owner_type",
+          "owner_id": "owner_id"
+        },
+        "match": {
+          "owner_type": "owner_type",
+          "owner_id": "owner_id",
+          "key": "key"
+        }
+      },
+      "recipe": "Read GET /api/v4/metadata?owner_type=TYPE&owner_id=OWNER with the proved provider team and pick the entry whose key matches. Require exactly one matching owner/key group and use its returned id, even when it differs from old state. Back up state, stop concurrent applies, remove only the old state address, then import betterstack_metadata at that id. No DELETE/POST/PATCH during migration: deleting removes the entire key and all its values. Retain all values in HCL and require a no-op plan.",
+      "target_type": "betterstack_metadata"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [
+        "Rename to data.betterstack_monitor and retain the exact url filter."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_monitor",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "recipe": "Replace the data source type and retain url and selected provider team; refresh performs an exact match. Multiple matches now fail instead of choosing the first, so add a unique pronounceable_name or use id if necessary. Do not import or move data-source state.",
+      "target_type": "betterstack_monitor"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "sentinel_null",
+          "path": "monitor_group_id",
+          "value": 0
+        },
+        {
+          "op": "sentinel_null",
+          "path": "expiration_policy_id",
+          "value": 0
+        }
+      ],
+      "ignored_fields": [
+        "team_name",
+        "request_headers[].id"
+      ],
+      "instructions": [
+        "Keep every attribute: the legacy provider wrote the same /api/v2/monitors fields. Its 0 for an unset monitor_group_id or expiration_policy_id becomes null, as the API reads it. Move team_name to the provider's team_id (or a provider alias for that team). Preserve all request headers by name/value, dropping only the obsolete header row ids. Import uses the existing id."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_monitor",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_monitor"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Keep every attribute: the legacy provider wrote the same /api/v2/monitor-groups fields. Move team_name to the provider's team_id (or a provider alias for that team). Import uses the existing group id."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_monitor_group",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_monitor_group"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "sentinel_null",
+          "path": "policy_id",
+          "value": 0
+        }
+      ],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Rename to betterstack_new_relic_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same /api/v2/new-relic-integrations fields. A policy_id of 0 becomes null. Move team_name to the provider's team_id (or a provider alias for that team)."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_new_relic_integration",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_new_relic_integration"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [
+        "Rename to data.betterstack_on_call_calendar. Exact name lookup remains available; an omitted or empty name selects the default calendar through the documented default id alias."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_on_call_calendar",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "recipe": "Replace the data-source type and retain the provider team and optional name. Rewrite references to inline on_call_rotation through data.betterstack_on_call_rotation at the same calendar id. Refresh data sources; do not import, recreate, or regenerate schedules.",
+      "target_type": "betterstack_on_call_calendar"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Keep the existing calendar id and name: the legacy provider wrote the same /api/v2/on-calls fields. Move team_name to the provider's team_id or alias. Split the legacy on_call_rotation block into a betterstack_on_call_rotation resource addressed by the calendar id. Preserve user ordering, length, rotation_start, rotation_end, timezone and working_hours. Preserve an omitted rotation rather than creating one."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_on_call_calendar",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "auto_import": true,
+      "split": {
+        "path": "on_call_rotation",
+        "resource": "on_call_rotation",
+        "param": "id"
+      },
+      "identity": "preserve",
+      "recipe": "Back up state and stop concurrent applies. Read GET /api/v2/on-calls/:id and GET /api/v2/on-calls/:id/rotation under the same selected team. Review state-only removal of the old calendar address, import betterstack_on_call_calendar at the original calendar id, and, when the legacy state holds a rotation and the read returns one, import betterstack_on_call_rotation at the same calendar id. POST would replace the rotation and regenerate future shifts, and DELETE would remove shifts: neither is a migration operation. Keep the original schedule events and require a no-op plan.",
+      "target_type": "betterstack_on_call_calendar"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "singleton",
+          "path": "custom_webhook_template_attributes"
+        }
+      ],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Keep the NativeWebhook id, trigger_type, destination URL, notify_alongside_primary_responder and every event toggle explicitly. Unwrap the single custom_webhook_template_attributes block into an object, preserving method, ordered headers, body template and basic-auth input expressions. Preserve body_template as its stored string, including JSON encoding and template variables; do not drop non-JSON template strings. Move team_name to the provider's team_id (or a provider alias for that team).",
+        "Keep any custom_webhook_template_attributes auth_password in HCL as its existing sensitive input expression; never copy it from state or show-JSON. A webhook whose legacy state holds a template password is not auto-imported and needs the state-transfer recipe."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_outgoing_webhook",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "auto_import": true,
+      "guided_if_nonempty": [
+        "custom_webhook_template_attributes[].auth_password"
+      ],
+      "identity": "preserve",
+      "recipe": "Stop concurrent applies and save an ORIGINAL terraform state pull backup privately before removing any address. Read GET /api/v2/outgoing-webhooks/:id and compare every event toggle and request-template value. Keep the original sensitive auth_password expression in HCL so an ordinary apply does not reassert a different password. Review terraform state rm of the legacy address, then CLI terraform import of the new resource at the existing id (read-only; do not apply an import block). Save a CURRENT terraform state pull. For a configured legacy template password, run python3 scripts/transfer-state.py --backup ORIGINAL_RAW_PULL.json --current CURRENT_RAW_PULL.json --source EXACT_LEGACY_ADDRESS --target EXACT_TARGET_ADDRESS --expected-serial INTEGER --output NEW_CANDIDATE.json. This fixed recipe copies only the original singleton template auth_password into the already-imported template and marks its nested state path sensitive; missing original credentials, changed identities or conflicting target values are refused. Review the candidate privately, re-pull and compare backend lineage/serial, then explicitly install it with Terraform's supported state push and locking, never force. Require an ordinary no-op plan before any apply. The helper never contacts the API or writes the backend. No DELETE/POST/PATCH or credential reassertion is part of this migration.",
+      "target_type": "betterstack_outgoing_webhook_integration"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Rename the resource to betterstack_pagerduty_integration. Preserve name, routing key, severity and notify_alongside_primary_responder, including the original sensitive input expression. Move team_name to the provider's team_id (or a provider alias for that team). Import uses the existing id."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_pagerduty_integration",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_pagerduty_integration"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [
+        "Rename to data.betterstack_escalation_policy and retain exact name lookup under the same provider team. Rewrite outputs that read instructions comment/reminder fields to their instructions_ names."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_policy",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "recipe": "Replace the data-source type and refresh. Zero or duplicate names fail rather than choosing an arbitrary policy; an explicit id can disambiguate. Do not import or move data-source state.",
+      "target_type": "betterstack_escalation_policy"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "rename",
+          "path": "steps[].comment",
+          "to": "steps[].instructions_comment"
+        },
+        {
+          "op": "rename",
+          "path": "steps[].reminder_enabled",
+          "to": "steps[].instructions_reminder_enabled"
+        },
+        {
+          "op": "rename",
+          "path": "steps[].reminder_interval_hours",
+          "to": "steps[].instructions_reminder_interval_hours"
+        },
+        {
+          "op": "sentinel_omit",
+          "path": "steps[].instructions_reminder_enabled",
+          "value": false
+        },
+        {
+          "op": "sentinel_omit",
+          "path": "steps[].instructions_reminder_interval_hours",
+          "value": 0
+        }
+      ],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Rename to betterstack_escalation_policy and keep every policy attribute: the legacy provider wrote the same policy fields, on /api/v3. In ordered steps rename comment/reminder_enabled/reminder_interval_hours to instructions_comment/instructions_reminder_enabled/instructions_reminder_interval_hours. An entire_team member that names a team now reads its id as the t-prefixed team id (t123) instead of the local number. Move team_name to the provider's team_id or alias."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_policy",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "auto_import": true,
+      "identity": "preserve",
+      "recipe": "Read GET /api/v4/policies/:id and compare the full ordered steps to translated HCL. Keep wait-until timezones, time-branch windows, resolved action_type, typed metadata_values/no_value conditions and instructions reminders. Rewrite an entire_team member's numeric id to the t-prefixed team id the v4 read returns; the own-team member keeps no id. Convert deprecated metadata_values strings or metadata_value blocks to typed metadata_values, Team references as t-prefixed ids. Back up state, stop concurrent applies, review state-only old-address removal plus same-id import; no PATCH that rewrites steps and no DELETE. Require a no-op plan.",
+      "target_type": "betterstack_escalation_policy"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Rename the resource to betterstack_escalation_policy_group and keep name and sort_index: the legacy provider wrote the same /api/v2/policy-groups fields. Move team_name to the provider's team_id or provider alias. Import uses the existing group id."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_policy_group",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_escalation_policy_group"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "sentinel_null",
+          "path": "policy_id",
+          "value": 0
+        }
+      ],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Rename to betterstack_prometheus_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same /api/v2/prometheus-integrations fields. A policy_id of 0 becomes null. Move team_name to the provider's team_id (or a provider alias for that team)."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_prometheus_integration",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_prometheus_integration"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [
+        "Change the data-source type to betterstack_role and retain name. System-role identifiers and custom-role names remain valid lookups."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_role",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "preserve",
+      "recipe": "Replace the data-source declaration without importing state. Use the same organization's provider credential, retain role id references and confirm a read-only refresh resolves the same role. Ambiguous role names require an explicit id.",
+      "target_type": "betterstack_role"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [
+        "Rename to data.betterstack_severity; preserve exact name lookup and the selected provider team. Rename references to severity_group_id to urgency_group_id."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_severity",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "recipe": "Replace the data-source type, retain name, and refresh. Zero or duplicate matches fail; use an explicit id to disambiguate. Data-source state is not imported or moved.",
+      "target_type": "betterstack_severity"
+    },
+    {
+      "renames": {
+        "severity_group_id": "urgency_group_id"
+      },
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Rename severity_group_id to urgency_group_id, the wire name the legacy provider already sent. Keep the existing severity id, name and every notification channel. Move team_name to the provider's team_id (or a provider alias for that team)."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_severity",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_severity"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Keep every attribute: the legacy provider wrote the same /api/v2/urgency-groups fields. Move team_name to the provider's team_id (or a provider alias for that team). Import uses the existing group id."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_severity_group",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_severity_group"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [
+        "Rename to data.betterstack_slack_integration and retain the exact slack_channel_name filter and selected provider team. Zero or multiple matching channels must fail, not pick an arbitrary channel."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_slack_integration",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "recipe": "Replace the data source type, retain slack_channel_name and all computed-output references, and refresh under the same selected team. Data sources are not imported or moved.",
+      "target_type": "betterstack_slack_integration"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Rename the resource to betterstack_splunk_on_call_integration. Preserve name, destination URL and notify_alongside_primary_responder. Move team_name to the provider's team_id (or a provider alias for that team). The id remains the existing NativeWebhook id; do not migrate it as an outgoing_webhook_integration."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_splunk_oncall_integration",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_splunk_on_call_integration"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "sentinel_null",
+          "path": "status_page_group_id",
+          "value": 0
+        }
+      ],
+      "ignored_fields": [],
+      "instructions": [
+        "Keep every attribute: the legacy provider wrote the same /api/v2/status-pages fields. Its status_page_group_id of zero means no group and becomes null. Keep password in its original sensitive input expression, never copy it into migration output; read refresh must retain the write-only value. Import uses the existing page id."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_status_page",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_status_page"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Keep name and sort_index: the legacy provider wrote the same /api/v2/status-page-groups fields. Drop team_name, which status page groups never used: they belong to an organization, and organization ids are not team ids."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_status_page_group",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "auto_import": true,
+      "identity": "lookup",
+      "lookup": {
+        "action": "get",
+        "params": {
+          "id": "id"
+        }
+      },
+      "recipe": "Read GET /api/v2/status-page-groups/:id using the selected credential. Back up state, stop concurrent applies, remove only the old state address without destroying the group, then import betterstack_status_page_group with the same id. Review a no-remote-mutation plan before applying state operations, then require a no-op plan.",
+      "target_type": "betterstack_status_page_group"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "singleton",
+          "path": "mark_as_degraded_metadata_rule"
+        },
+        {
+          "op": "rename",
+          "path": "mark_as_degraded_metadata_rule.metadata_value",
+          "to": "mark_as_degraded_metadata_rule.values"
+        },
+        {
+          "op": "singleton",
+          "path": "mark_as_down_metadata_rule"
+        },
+        {
+          "op": "rename",
+          "path": "mark_as_down_metadata_rule.metadata_value",
+          "to": "mark_as_down_metadata_rule.values"
+        },
+        {
+          "op": "sentinel_null",
+          "path": "status_page_section_id",
+          "value": 0
+        }
+      ],
+      "ignored_fields": [],
+      "instructions": [
+        "Keep status_page_id, status_page_section_id, resource_id/type, public_name, explanation, widget_type and position: the legacy provider wrote the same fields under /api/v2. Drop fixed_position: the target always sends fixed_position = true, as the legacy provider did, and has no attribute for it, so a position never shifts siblings. Convert single metadata-rule blocks to objects and their metadata_value blocks to values, retaining typed references. Import keeps the legacy status_page_id/id form."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_status_page_resource",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "auto_import": true,
+      "identity": "preserve",
+      "recipe": "Read GET /api/v3/status-pages/:status_page_id/resources/:id, verifying parent page, underlying resource and metadata rules. v3 reads Team metadata values as t-prefixed global team ids where the legacy provider stored the internal number: rewrite each such reference to its t-prefixed id; preserve all condition values. Stop concurrent applies and save an ORIGINAL terraform state pull backup. Review state-only terraform state rm of the legacy address, then CLI terraform import of the target at status_page_id/id; do not apply an import block. The target always sends fixed_position = true, as the reviewed legacy SDK did, so import alone keeps the item's position policy and no state needs seeding. Require an ordinary no-op plan before any apply. No API writes are part of this handoff: never remove/re-add the item, PATCH it to reassert policy, or shift sibling positions; the underlying resource remains unchanged.",
+      "target_type": "betterstack_status_page_resource"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [
+        "Keep status_page_id, name and position. Drop fixed_position: the target always sends fixed_position = true, as the legacy provider did, and has no attribute for it. Import keeps the legacy status_page_id/id form. Never shift siblings as a migration side effect."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_status_page_section",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_status_page_section"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_team_member",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "retain",
+      "identity": "lookup",
+      "recipe": "Keep this team member data source on the legacy better-uptime provider for now. The unified provider does not manage team members: a pending invitation and a member are looked up by ids from different tables, so a resource holding an invitation id could read, and on destroy remove, a different member with the same id. It moves once Better Stack serves invitations on their own path."
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_team_member",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "retain",
+      "identity": "lookup",
+      "recipe": "Keep this team member on the legacy better-uptime provider for now. The unified provider does not manage team members: a pending invitation and a member are looked up by ids from different tables, so a resource holding an invitation id could read, and on destroy remove, a different member with the same id. It moves once Better Stack serves invitations on their own path."
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_collector",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "recipe": "Rename to data.betterstack_collector with the same exact name and verified team (or existing id for duplicate names). Convert configuration/custom_bucket singleton references to objects and service/namespace options to maps. The databases, databases_count, hosts_count and hosts_up_count outputs are gone: read targets through collector_target and hosts through the hosts action. Refresh only, never import or recreate the collector.",
+      "target_type": "betterstack_collector"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "singleton",
+          "path": "custom_bucket"
+        },
+        {
+          "op": "singleton",
+          "path": "configuration"
+        },
+        {
+          "op": "singleton",
+          "path": "configuration.components"
+        },
+        {
+          "op": "rename",
+          "path": "configuration.components.metrics_databases",
+          "to": "configuration.components.metrics_cluster",
+          "on_conflict": "target"
+        },
+        {
+          "op": "index_by",
+          "path": "configuration.service_option",
+          "to": "configuration.services_options",
+          "key": "name"
+        },
+        {
+          "op": "index_by",
+          "path": "configuration.namespace_option",
+          "to": "configuration.namespaces_options",
+          "key": "name"
+        },
+        {
+          "op": "sentinel_null",
+          "path": "source_group_id",
+          "value": 0
+        }
+      ],
+      "ignored_fields": [
+        "team_id",
+        "team_name",
+        "databases",
+        "databases_count",
+        "hosts_count",
+        "hosts_up_count"
+      ],
+      "instructions": [
+        "Read GET /api/v4/collectors/:id to verify the authoritative global team before moving. Keep the collector ID and existing sensitive state: the custom_bucket secret_access_key cannot be recovered by importing the collector. Turn configuration, components and custom_bucket singleton blocks into objects. Replace service_option and namespace_option sets with services_options/namespaces_options maps keyed by name, preserving numeric log_sampling and boolean ingest_traces. metrics_cluster takes precedence over deprecated metrics_databases exactly as in the legacy provider.",
+        "A populated databases list becomes one betterstack_collector_target per row, imported at its existing target ID next to the moved collector, with collector_id referencing it. Leave password and api_key out: they are write-only, the API keeps them server-side and never returns them. Never apply removal of inline blocks through the legacy provider, which deletes targets.",
+        "Preserve source_id, source_group_id, live_tail_pattern, retention, Vector configuration, component flags and both VRL programs. Migration must produce no remote create, update or delete, including credential reassertion."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_collector",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "split": {
+        "path": "databases",
+        "resource": "collector_target",
+        "param": "collector_id",
+        "match": {
+          "id": "id",
+          "kind": "service_type",
+          "host": "host",
+          "port": "port"
+        }
+      },
+      "recipe": "betterstack terraform migrate moves the collector and imports one betterstack_collector_target per legacy databases row when GET /api/v1/collectors/<existing collector ID>/targets in the verified team lists exactly one target with the same ID, kind (legacy service_type), host and port for each row. Otherwise the collector stays on the legacy provider: resolve missing, duplicate or mismatched targets and rerun it, never inferring identity from position. By hand: stop concurrent applies and keep a raw terraform state pull backup outside the repository. Move logtail_collector.NAME to betterstack_collector.NAME with a moved block; never import or recreate the collector, whose bucket credentials live only in state. Configure one betterstack_collector_target per database with collector_id = betterstack_collector.NAME.id and the existing kind, host, port, username, ssl_mode and tls, leaving password and api_key out (write-only: the API keeps them server-side), and import each at its verified target ID with an import block. Never apply removal of the inline databases through the legacy provider: it deletes the targets. Require a plan with no remote create, update, delete or credential change.",
+      "target_type": "betterstack_collector"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "sentinel_null",
+          "path": "host",
+          "value": ""
+        },
+        {
+          "op": "sentinel_null",
+          "path": "collector_host",
+          "value": ""
+        },
+        {
+          "op": "rename",
+          "path": "collector_host",
+          "to": "host"
+        }
+      ],
+      "ignored_fields": [],
+      "instructions": [
+        "Verify GET /api/v1/collectors/:collector_id/targets/:id under the authoritative team and confirm kind before moving. Keep collector_id, kind, enabled, port, service, listen_ip, endpoint, scheme, username, password, api_key, SSL/TLS, status and container. For nginx/apache/kafka/traefik/prometheus rename collector_host to host; database host stays host. Move existing state to retain write-only credentials and never recreate a target or duplicate one already split from a collector's inline databases."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_collector_target",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_collector_target"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_connection",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "recipe": "Rename to data.betterstack_connection with the same connection id and verified access scope. GET never reveals password; retain any independently stored credential and do not recreate the connection. team_ids now read as t-prefixed ids. Refresh only; do not import data sources.",
+      "target_type": "betterstack_connection"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "sentinel_null",
+          "path": "valid_until",
+          "value": ""
+        }
+      ],
+      "ignored_fields": [
+        "team_ids"
+      ],
+      "instructions": [
+        "Read GET /api/v2/connections/:id with credentials authorized for the full connection: its team_ids are the t-prefixed ids of the teams the legacy numeric team_ids named. Replace a legacy team_ids configuration with precisely that set (or keep team_names as it is); never use a single selected team as a substitute for a multi-team connection or prefix app-local IDs yourself.",
+        "Move the existing state; never remove/import or recreate this credential: password is only returned on creation and must remain in sensitive state. Keep host, port, username, password, sample_query, data_sources, client_type, data_region, IP allowlist, expiry, note and creator. Preserve configured data_region and valid_until rather than API-normalized variants. Verify no credential rotation or replacement in the plan."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_connection",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "scope": {
+        "field": "team_ids",
+        "kind": "set"
+      },
+      "target_type": "betterstack_connection"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_dashboard",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "recipe": "Replace the data source type with data.betterstack_dashboard and keep the same id or exact name under the verified team. Duplicate name matches require the explicit existing ID. The data output is now a typed exported document fetched from the read-only export action: use jsonencode(data) where an external consumer needs JSON text instead of jsondecode on the old string. team_id now reads back as the t-prefixed id. Refresh only, never import the data source.",
+      "target_type": "betterstack_dashboard"
+    },
+    {
+      "renames": {
+        "variable": "variables"
+      },
+      "constants": {},
+      "transforms": [
+        {
+          "op": "sentinel_null",
+          "path": "dashboard_group_id",
+          "value": 0
+        },
+        {
+          "op": "sentinel_omit",
+          "path": "variables[].sql_definition",
+          "value": ""
+        },
+        {
+          "op": "sentinel_omit",
+          "path": "variables[].default_values",
+          "value": []
+        }
+      ],
+      "ignored_fields": [
+        "team_id",
+        "team_name",
+        "data"
+      ],
+      "instructions": [
+        "Keep every attribute: the legacy provider wrote the same /api/v2/dashboards fields this /api/v3 resource takes. Rename variable blocks to the variables object list, and a dashboard_group_id of 0 to null. Move team_name to the provider's team_id (or a provider alias for that team); team_id now reads back as the t-prefixed id. Import uses the existing id.",
+        "A dashboard the legacy provider created from data (the import API) keeps its id, charts, queries, alerts, sections and variables: drop data from the configuration, since this resource takes no exported document and must not call import again. Its charts and sections stay unmanaged unless imported as their own resources, and no child may be imported twice."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_dashboard",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_dashboard"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_dashboard_alert",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "lookup": {
+        "action": "list",
+        "params": {
+          "dashboard_id": "dashboard_id",
+          "chart_id": "chart_id"
+        },
+        "match": {
+          "name": "name"
+        }
+      },
+      "recipe": "Rename to data.betterstack_chart_alert and retain dashboard_id, the bare chart_id and exact name as intersecting lookup constraints. Duplicate names require the explicit returned bare alert ID. Rename variable_value accesses to variable_values and singleton escalation_target accesses to the polymorphic string/object output. Explicit null recovery means never; zero means immediate. Refresh only; do not import or recreate an alert.",
+      "target_type": "betterstack_chart_alert"
+    },
+    {
+      "renames": {
+        "variable_value": "variable_values"
+      },
+      "constants": {},
+      "transforms": [
+        {
+          "op": "sentinel_null",
+          "path": "recovery_period",
+          "value": -1
+        },
+        {
+          "op": "sentinel_omit",
+          "path": "paused",
+          "value": false
+        }
+      ],
+      "ignored_fields": [],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_dashboard_alert",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "auto_import": true,
+      "identity": "lookup",
+      "lookup": {
+        "action": "list",
+        "params": {
+          "dashboard_id": "dashboard_id",
+          "chart_id": "chart_id"
+        },
+        "match": {
+          "name": "name"
+        },
+        "id_parts": 3,
+        "id_part": 2
+      },
+      "recipe": "Back up state, verify the global team, and resolve the old dashboard/chart/alert composite identity with GET /api/v2/alerts?dashboard_id=<dashboard_id>&chart_id=<bare chart_id>; require the returned alert's name, dashboard_id and chart_id to match. Rename to betterstack_chart_alert, keeping the same dashboard_id, bare chart_id and alert id. State-only forget the old address and import the same alert; never create/delete it or discard incident history. Every attribute keeps its wire name: the legacy provider wrote the same /api/v2 alert fields. Translate recovery_period=-1 to an explicitly configured null (never auto-recover), retaining 0 as immediate and every positive duration unchanged. Rename the variable_value blocks to variable_values, preserving selected_label, values and additional_conditions. Convert escalation_target from a singleton block to its wire form: an object with policy_id/policy_name or team_id/team_name, or the literal current_team when no block was set. Never convert unknown/stale routing to current_team: resolve the actual target first. Keep metadata values as strings or lists of strings; keep source modes/platforms/variables, incident cause/per-series, notification flags, anomaly settings, missing-data behavior and paused state. Review full readback and require a subsequent no-op plan.",
+      "target_type": "betterstack_chart_alert"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_dashboard_chart",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "scope": {
+        "kind": "parent",
+        "field": "dashboard_id",
+        "resource": "dashboard"
+      },
+      "lookup": {
+        "action": "list",
+        "params": {
+          "dashboard_id": "dashboard_id"
+        },
+        "match": {
+          "name": "name"
+        }
+      },
+      "recipe": "Rename to data.betterstack_dashboard_chart and keep dashboard_id plus exact name. Require one match; use an explicit chart ID for duplicates. Replace query block outputs with queries and old settings JSON parsing with the typed settings object. ID is the bare chart ID while dashboard_id retains parent context. Refresh only, without importing or changing charts.",
+      "target_type": "betterstack_dashboard_chart"
+    },
+    {
+      "renames": {
+        "query": "queries"
+      },
+      "constants": {},
+      "transforms": [
+        {
+          "op": "sentinel_null",
+          "path": "settings",
+          "value": ""
+        },
+        {
+          "op": "json_decode",
+          "path": "settings"
+        },
+        {
+          "op": "sentinel_omit",
+          "path": "queries[].name",
+          "value": ""
+        },
+        {
+          "op": "sentinel_omit",
+          "path": "queries[].sql_query",
+          "value": ""
+        },
+        {
+          "op": "sentinel_omit",
+          "path": "queries[].where_condition",
+          "value": ""
+        },
+        {
+          "op": "sentinel_omit",
+          "path": "queries[].static_text",
+          "value": ""
+        },
+        {
+          "op": "sentinel_omit",
+          "path": "queries[].source_variable",
+          "value": ""
+        }
+      ],
+      "ignored_fields": [
+        "created_at",
+        "updated_at"
+      ],
+      "instructions": [
+        "Keep every attribute: the legacy provider wrote the same /api/v2/dashboards/:dashboard_id/charts fields. Convert query blocks to queries and jsondecode the legacy settings JSON string, preserving booleans/numbers/arrays, SQL, source variables and the x/y/w/h layout. The legacy dashboard_id/chart_id composite id becomes the bare chart id with dashboard_id beside it. created_at and updated_at are gone: the API never returned them. Never recreate a chart: that deletes its alerts. Keep read-only query-builder/PQL/funnel payloads unchanged."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_dashboard_chart",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "scope": {
+        "kind": "parent",
+        "field": "dashboard_id",
+        "resource": "dashboard"
+      },
+      "target_type": "betterstack_dashboard_chart"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_dashboard_group",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "recipe": "Rename to data.betterstack_dashboard_group and retain the exact name lookup under the verified team. For duplicate names select the intended existing ID rather than accepting a first match. Refresh only; do not import a data source.",
+      "target_type": "betterstack_dashboard_group"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Keep every attribute: the legacy provider wrote the same /api/v2/dashboard-groups fields. Move team_name to the provider's team_id (or a provider alias for that team). Import uses the existing id."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_dashboard_group",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_dashboard_group"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_dashboard_section",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "scope": {
+        "kind": "parent",
+        "field": "dashboard_id",
+        "resource": "dashboard"
+      },
+      "lookup": {
+        "action": "list",
+        "params": {
+          "dashboard_id": "dashboard_id"
+        },
+        "match": {
+          "name": "name"
+        }
+      },
+      "recipe": "Rename to data.betterstack_dashboard_section with the same dashboard_id and exact name. Require a unique match, or select the known bare section ID. Preserve y/collapsed outputs and dashboard context. Refresh only; do not import or alter layout.",
+      "target_type": "betterstack_dashboard_section"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [
+        "created_at",
+        "updated_at"
+      ],
+      "instructions": [
+        "Keep dashboard_id, name, y, collapsed and explanation: the legacy provider wrote the same /api/v2/dashboards/:dashboard_id/sections fields. The legacy dashboard_id/section_id composite id becomes the bare section id with dashboard_id beside it. created_at and updated_at are gone: the API never returned them. No create, delete or reposition is part of migration: these shift chart layout."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_dashboard_section",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "scope": {
+        "kind": "parent",
+        "field": "dashboard_id",
+        "resource": "dashboard"
+      },
+      "target_type": "betterstack_dashboard_section"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [
+        "data"
+      ],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_dashboard_template",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "recipe": "Rename to data.betterstack_dashboard_template, retaining the template id or exact catalog name (case-only differences should use the known id). Duplicate names require an explicit ID. The id is the template's backing dashboard id, as before. data is no longer an output here: read the document with data.betterstack_dashboard on the same id (its data output, from the export action) and pass it to the dashboard import, or jsonencode it for consumers needing JSON text. Refresh only and never import a data source.",
+      "target_type": "betterstack_dashboard_template"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_errors_application",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "recipe": "Rename to data.betterstack_application and retain the exact name lookup under the provider's team. Duplicate names require the existing ID. Rename custom_bucket[0] references to object attributes; team_id now reads t123. Refresh the data source only; no import or application creation.",
+      "target_type": "betterstack_application"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "singleton",
+          "path": "custom_bucket"
+        },
+        {
+          "op": "sentinel_null",
+          "path": "application_group_id",
+          "value": 0
+        },
+        {
+          "op": "sentinel_null",
+          "path": "correlate_with_source_id",
+          "value": 0
+        }
+      ],
+      "ignored_fields": [
+        "team_id",
+        "team_name"
+      ],
+      "instructions": [
+        "Keep every attribute: the legacy provider wrote the same application fields. Turn the one-element custom_bucket block into an object, preserving the existing secret_access_key input. Configure the application's team on the provider and remove obsolete team_name inputs; computed team_id refreshes from the API as t123. Retain the existing resource state so create-only values are not lost. Import uses the existing id."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_errors_application",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_application"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_errors_application_group",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "recipe": "Rename to data.betterstack_application_group and retain the exact name lookup in the provider's team. A duplicate name requires the intended existing ID; refresh only and never import the data source.",
+      "target_type": "betterstack_application_group"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Rename to betterstack_application_group, keeping the existing group ID, name, sort_index and application references. Replace team_name with the provider's team."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_errors_application_group",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_application_group"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [
+        "Rename to betterstack_release and preserve the existing release ID, application_id, version and configured environments (the API merges environments, Terraform does not take ownership of the server union).",
+        "This resource registers exactly one application/version. Version/application/environment changes register a replacement while retaining historical releases. Destroy only forgets state and never sends DELETE; no cleanup call should be added."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_errors_release",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_release"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_exploration",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "recipe": "Rename to data.betterstack_exploration, retaining exact name lookup in the verified team (or the known ID for ambiguous names). Replace chart[0] with chart, query with queries, variable with variables, and JSON string decoding of chart.settings with its typed object. Keep settings, SQL, variable defaults/selections and group/date-range outputs. Refresh only; do not import or recreate it.",
+      "target_type": "betterstack_exploration"
+    },
+    {
+      "renames": {
+        "query": "queries",
+        "variable": "variables"
+      },
+      "constants": {},
+      "transforms": [
+        {
+          "op": "singleton",
+          "path": "chart"
+        },
+        {
+          "op": "sentinel_null",
+          "path": "chart.settings",
+          "value": ""
+        },
+        {
+          "op": "json_decode",
+          "path": "chart.settings"
+        },
+        {
+          "op": "sentinel_omit",
+          "path": "queries[].name",
+          "value": ""
+        },
+        {
+          "op": "sentinel_omit",
+          "path": "queries[].sql_query",
+          "value": ""
+        },
+        {
+          "op": "sentinel_omit",
+          "path": "queries[].where_condition",
+          "value": ""
+        },
+        {
+          "op": "sentinel_omit",
+          "path": "queries[].static_text",
+          "value": ""
+        },
+        {
+          "op": "sentinel_omit",
+          "path": "queries[].source_variable",
+          "value": ""
+        },
+        {
+          "op": "sentinel_null",
+          "path": "exploration_group_id",
+          "value": 0
+        }
+      ],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Keep every attribute's wire name: the legacy provider wrote the same /api/v2/explorations fields. Verify GET /api/v2/explorations/:id under the authoritative global team, move the existing exploration ID and select that team on the provider instead of team_name. Convert chart from a singleton block into an object, jsondecode chart.settings without stringifying booleans/numbers/arrays, and rename the query/variable blocks to queries/variables. Keep every SQL/source variable/date-range/group/selection setting. Omit only empty optional query strings that the legacy provider omitted on the wire. chart.name remains a computed output.",
+        "Preserve existing query-builder/PQL/funnel payloads without rewriting them; name-only updates must not replace the queries. Migration does not recreate the exploration or its alert history."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_exploration",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_exploration"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_exploration_alert",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "lookup": {
+        "action": "list",
+        "params": {
+          "exploration_id": "exploration_id"
+        },
+        "match": {
+          "name": "name"
+        }
+      },
+      "recipe": "Rename to data.betterstack_chart_alert, keeping exploration_id plus exact name as intersecting lookup constraints; select the authoritative bare alert ID if names duplicate. An exploration's alert carries no chart_id. Rename variable_value accesses to variable_values and singleton target accesses to the polymorphic escalation_target. Null recovery retains never-auto-recover. Refresh only; never import or recreate an alert.",
+      "target_type": "betterstack_chart_alert"
+    },
+    {
+      "renames": {
+        "variable_value": "variable_values"
+      },
+      "constants": {},
+      "transforms": [
+        {
+          "op": "sentinel_null",
+          "path": "recovery_period",
+          "value": -1
+        },
+        {
+          "op": "sentinel_omit",
+          "path": "paused",
+          "value": false
+        }
+      ],
+      "ignored_fields": [],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_exploration_alert",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "auto_import": true,
+      "identity": "lookup",
+      "lookup": {
+        "action": "list",
+        "params": {
+          "exploration_id": "exploration_id"
+        },
+        "match": {
+          "name": "name"
+        },
+        "id_parts": 2,
+        "id_part": 1
+      },
+      "recipe": "Back up state and resolve the old exploration/alert composite identity with GET /api/v2/alerts?exploration_id=<existing exploration_id> in the verified global team; require matching exploration_id and name and keep the returned bare alert ID. The managed betterstack_chart_alert creates through a dashboard chart (POST /api/v2/dashboards/:dashboard_id/charts/:chart_id/alerts), which an exploration's chart is not, so an exploration alert stays on the legacy provider or is managed through the API directly; never delete and recreate it, which discards its incident history. Every attribute keeps its wire name. recovery_period=-1 becomes explicit null, 0 remains immediate and positive durations remain unchanged. Rename variable_value to variable_values and convert the singleton escalation_target to its wire object or the literal current_team; resolve unknown routing rather than defaulting it. Verify exact readback.",
+      "target_type": "betterstack_chart_alert"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_exploration_group",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "recipe": "Rename to data.betterstack_exploration_group and preserve exact name lookup in the verified team. Duplicate names require an explicit existing ID; refresh only, never import the data source.",
+      "target_type": "betterstack_exploration_group"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Rename to betterstack_exploration_group, retaining the same ID, name and exploration references. Verify the authoritative global team before moving and replace team_name with that provider team."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_exploration_group",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_exploration_group"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_metric",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "lookup": {
+        "action": "list",
+        "params": {
+          "source_id": "source_id"
+        },
+        "match": {
+          "name": "name"
+        }
+      },
+      "recipe": "Rename to data.betterstack_metric_expression and preserve both source_id and exact name. Require exactly one rule matching the name on that source; duplicate names fail closed. Keep SQL/type/aggregation outputs, refresh only and never import a data source.",
+      "target_type": "betterstack_metric_expression"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [
+        "Keep every attribute and the existing prefixed id: the legacy provider called the same /api/v2/sources/:source_id/metrics endpoints."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_metric",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_metric_expression"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_source",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "recipe": "Replace data.logtail_source with data.betterstack_source and retain the exact table_name lookup. Select the verified team in the provider. Duplicate matches fail rather than choosing another source. Convert custom_bucket references from [0] to object attributes; team_id now reads as the t-prefixed id. Refresh only; never import a data source.",
+      "target_type": "betterstack_source"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [
+        {
+          "op": "singleton",
+          "path": "custom_bucket"
+        },
+        {
+          "op": "sentinel_null",
+          "path": "source_group_id",
+          "value": 0
+        },
+        {
+          "op": "sentinel_null",
+          "path": "vrl_transformation",
+          "value": ""
+        },
+        {
+          "op": "sentinel_null",
+          "path": "vrl_transformation_logs",
+          "value": ""
+        },
+        {
+          "op": "rename",
+          "path": "vrl_transformation",
+          "to": "vrl_transformation_logs"
+        }
+      ],
+      "ignored_fields": [
+        "team_id",
+        "team_name",
+        "code_mapping_stack_root",
+        "code_mapping_source_root"
+      ],
+      "instructions": [
+        "Keep every attribute: the legacy provider wrote the same source fields to /api/v2/sources. Resolve the source with a read of /api/v4/sources/:id under the intended credential and verify its t-prefixed team_id before moving. Legacy numeric team_id and team_name are obsolete scope representations, not ids to prefix: put the verified team on the provider (using aliases for separate teams); computed team_id refreshes from the API.",
+        "Convert custom_bucket from a one-element block to an object, retaining secret_access_key from the existing sensitive input. Keep the original source id. Convert the historical vrl_transformation alias to vrl_transformation_logs; conflicting nonempty values require operator resolution. Drop code_mapping_stack_root and code_mapping_source_root: a telemetry source refuses them, they belong to errors applications.",
+        "A logtail_source_aws_account or logtail_source_gcp_project on this source folds into this block: its readable settings join it, its write-only linkage stays on the server; never import a second owner."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_source",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_source"
+    },
+    {
+      "renames": {
+        "auto_subscribe_log_groups": "aws_auto_sub_log_groups"
+      },
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_source_aws_account",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "facet": "source_id",
+      "recipe": "betterstack terraform migrate folds this link into its owning source when the logtail_source whose id equals source_id is migrated from the same state and module: a removed block with destroy = false forgets only this virtual address and the source's generated betterstack_source block carries its readable settings. Otherwise it stays on the legacy provider; migrate it together with its owning source. Configure that betterstack_source with aws_auto_sub_log_groups (renamed from auto_subscribe_log_groups, value unchanged) and leave aws_account_id, aws_role_arn and aws_external_id out: they are write-only, the API keeps the existing linkage server-side and never returns it. Forget only logtail_source_aws_account.NAME with removed { from = logtail_source_aws_account.NAME lifecycle { destroy = false } }; never delete or disconnect it through the legacy provider, and never import a second owner of the source. Replace references to its ID with the source's id and require a plan with no remote create, update, delete or replacement.",
+      "target_type": "betterstack_source"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [
+        "Rename the type to betterstack_source_aws_log_group and keep source_id, region, name and subscribed unchanged: the legacy provider called the same /api/v2/sources/:source_id/aws-log-group-subscriptions endpoints. If subscribed was omitted, set it explicitly to its old default true. Preserve the subscription row ID, not the source_id/subscription_id legacy import string. Destroying this resource removes only the explicit override and restores automatic behavior."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_source_aws_log_group",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_source_aws_log_group"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_source_gcp_project",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "facet": "source_id",
+      "recipe": "betterstack terraform migrate folds this link into its owning source when the logtail_source whose id equals source_id is migrated from the same state and module: a removed block with destroy = false forgets only this virtual address. Otherwise it stays on the legacy provider; migrate it together with its owning source. Configure that betterstack_source without gcp_account_id, gcp_project_id and gcp_project_number: they are write-only, the API keeps the existing linkage server-side and never returns it. Forget only logtail_source_gcp_project.NAME with removed { from = logtail_source_gcp_project.NAME lifecycle { destroy = false } }; never delete or disconnect it through the legacy provider, and never import a second owner of the source. Replace references to its ID with the source's id and require a plan with no remote create, update, delete or replacement.",
+      "target_type": "betterstack_source"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [],
+      "instructions": [],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_source_group",
+      "kind": "data_source",
+      "schema_versions": [
+        0
+      ],
+      "handling": "guided",
+      "identity": "lookup",
+      "recipe": "Rename to data.betterstack_source_group and keep the exact name lookup in the verified team. Duplicate names require the exact existing ID instead of an arbitrary first match. Refresh only; do not import a data source.",
+      "target_type": "betterstack_source_group"
+    },
+    {
+      "renames": {},
+      "constants": {},
+      "transforms": [],
+      "ignored_fields": [
+        "team_name"
+      ],
+      "instructions": [
+        "Keep every attribute: the legacy provider wrote the same /api/v1/source-groups fields. Keep the same row id, name, sort_index and references; verify the selected global team with an authoritative read before moving, and replace team_name with that provider team."
+      ],
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_source_group",
+      "kind": "resource",
+      "schema_versions": [
+        0
+      ],
+      "handling": "move",
+      "identity": "preserve",
+      "target_type": "betterstack_source_group"
+    }
+  ],
+  "emitted_movers": [
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_amazon_sns_integration",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_amazon_sns_integration"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_errors_application",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_application"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_errors_application_group",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_application_group"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_aws_cloudwatch_integration",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_aws_cloudwatch_integration"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_azure_integration",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_azure_integration"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_catalog_attribute",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_catalog_attribute"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_catalog_relation",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_catalog_relation"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_collector",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_collector"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_collector_target",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_collector_target"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_connection",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_connection"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_dashboard",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_dashboard"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_dashboard_chart",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_dashboard_chart"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_dashboard_group",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_dashboard_group"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_dashboard_section",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_dashboard_section"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_datadog_integration",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_datadog_integration"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_elastic_integration",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_elastic_integration"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_policy_group",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_escalation_policy_group"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_exploration",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_exploration"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_exploration_group",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_exploration_group"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_google_monitoring_integration",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_google_monitoring_integration"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_grafana_integration",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_grafana_integration"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_heartbeat",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_heartbeat"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_heartbeat_group",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_heartbeat_group"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_incoming_webhook",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_incoming_webhook_integration"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_jira_integration",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_jira_integration"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_metric",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_metric_expression"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_monitor",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_monitor"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_monitor_group",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_monitor_group"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_new_relic_integration",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_new_relic_integration"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_pagerduty_integration",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_pagerduty_integration"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_prometheus_integration",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_prometheus_integration"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_errors_release",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_release"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_severity",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_severity"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_severity_group",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_severity_group"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_source",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_source"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_source_aws_log_group",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_source_aws_log_group"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
+      "source_type": "logtail_source_group",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_source_group"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_splunk_oncall_integration",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_splunk_on_call_integration"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_status_page",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_status_page"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_status_page_section",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_status_page_section"
+    }
+  ]
+}

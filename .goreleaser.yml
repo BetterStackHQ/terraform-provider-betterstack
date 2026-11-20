@@ -1,0 +1,53 @@
+# Inert until exported to the separately approved standalone provider repository.
+version: 2
+project_name: terraform-provider-betterstack
+before:
+  hooks:
+    - ruby scripts/package.rb --verify
+    - go mod verify
+builds:
+  - id: provider
+    env:
+      - CGO_ENABLED=0
+      - GOTOOLCHAIN=go1.25.9
+    flags:
+      - -trimpath
+      - -mod=readonly
+    ldflags:
+      - "-s -w -X main.version={{ .Version }}"
+    goos: [freebsd, windows, linux, darwin]
+    goarch: [amd64, "386", arm, arm64]
+    goarm: ["7"]
+    ignore:
+      - goos: darwin
+        goarch: "386"
+      - goos: darwin
+        goarch: arm
+      - goos: windows
+        goarch: arm
+    binary: "terraform-provider-betterstack_v{{ .Version }}"
+archives:
+  - formats: ["zip"]
+    name_template: "terraform-provider-betterstack_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [LICENSE]
+checksum:
+  extra_files:
+    - glob: terraform-registry-manifest.json
+      name_template: "terraform-provider-betterstack_{{ .Version }}_manifest.json"
+  name_template: "terraform-provider-betterstack_{{ .Version }}_SHA256SUMS"
+  algorithm: sha256
+signs:
+  - artifacts: checksum
+    cmd: gpg
+    args: ["--batch", "--local-user", "{{ .Env.GPG_FINGERPRINT }}", "--output", "${signature}", "--detach-sign", "${artifact}"]
+release:
+  github:
+    owner: BetterStackHQ
+    name: terraform-provider-betterstack
+  extra_files:
+    - glob: terraform-registry-manifest.json
+      name_template: "terraform-provider-betterstack_{{ .Version }}_manifest.json"
+snapshot:
+  version_template: "0.0.0-snapshot"
+changelog:
+  disable: true
