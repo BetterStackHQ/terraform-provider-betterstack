@@ -1361,11 +1361,6 @@
       "constants": {},
       "transforms": [
         {
-          "op": "sentinel_null",
-          "path": "recovery_period",
-          "value": -1
-        },
-        {
           "op": "sentinel_omit",
           "path": "paused",
           "value": false
@@ -1394,7 +1389,7 @@
         "id_parts": 3,
         "id_part": 2
       },
-      "recipe": "Back up state, verify the global team, and resolve the old dashboard/chart/alert composite identity with GET /api/v2/alerts?dashboard_id=<dashboard_id>&chart_id=<bare chart_id>; require the returned alert's name, dashboard_id and chart_id to match. Rename to betterstack_chart_alert, keeping the same dashboard_id, bare chart_id and alert id. State-only forget the old address and import the same alert; never create/delete it or discard incident history. Every attribute keeps its wire name: the legacy provider wrote the same /api/v2 alert fields. Translate recovery_period=-1 to an explicitly configured null (never auto-recover), retaining 0 as immediate and every positive duration unchanged. Rename the variable_value blocks to variable_values, preserving selected_label, values and additional_conditions. Convert escalation_target from a singleton block to its wire form: an object with policy_id/policy_name or team_id/team_name, or the literal current_team when no block was set. Never convert unknown/stale routing to current_team: resolve the actual target first. Keep metadata values as strings or lists of strings; keep source modes/platforms/variables, incident cause/per-series, notification flags, anomaly settings, missing-data behavior and paused state. Review full readback and require a subsequent no-op plan.",
+      "recipe": "Back up state, verify the global team, and resolve the old dashboard/chart/alert composite identity with GET /api/v2/alerts?dashboard_id=<dashboard_id>&chart_id=<bare chart_id>; require the returned alert's name, dashboard_id and chart_id to match. Rename to betterstack_chart_alert, keeping the same dashboard_id, bare chart_id and alert id. State-only forget the old address and import the same alert; never create/delete it or discard incident history. Every attribute keeps its wire name: the legacy provider wrote the same /api/v2 alert fields. Keep recovery_period=-1: it still means never auto-recover, retaining 0 as immediate and every positive duration unchanged. Rename the variable_value blocks to variable_values, preserving selected_label, values and additional_conditions. Convert escalation_target from a singleton block to its wire form: an object with policy_id/policy_name or team_id/team_name, or the literal current_team when no block was set. Never convert unknown/stale routing to current_team: resolve the actual target first. Keep metadata values as strings or lists of strings; keep source modes/platforms/variables, incident cause/per-series, notification flags, anomaly settings, missing-data behavior and paused state. Review full readback and require a subsequent no-op plan.",
       "target_type": "betterstack_alert"
     },
     {
@@ -1830,11 +1825,6 @@
       },
       "constants": {},
       "transforms": [
-        {
-          "op": "sentinel_null",
-          "path": "recovery_period",
-          "value": -1
-        },
         {
           "op": "sentinel_omit",
           "path": "paused",

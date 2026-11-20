@@ -37,7 +37,7 @@ resource "betterstack_on_call_rotation" "example" {
 
 Optional attributes are also computed: left unset, they take the server-side default.
 
-- `timezone` (String) Time zone for working hours and for handovers across daylight saving changes. If you leave it out, the previous rotation's time zone is kept. A new rotation with working hours defaults to UTC. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `timezone` (String) Time zone for working hours and for handovers across daylight saving changes. If you leave it out, the previous rotation's time zone is kept. A new rotation with working hours defaults to UTC.
 - `working_hours` (Attributes Set, see [nested schema](#nestedatt--working_hours)) Working hours, as up to 50 windows in local time. They are returned as `HH:MM`, sorted by day. A window that ends at or before its start runs overnight, and one with the same start and end covers the whole day. Leave it out or send `[]` for none.
 
 ### Read-Only

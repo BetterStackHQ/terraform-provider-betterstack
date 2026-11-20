@@ -111,7 +111,7 @@ func (r *OnCallRotationResource) Schema(ctx context.Context, req resource.Schema
 			"rotation_interval":  schema.StringAttribute{Required: true, Description: "Unit for the rotation length.", Validators: []validator.String{stringvalidator.OneOf("hour", "day", "week")}},
 			"rotation_length":    schema.Int64Attribute{Required: true, Description: "Number of intervals each shift lasts."},
 			"start_rotations_at": schema.StringAttribute{Required: true, Description: "When the rotation schedule starts."},
-			"timezone":           schema.StringAttribute{Optional: true, Description: "Time zone for working hours and for handovers across daylight saving changes. If you leave it out, the previous rotation's time zone is kept. A new rotation with working hours defaults to UTC."},
+			"timezone":           schema.StringAttribute{Optional: true, Computed: true, Description: "Time zone for working hours and for handovers across daylight saving changes. If you leave it out, the previous rotation's time zone is kept. A new rotation with working hours defaults to UTC.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"users":              schema.ListAttribute{Required: true, ElementType: types.StringType, Description: "E-mail addresses of users in the rotation, in shift order. Each must be a responder in the schedule's team."},
 			"working_hours":      schema.SetNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"day": schema.StringAttribute{Optional: true, Computed: true, Validators: []validator.String{stringvalidator.OneOf("sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday")}}, "start_time": schema.StringAttribute{Optional: true, Computed: true}, "end_time": schema.StringAttribute{Optional: true, Computed: true}}}, Description: "Working hours, as up to 50 windows in local time. They are returned as `HH:MM`, sorted by day. A window that ends at or before its start runs overnight, and one with the same start and end covers the whole day. Leave it out or send `[]` for none.", PlanModifiers: []planmodifier.Set{setplanmodifier.UseStateForUnknown()}},
 		},
@@ -158,15 +158,6 @@ func (r *OnCallRotationResource) body(ctx context.Context, m OnCallRotationModel
 			}
 		}
 		body["working_hours"] = items
-	}
-	return body
-}
-
-// updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
-func (r *OnCallRotationResource) updateBody(ctx context.Context, config, plan, state OnCallRotationModel) map[string]interface{} {
-	body := r.body(ctx, config)
-	if !state.Timezone.IsNull() && !state.Timezone.IsUnknown() && plan.Timezone.IsNull() {
-		body["timezone"] = nil
 	}
 	return body
 }
@@ -282,7 +273,7 @@ func (r *OnCallRotationResource) Update(ctx context.Context, req resource.Update
 	}
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
-	out, err := r.client.Update(ctx, onCallRotationBinding, vars, r.updateBody(ctx, request, plan, state))
+	out, err := r.client.Update(ctx, onCallRotationBinding, vars, r.body(ctx, request))
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "updating on_call_rotation", err, req.Plan.Raw.Type())
 		return

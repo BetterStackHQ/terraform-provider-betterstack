@@ -4,11 +4,13 @@ package provider
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -52,7 +54,7 @@ func (r *TeamResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 		Attributes: map[string]schema.Attribute{
 			"id":                                    schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"created_at":                            schema.StringAttribute{Computed: true, Description: "When the team was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"incident_grouping_metadata_scope":      schema.ListAttribute{Optional: true, ElementType: types.StringType, Description: "Metadata keys whose values must match for incidents to be grouped. New teams start with [\"Origin\"]."},
+			"incident_grouping_metadata_scope":      schema.ListAttribute{Optional: true, Computed: true, Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{types.StringValue("Origin")})), ElementType: types.StringType, Description: "Metadata keys whose values must match for incidents to be grouped. New teams start with [\"Origin\"]."},
 			"incident_grouping_period":              schema.Int64Attribute{Optional: true, Computed: true, Description: "Seconds within which a new incident is grouped with an open one, from 0 to 2147483647. New teams start at 300.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
 			"name":                                  schema.StringAttribute{Required: true, Description: "The team's name. Unique within the organization, ignoring letter case."},
 			"notify_about_all_incidents_in_a_group": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether every incident in a group alerts, rather than only the first. New teams start at true.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
@@ -114,20 +116,12 @@ func (r *TeamResource) body(ctx context.Context, m TeamModel) map[string]interfa
 	return body
 }
 
-// updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
-func (r *TeamResource) updateBody(ctx context.Context, config, plan, state TeamModel) map[string]interface{} {
-	body := r.body(ctx, config)
-	if !state.IncidentGroupingMetadataScope.IsNull() && !state.IncidentGroupingMetadataScope.IsUnknown() && plan.IncidentGroupingMetadataScope.IsNull() {
-		body["incident_grouping_metadata_scope"] = nil
-	}
-	return body
-}
-
 func (r *TeamResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan TeamModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request TeamModel
 	resp.Diagnostics.Append(configWithPlannedUnknowns(ctx, req.Config, req.Plan, nullValue(req.Plan.Raw.Type()), &request)...)
+	request.IncidentGroupingMetadataScope = plan.IncidentGroupingMetadataScope // its schema default travels when unset, so removing the line resets it
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -184,21 +178,15 @@ func populateTeam(ctx context.Context, m *TeamModel, attrs map[string]interface{
 	if v, ok := int64FromAPI(attrs["incident_grouping_period"]); ok {
 		m.IncidentGroupingPeriod = types.Int64Value(v)
 	}
-	if rawValue, exists := attrs["incident_grouping_metadata_scope"]; exists {
-		if rawValue == nil {
-			m.IncidentGroupingMetadataScope = types.ListNull(types.StringType)
-		} else {
-			if raw, ok := attrs["incident_grouping_metadata_scope"].([]interface{}); ok {
-				vals := make([]string, 0, len(raw))
-				for _, e := range raw {
-					if ev, ok := stringFromAPI(e); ok {
-						vals = append(vals, ev)
-					}
-				}
-				lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
-				m.IncidentGroupingMetadataScope = lv
+	if raw, ok := attrs["incident_grouping_metadata_scope"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
 			}
 		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.IncidentGroupingMetadataScope = lv
 	}
 	if v, ok := boolFromAPI(attrs["notify_about_all_incidents_in_a_group"]); ok {
 		m.NotifyAboutAllIncidentsInAGroup = types.BoolValue(v)
@@ -239,9 +227,14 @@ func (r *TeamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	// An unset line's default travels only when it changes the stored value (the line was just
+	// removed): resending an unchanged default can act on its own, e.g. unpause a group's members.
+	if !plan.IncidentGroupingMetadataScope.Equal(state.IncidentGroupingMetadataScope) {
+		request.IncidentGroupingMetadataScope = plan.IncidentGroupingMetadataScope
+	}
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
-	out, err := r.client.Update(ctx, teamBinding, vars, r.updateBody(ctx, request, plan, state))
+	out, err := r.client.Update(ctx, teamBinding, vars, r.body(ctx, request))
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "updating team", err, req.Plan.Raw.Type())
 		return

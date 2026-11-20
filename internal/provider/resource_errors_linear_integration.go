@@ -264,13 +264,13 @@ func (r *ErrorsLinearIntegrationResource) Schema(ctx context.Context, req resour
 			"applications":                   schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"application_id": schema.Int64Attribute{Optional: true, Computed: true, Description: "ID of an Error tracking application in the token's team."}, "environments": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Environments to act on errors from. Empty means every environment."}}}, Description: "Applications this integration acts on, each with its environments. Empty means any application. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
 			"auto_reopen":                    schema.BoolAttribute{Optional: true, Computed: true, Description: "Reopen the Linear issue when its error is automatically re-opened.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
 			"auto_resolve":                   schema.BoolAttribute{Optional: true, Computed: true, Description: "Resolve the error when its Linear issue is done, and move the issue to `linear_resolved_status_id` when the error is resolved.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
-			"linear_assignee_id":             schema.StringAttribute{Optional: true, Description: "Linear user new issues are assigned to. `null` clears it."},
+			"linear_assignee_id":             schema.StringAttribute{Optional: true, Computed: true, Description: "Linear user new issues are assigned to. `null` clears it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"linear_label_ids":               schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Linear labels put on new issues. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
 			"linear_priority":                schema.StringAttribute{Optional: true, Computed: true, Description: "Priority of new issues.", Validators: []validator.String{stringvalidator.OneOf("no_priority", "urgent", "high", "medium", "low")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"linear_project_id":              schema.StringAttribute{Optional: true, Description: "Linear project new issues are added to. `null` clears it."},
-			"linear_resolved_status_id":      schema.StringAttribute{Optional: true, Description: "Status a resolved error moves its issue to. `null` clears it."},
-			"linear_status_id":               schema.StringAttribute{Optional: true, Description: "Status of new issues. `null` clears it."},
-			"linear_team_id":                 schema.StringAttribute{Optional: true, Description: "Linear team issues are created in. A new team clears `linear_status_id`, `linear_resolved_status_id`, `linear_project_id` and `linear_label_ids` unless the same request sets them. `null` clears it."},
+			"linear_project_id":              schema.StringAttribute{Optional: true, Computed: true, Description: "Linear project new issues are added to. `null` clears it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"linear_resolved_status_id":      schema.StringAttribute{Optional: true, Computed: true, Description: "Status a resolved error moves its issue to. `null` clears it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"linear_status_id":               schema.StringAttribute{Optional: true, Computed: true, Description: "Status of new issues. `null` clears it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"linear_team_id":                 schema.StringAttribute{Optional: true, Computed: true, Description: "Linear team issues are created in. A new team clears `linear_status_id`, `linear_resolved_status_id`, `linear_project_id` and `linear_label_ids` unless the same request sets them. `null` clears it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"name":                           schema.StringAttribute{Optional: true, Computed: true, Description: "Integration name.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"notifications":                  schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"spikes": schema.BoolAttribute{Optional: true, Computed: true, Description: "Application has a spike in errors."}, "new_errors": schema.BoolAttribute{Optional: true, Computed: true, Description: "New error occurs."}, "automatically_reopened": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error is automatically re-opened."}, "occurrence_milestones": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches an occurrence milestone (10, 100, 200, 500...)."}, "occurrence_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error occurs `occurrence_threshold_count` times within `occurrence_threshold_interval`."}, "affected_users_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches `affected_users_threshold_count` affected users."}}, Description: "\"Create issues when\": which events file a Linear issue. An update changes only the toggles sent.", PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()}},
 			"occurrence_threshold_count":     schema.Int64Attribute{Optional: true, Computed: true, Description: "Number of occurrences for `notifications.occurrence_threshold`.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
@@ -359,27 +359,6 @@ func (r *ErrorsLinearIntegrationResource) body(ctx context.Context, m ErrorsLine
 	}
 	if !m.SyncComments.IsNull() && !m.SyncComments.IsUnknown() {
 		body["sync_comments"] = m.SyncComments.ValueBool()
-	}
-	return body
-}
-
-// updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
-func (r *ErrorsLinearIntegrationResource) updateBody(ctx context.Context, config, plan, state ErrorsLinearIntegrationModel) map[string]interface{} {
-	body := r.body(ctx, config)
-	if !state.LinearTeamId.IsNull() && !state.LinearTeamId.IsUnknown() && plan.LinearTeamId.IsNull() {
-		body["linear_team_id"] = nil
-	}
-	if !state.LinearAssigneeId.IsNull() && !state.LinearAssigneeId.IsUnknown() && plan.LinearAssigneeId.IsNull() {
-		body["linear_assignee_id"] = nil
-	}
-	if !state.LinearStatusId.IsNull() && !state.LinearStatusId.IsUnknown() && plan.LinearStatusId.IsNull() {
-		body["linear_status_id"] = nil
-	}
-	if !state.LinearProjectId.IsNull() && !state.LinearProjectId.IsUnknown() && plan.LinearProjectId.IsNull() {
-		body["linear_project_id"] = nil
-	}
-	if !state.LinearResolvedStatusId.IsNull() && !state.LinearResolvedStatusId.IsUnknown() && plan.LinearResolvedStatusId.IsNull() {
-		body["linear_resolved_status_id"] = nil
 	}
 	return body
 }
@@ -581,7 +560,7 @@ func (r *ErrorsLinearIntegrationResource) Update(ctx context.Context, req resour
 	}
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
-	out, err := r.client.Update(ctx, errorsLinearIntegrationBinding, vars, r.updateBody(ctx, request, plan, state))
+	out, err := r.client.Update(ctx, errorsLinearIntegrationBinding, vars, r.body(ctx, request))
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "updating errors_linear_integration", err, req.Plan.Raw.Type())
 		return

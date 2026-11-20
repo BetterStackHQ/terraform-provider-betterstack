@@ -44,7 +44,7 @@ Optional attributes are also computed: left unset, they take the server-side def
 - `paused` (Boolean) Whether the alert is paused. Send it as a JSON boolean: the string `"true"` is ignored. Defaults to `false`.
 - `query_period` (Number) Query window in seconds. Defaults to `aggregation_interval`, then `check_period`, then 60.
 - `confirmation_period` (Number) Seconds the condition must hold before the incident opens. Defaults to `60`.
-- `recovery_period` (Number) Seconds the value must stay recovered before the incident resolves on its own. Defaults to 60. Send `null` to never resolve it automatically. Defaults to `60`. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `recovery_period` (Number) Seconds the value must stay recovered before the incident resolves on its own. Defaults to 60. Send `null` to never resolve it automatically. Defaults to `60`. Set it to `-1` to send `null`, which Terraform and Pulumi can't write.
 - `aggregation_interval` (Number) Aggregation interval in seconds. Defaults to `query_period`, then `check_period`, then 60.
 - `check_period` (Number) How often the alert is evaluated, in seconds. Required when creating a threshold or relative alert. Not returned for anomaly alerts. An update that sends `check_period` without `query_period` or `aggregation_interval` sets both to it. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `series_names` (List of String) Evaluate only these series. Can't be combined with `series_names_except`. Sending either one replaces both.

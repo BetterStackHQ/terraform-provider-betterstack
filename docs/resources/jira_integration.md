@@ -36,8 +36,8 @@ Optional attributes are also computed: left unset, they take the server-side def
 
 - `name` (String) Integration name.
 - `automatic_issue_creation` (Boolean) Whether to create a Jira issue for every incident automatically. Defaults to `false`.
-- `jira_project_key` (String) Key of the Jira project that issues are created in. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `jira_issue_type_id` (String) ID of the Jira issue type for created issues. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `jira_project_key` (String) Key of the Jira project that issues are created in.
+- `jira_issue_type_id` (String) ID of the Jira issue type for created issues.
 - `jira_fields` (Dynamic) Extra Jira fields to set on created issues, keyed by Jira field id. Defaults to `{}`.
 
 ### Read-Only

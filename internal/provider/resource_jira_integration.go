@@ -48,8 +48,8 @@ func (r *JiraIntegrationResource) Schema(ctx context.Context, req resource.Schem
 			"id":                       schema.StringAttribute{Required: true, Description: "Existing remote object ID to adopt; no remote object is created.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_jira_integration"}}},
 			"automatic_issue_creation": schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether to create a Jira issue for every incident automatically."},
 			"jira_fields":              schema.DynamicAttribute{Optional: true, Computed: true, Description: "Extra Jira fields to set on created issues, keyed by Jira field id.", PlanModifiers: []planmodifier.Dynamic{dynamicplanmodifier.UseStateForUnknown()}},
-			"jira_issue_type_id":       schema.StringAttribute{Optional: true, Description: "ID of the Jira issue type for created issues."},
-			"jira_project_key":         schema.StringAttribute{Optional: true, Description: "Key of the Jira project that issues are created in."},
+			"jira_issue_type_id":       schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the Jira issue type for created issues.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"jira_project_key":         schema.StringAttribute{Optional: true, Computed: true, Description: "Key of the Jira project that issues are created in.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"name":                     schema.StringAttribute{Optional: true, Computed: true, Description: "Integration name.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"team_name":                schema.StringAttribute{Computed: true, Description: "Name of the team that owns this integration."},
 		},
@@ -86,18 +86,6 @@ func (r *JiraIntegrationResource) body(ctx context.Context, m JiraIntegrationMod
 				body["jira_fields"] = projectAPIWrite(av, apiValueShape{})
 			}
 		}
-	}
-	return body
-}
-
-// updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
-func (r *JiraIntegrationResource) updateBody(ctx context.Context, config, plan, state JiraIntegrationModel) map[string]interface{} {
-	body := r.body(ctx, config)
-	if !state.JiraProjectKey.IsNull() && !state.JiraProjectKey.IsUnknown() && plan.JiraProjectKey.IsNull() {
-		body["jira_project_key"] = nil
-	}
-	if !state.JiraIssueTypeId.IsNull() && !state.JiraIssueTypeId.IsUnknown() && plan.JiraIssueTypeId.IsNull() {
-		body["jira_issue_type_id"] = nil
 	}
 	return body
 }
@@ -234,7 +222,7 @@ func (r *JiraIntegrationResource) Update(ctx context.Context, req resource.Updat
 	}
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
-	out, err := r.client.Update(ctx, jiraIntegrationBinding, vars, r.updateBody(ctx, request, plan, state))
+	out, err := r.client.Update(ctx, jiraIntegrationBinding, vars, r.body(ctx, request))
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "updating jira_integration", err, req.Plan.Raw.Type())
 		return

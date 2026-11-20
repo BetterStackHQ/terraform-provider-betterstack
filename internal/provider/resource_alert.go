@@ -283,7 +283,7 @@ func (r *AlertResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 			"paused_reason":               schema.StringAttribute{Computed: true, Description: "Why the alert is paused: `manual`, `too_complex`, `query_errors`, `sources_not_eligible`, `anomaly_training_no_data` or `chart_not_alertable`. `null` when the alert isn't paused."},
 			"push":                        schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Trigger mobile push alerts."},
 			"query_period":                schema.Int64Attribute{Optional: true, Computed: true, Description: "Query window in seconds. Defaults to `aggregation_interval`, then `check_period`, then 60.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
-			"recovery_period":             schema.Int64Attribute{Optional: true, Description: "Seconds the value must stay recovered before the incident resolves on its own. Defaults to 60. Send `null` to never resolve it automatically."},
+			"recovery_period":             schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(60), Description: "Seconds the value must stay recovered before the incident resolves on its own. Defaults to 60. Send `null` to never resolve it automatically."},
 			"series_names":                schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Evaluate only these series. Can't be combined with `series_names_except`. Sending either one replaces both.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
 			"series_names_except":         schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Evaluate every series except these. Can't be combined with `series_names`. Sending either one replaces both.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
 			"sms":                         schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Trigger SMS alerts."},
@@ -335,7 +335,11 @@ func (r *AlertResource) body(ctx context.Context, m AlertModel) map[string]inter
 		body["confirmation_period"] = m.ConfirmationPeriod.ValueInt64()
 	}
 	if !m.RecoveryPeriod.IsNull() && !m.RecoveryPeriod.IsUnknown() {
-		body["recovery_period"] = m.RecoveryPeriod.ValueInt64()
+		if m.RecoveryPeriod.ValueInt64() == -1 {
+			body["recovery_period"] = nil
+		} else {
+			body["recovery_period"] = m.RecoveryPeriod.ValueInt64()
+		}
 	}
 	if !m.AggregationInterval.IsNull() && !m.AggregationInterval.IsUnknown() {
 		body["aggregation_interval"] = m.AggregationInterval.ValueInt64()
@@ -444,9 +448,6 @@ func (r *AlertResource) updateBody(ctx context.Context, config, plan, state Aler
 	if !state.StringValue.IsNull() && !state.StringValue.IsUnknown() && plan.StringValue.IsNull() {
 		body["string_value"] = nil
 	}
-	if !state.RecoveryPeriod.IsNull() && !state.RecoveryPeriod.IsUnknown() && plan.RecoveryPeriod.IsNull() {
-		body["recovery_period"] = nil
-	}
 	if !state.CheckPeriod.IsNull() && !state.CheckPeriod.IsUnknown() && plan.CheckPeriod.IsNull() {
 		body["check_period"] = nil
 	}
@@ -478,6 +479,7 @@ func (r *AlertResource) Create(ctx context.Context, req resource.CreateRequest, 
 	request.OnMissingData = plan.OnMissingData                       // its schema default travels when unset, so removing the line resets it
 	request.Paused = plan.Paused                                     // its schema default travels when unset, so removing the line resets it
 	request.Push = plan.Push                                         // its schema default travels when unset, so removing the line resets it
+	request.RecoveryPeriod = plan.RecoveryPeriod                     // its schema default travels when unset, so removing the line resets it
 	request.Sms = plan.Sms                                           // its schema default travels when unset, so removing the line resets it
 	request.SourceMode = plan.SourceMode                             // its schema default travels when unset, so removing the line resets it
 	if resp.Diagnostics.HasError() {
@@ -608,7 +610,7 @@ func populateAlert(ctx context.Context, m *AlertModel, attrs map[string]interfac
 	}
 	if rawValue, exists := attrs["recovery_period"]; exists {
 		if rawValue == nil {
-			m.RecoveryPeriod = types.Int64Null()
+			m.RecoveryPeriod = types.Int64Value(-1)
 		} else {
 			if v, ok := int64FromAPI(attrs["recovery_period"]); ok {
 				m.RecoveryPeriod = types.Int64Value(v)
@@ -815,6 +817,9 @@ func (r *AlertResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	}
 	if !plan.Push.Equal(state.Push) {
 		request.Push = plan.Push
+	}
+	if !plan.RecoveryPeriod.Equal(state.RecoveryPeriod) {
+		request.RecoveryPeriod = plan.RecoveryPeriod
 	}
 	if !plan.Sms.Equal(state.Sms) {
 		request.Sms = plan.Sms
