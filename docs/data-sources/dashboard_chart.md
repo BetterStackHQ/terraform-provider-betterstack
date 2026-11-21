@@ -46,7 +46,7 @@ Set `id`, or filter attributes matching exactly one record.
 <a id="nestedatt--queries"></a>
 ### Nested Schema for `queries`
 
-- `id` (Number)
+- `id` (String)
 - `query_type` (String)
 - `name` (String)
 - `source_variable` (String)
@@ -239,7 +239,7 @@ Set `id`, or filter attributes matching exactly one record.
 <a id="nestedatt--queries_result"></a>
 ### Nested Schema for `queries_result`
 
-- `id` (Number)
+- `id` (String)
 - `query_type` (String)
 - `name` (String)
 - `source_variable` (String)

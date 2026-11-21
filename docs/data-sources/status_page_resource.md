@@ -30,8 +30,8 @@ data "betterstack_status_page_resource" "example" {
 
 ### Read-Only
 
-- `status_page_section_id` (Number) Section to place this item in. Omit to use the page's first section, or a newly created default section on a page with none.
-- `resource_id` (Number) ID of the monitor, heartbeat or group to show. Required unless `resource_type` is `ManuallyTrackedItem`: leave it out there to create a new manually tracked item.
+- `status_page_section_id` (String) Section to place this item in. Omit to use the page's first section, or a newly created default section on a page with none.
+- `resource_id` (String) ID of the monitor, heartbeat or group to show. Required unless `resource_type` is `ManuallyTrackedItem`: leave it out there to create a new manually tracked item.
 - `resource_type` (String) Type of the resource to show. A group reads back as `MonitorGroup` or `HeartbeatGroup`, depending on what it groups. Valid values: `Monitor`, `MonitorGroup`, `Heartbeat`, `HeartbeatGroup`, `WebhookIntegration`, `EmailIntegration`, `IncomingWebhook`, `AmazonSnsIntegration`, `ManuallyTrackedItem`, `LogsChart`, `CatalogReference`, `ThirdPartyService`.
 - `catalog_reference` (Attributes, see [nested schema](#nestedatt--catalog_reference)) For a `CatalogReference` item, the catalog value it shows. `key` is the catalog relation's name, and `value` is a string or a catalog item given as `{type, item_id | name | email}`. The value is found or created when you send it, in place of `resource_id`. A Team `item_id` reads back as a `t`-prefixed ID. `null` for every other type.
 - `public_name` (String) Name shown publicly for this item.

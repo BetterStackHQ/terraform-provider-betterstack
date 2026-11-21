@@ -22,6 +22,7 @@ import (
 var _ resource.Resource = &OutgoingEmailIntegrationResource{}
 var _ resource.ResourceWithConfigure = &OutgoingEmailIntegrationResource{}
 var _ resource.ResourceWithImportState = &OutgoingEmailIntegrationResource{}
+var _ resource.ResourceWithModifyPlan = &OutgoingEmailIntegrationResource{}
 
 type OutgoingEmailIntegrationResource struct {
 	client *Client
@@ -155,7 +156,7 @@ func (r *OutgoingEmailIntegrationResource) Schema(ctx context.Context, req resou
 		Description: "Sends incident-update e-mails to external addresses, with per-stage subject, title, and body templates.",
 		Attributes: map[string]schema.Attribute{
 			"id":                                 schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"name":                               schema.StringAttribute{Optional: true, Computed: true, Description: "Integration name.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"name":                               schema.StringAttribute{Optional: true, Description: "Integration name."},
 			"notify_alongside_primary_responder": schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Also e-mail the recipients alongside the primary on-call responder."},
 			"on_incident_acknowledged":           schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "E-mail the recipients when an incident is acknowledged."},
 			"on_incident_comment":                schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "E-mail the recipients when a new comment is posted on an incident."},
@@ -224,7 +225,17 @@ func (r *OutgoingEmailIntegrationResource) body(ctx context.Context, m OutgoingE
 	return body
 }
 
+// updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
+func (r *OutgoingEmailIntegrationResource) updateBody(ctx context.Context, config, plan, state OutgoingEmailIntegrationModel) map[string]interface{} {
+	body := r.body(ctx, config)
+	if !state.Name.IsNull() && !state.Name.IsUnknown() && plan.Name.IsNull() {
+		body["name"] = nil
+	}
+	return body
+}
+
 func (r *OutgoingEmailIntegrationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, outgoingEmailIntegrationKeptOnRemoval, &resp.Diagnostics)
 	var plan OutgoingEmailIntegrationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request OutgoingEmailIntegrationModel
@@ -285,8 +296,14 @@ func populateOutgoingEmailIntegration(ctx context.Context, m *OutgoingEmailInteg
 	if attrs == nil {
 		return
 	}
-	if v, ok := stringFromAPI(attrs["name"]); ok {
-		m.Name = types.StringValue(v)
+	if rawValue, exists := attrs["name"]; exists {
+		if rawValue == nil {
+			m.Name = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["name"]); ok {
+				m.Name = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := stringFromAPI(attrs["team_name"]); ok {
 		m.TeamName = types.StringValue(v)
@@ -337,6 +354,7 @@ func populateOutgoingEmailIntegration(ctx context.Context, m *OutgoingEmailInteg
 }
 
 func (r *OutgoingEmailIntegrationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, outgoingEmailIntegrationKeptOnRemoval, &resp.Diagnostics)
 	var plan OutgoingEmailIntegrationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request OutgoingEmailIntegrationModel
@@ -368,7 +386,7 @@ func (r *OutgoingEmailIntegrationResource) Update(ctx context.Context, req resou
 	}
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
-	out, err := r.client.Update(ctx, outgoingEmailIntegrationBinding, vars, r.body(ctx, request))
+	out, err := r.client.Update(ctx, outgoingEmailIntegrationBinding, vars, r.updateBody(ctx, request, plan, state))
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "updating outgoing_email_integration", err, req.Plan.Raw.Type())
 		return
@@ -390,6 +408,13 @@ func (r *OutgoingEmailIntegrationResource) Delete(ctx context.Context, req resou
 	if err := r.client.Delete(ctx, outgoingEmailIntegrationBinding, vars); err != nil {
 		addAPIError(&resp.Diagnostics, "deleting outgoing_email_integration", err, req.State.Raw.Type())
 	}
+}
+
+// Attributes whose removal from the configuration keeps the server's value (no default, no null).
+var outgoingEmailIntegrationKeptOnRemoval = []string{"templates"}
+
+func (r *OutgoingEmailIntegrationResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	warnKeptOnRemoval(ctx, "betterstack_outgoing_email_integration", req, resp, outgoingEmailIntegrationKeptOnRemoval)
 }
 
 func (r *OutgoingEmailIntegrationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

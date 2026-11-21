@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/dynamicplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -21,6 +20,7 @@ import (
 var _ resource.Resource = &DashboardResource{}
 var _ resource.ResourceWithConfigure = &DashboardResource{}
 var _ resource.ResourceWithImportState = &DashboardResource{}
+var _ resource.ResourceWithModifyPlan = &DashboardResource{}
 
 type DashboardResource struct {
 	client *Client
@@ -34,7 +34,7 @@ type DashboardModel struct {
 	Id                   types.String  `tfsdk:"id"`
 	Charts               types.List    `tfsdk:"charts"`
 	CreatedAt            types.String  `tfsdk:"created_at"`
-	DashboardGroupId     types.Int64   `tfsdk:"dashboard_group_id"`
+	DashboardGroupId     types.String  `tfsdk:"dashboard_group_id"`
 	DateRangeFrom        types.String  `tfsdk:"date_range_from"`
 	DateRangeTo          types.String  `tfsdk:"date_range_to"`
 	HasOverlaps          types.Bool    `tfsdk:"has_overlaps"`
@@ -43,16 +43,16 @@ type DashboardModel struct {
 	ResourceGroupName    types.String  `tfsdk:"resource_group_name"`
 	Sections             types.List    `tfsdk:"sections"`
 	SourceEligibilitySql types.String  `tfsdk:"source_eligibility_sql"`
-	SourceId             types.Int64   `tfsdk:"source_id"`
+	SourceId             types.String  `tfsdk:"source_id"`
 	TeamId               types.String  `tfsdk:"team_id"`
 	TeamName             types.String  `tfsdk:"team_name"`
-	TemplateId           types.Int64   `tfsdk:"template_id"`
+	TemplateId           types.String  `tfsdk:"template_id"`
 	UpdatedAt            types.String  `tfsdk:"updated_at"`
 	Variables            types.Dynamic `tfsdk:"variables"`
 }
 
 type DashboardChartsModel struct {
-	Id        types.Int64  `tfsdk:"id"`
+	Id        types.String `tfsdk:"id"`
 	ChartType types.String `tfsdk:"chart_type"`
 	Name      types.String `tfsdk:"name"`
 	X         types.Int64  `tfsdk:"x"`
@@ -63,7 +63,7 @@ type DashboardChartsModel struct {
 
 func dashboardChartsAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"id":         types.Int64Type,
+		"id":         types.StringType,
 		"chart_type": types.StringType,
 		"name":       types.StringType,
 		"x":          types.Int64Type,
@@ -82,7 +82,7 @@ func expandDashboardCharts(ctx context.Context, o types.Object) map[string]inter
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
 	if !m.Id.IsNull() && !m.Id.IsUnknown() {
-		out["id"] = m.Id.ValueInt64()
+		out["id"] = idToAPI(m.Id.ValueString())
 	}
 	if !m.ChartType.IsNull() && !m.ChartType.IsUnknown() {
 		out["chart_type"] = m.ChartType.ValueString()
@@ -112,8 +112,8 @@ func flattenDashboardCharts(ctx context.Context, prior types.Object, raw map[str
 	if !prior.IsNull() && !prior.IsUnknown() {
 		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
 	}
-	if v, ok := int64FromAPI(raw["id"]); ok {
-		m.Id = types.Int64Value(v)
+	if v, ok := stringFromAPI(raw["id"]); ok {
+		m.Id = types.StringValue(v)
 	}
 	if v, ok := stringFromAPI(raw["chart_type"]); ok {
 		m.ChartType = types.StringValue(v)
@@ -138,7 +138,7 @@ func flattenDashboardCharts(ctx context.Context, prior types.Object, raw map[str
 }
 
 type DashboardSectionsModel struct {
-	Id        types.Int64  `tfsdk:"id"`
+	Id        types.String `tfsdk:"id"`
 	Name      types.String `tfsdk:"name"`
 	Y         types.Int64  `tfsdk:"y"`
 	Collapsed types.Bool   `tfsdk:"collapsed"`
@@ -146,7 +146,7 @@ type DashboardSectionsModel struct {
 
 func dashboardSectionsAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"id":        types.Int64Type,
+		"id":        types.StringType,
 		"name":      types.StringType,
 		"y":         types.Int64Type,
 		"collapsed": types.BoolType,
@@ -162,7 +162,7 @@ func expandDashboardSections(ctx context.Context, o types.Object) map[string]int
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
 	if !m.Id.IsNull() && !m.Id.IsUnknown() {
-		out["id"] = m.Id.ValueInt64()
+		out["id"] = idToAPI(m.Id.ValueString())
 	}
 	if !m.Name.IsNull() && !m.Name.IsUnknown() {
 		out["name"] = m.Name.ValueString()
@@ -183,8 +183,8 @@ func flattenDashboardSections(ctx context.Context, prior types.Object, raw map[s
 	if !prior.IsNull() && !prior.IsUnknown() {
 		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
 	}
-	if v, ok := int64FromAPI(raw["id"]); ok {
-		m.Id = types.Int64Value(v)
+	if v, ok := stringFromAPI(raw["id"]); ok {
+		m.Id = types.StringValue(v)
 	}
 	if v, ok := stringFromAPI(raw["name"]); ok {
 		m.Name = types.StringValue(v)
@@ -208,21 +208,21 @@ func (r *DashboardResource) Schema(ctx context.Context, req resource.SchemaReque
 		Description: "A dashboard of charts visualizing logs, metrics, and traces.",
 		Attributes: map[string]schema.Attribute{
 			"id":                     schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"charts":                 schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.Int64Attribute{Computed: true}, "chart_type": schema.StringAttribute{Computed: true}, "name": schema.StringAttribute{Computed: true}, "x": schema.Int64Attribute{Computed: true}, "y": schema.Int64Attribute{Computed: true}, "w": schema.Int64Attribute{Computed: true}, "h": schema.Int64Attribute{Computed: true}}}, Description: "Charts on the dashboard. Returned when you get one dashboard."},
+			"charts":                 schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true}, "chart_type": schema.StringAttribute{Computed: true}, "name": schema.StringAttribute{Computed: true}, "x": schema.Int64Attribute{Computed: true}, "y": schema.Int64Attribute{Computed: true}, "w": schema.Int64Attribute{Computed: true}, "h": schema.Int64Attribute{Computed: true}}}, Description: "Charts on the dashboard. Returned when you get one dashboard."},
 			"created_at":             schema.StringAttribute{Computed: true, Description: "When the dashboard was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"dashboard_group_id":     schema.Int64Attribute{Optional: true, Description: "Group this dashboard belongs to. Send `null` to remove it from its group."},
+			"dashboard_group_id":     schema.StringAttribute{Optional: true, Description: "Group this dashboard belongs to. Send `null` to remove it from its group."},
 			"date_range_from":        schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("now-3h"), Description: "Default range start, for example now-3h."},
 			"date_range_to":          schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("now"), Description: "Default range end, for example now."},
 			"has_overlaps":           schema.BoolAttribute{Computed: true, Description: "Whether any charts overlap on the grid. Returned when you get one dashboard."},
 			"name":                   schema.StringAttribute{Required: true, Description: "Dashboard name."},
 			"refresh_interval":       schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(30), Description: "Auto-refresh interval in seconds."},
 			"resource_group_name":    schema.StringAttribute{Optional: true, Computed: true, Description: "Name of the dashboard group to put the new dashboard in. The team's group with that name is used, or created when there is none. Use it instead of `dashboard_group_id`, not with it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_dashboard"}}},
-			"sections":               schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.Int64Attribute{Computed: true}, "name": schema.StringAttribute{Computed: true}, "y": schema.Int64Attribute{Computed: true}, "collapsed": schema.BoolAttribute{Computed: true}}}, Description: "Sections on the dashboard. Returned when you get one dashboard."},
-			"source_eligibility_sql": schema.StringAttribute{Optional: true, Computed: true, Description: "SQL that decides which sources this dashboard's charts can read. Returned when you get one dashboard.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"source_id":              schema.Int64Attribute{Optional: true, Computed: true, Description: "ID of the source to set the new dashboard up for. With it, creating a dashboard accepts only `name`, `template_id`, and either `dashboard_group_id` or `resource_group_name`.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown(), replaceWarningInt64{int64planmodifier.RequiresReplaceIfConfigured(), "betterstack_dashboard"}}},
+			"sections":               schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true}, "name": schema.StringAttribute{Computed: true}, "y": schema.Int64Attribute{Computed: true}, "collapsed": schema.BoolAttribute{Computed: true}}}, Description: "Sections on the dashboard. Returned when you get one dashboard."},
+			"source_eligibility_sql": schema.StringAttribute{Optional: true, Description: "SQL that decides which sources this dashboard's charts can read. Returned when you get one dashboard."},
+			"source_id":              schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the source to set the new dashboard up for. With it, creating a dashboard accepts only `name`, `template_id`, and either `dashboard_group_id` or `resource_group_name`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_dashboard"}}},
 			"team_id":                schema.StringAttribute{Computed: true, Description: "Team that owns the dashboard, as its `t`-prefixed Better Stack team ID, such as `t123`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"team_name":              schema.StringAttribute{Computed: true, Description: "Name of the team that owns the dashboard."},
-			"template_id":            schema.Int64Attribute{Optional: true, Computed: true, Description: "ID of the dashboard template to create the dashboard from, as GET /api/v4/dashboards/templates lists it. The dashboard starts with the template's charts, sections and alerts. With it, creating a dashboard accepts only `name`, `source_id`, and either `dashboard_group_id` or `resource_group_name`.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown(), replaceWarningInt64{int64planmodifier.RequiresReplaceIfConfigured(), "betterstack_dashboard"}}},
+			"template_id":            schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the dashboard template to create the dashboard from, as GET /api/v4/dashboards/templates lists it. The dashboard starts with the template's charts, sections and alerts. With it, creating a dashboard accepts only `name`, `source_id`, and either `dashboard_group_id` or `resource_group_name`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_dashboard"}}},
 			"updated_at":             schema.StringAttribute{Computed: true, Description: "When the dashboard was last updated."},
 			"variables":              schema.DynamicAttribute{Optional: true, Computed: true, Description: "Template variables, returned when you get one dashboard. An update replaces all variables: any you don't send is removed, except the built-in time, start_time, end_time and source variables, which always exist. The built-in variables keep their own type. `sql_definition` is accepted only on `select_with_sql` and `multi_select_with_sql` variables.", PlanModifiers: []planmodifier.Dynamic{dynamicplanmodifier.UseStateForUnknown()}},
 		},
@@ -245,7 +245,7 @@ func (r *DashboardResource) body(ctx context.Context, m DashboardModel) map[stri
 		body["name"] = m.Name.ValueString()
 	}
 	if !m.DashboardGroupId.IsNull() && !m.DashboardGroupId.IsUnknown() {
-		body["dashboard_group_id"] = m.DashboardGroupId.ValueInt64()
+		body["dashboard_group_id"] = idToAPI(m.DashboardGroupId.ValueString())
 	}
 	if !m.RefreshInterval.IsNull() && !m.RefreshInterval.IsUnknown() {
 		body["refresh_interval"] = m.RefreshInterval.ValueInt64()
@@ -267,10 +267,10 @@ func (r *DashboardResource) body(ctx context.Context, m DashboardModel) map[stri
 		}
 	}
 	if !m.TemplateId.IsNull() && !m.TemplateId.IsUnknown() {
-		body["template_id"] = m.TemplateId.ValueInt64()
+		body["template_id"] = idToAPI(m.TemplateId.ValueString())
 	}
 	if !m.SourceId.IsNull() && !m.SourceId.IsUnknown() {
-		body["source_id"] = m.SourceId.ValueInt64()
+		body["source_id"] = idToAPI(m.SourceId.ValueString())
 	}
 	if !m.ResourceGroupName.IsNull() && !m.ResourceGroupName.IsUnknown() {
 		body["resource_group_name"] = m.ResourceGroupName.ValueString()
@@ -285,7 +285,7 @@ func (r *DashboardResource) bodyForUpdate(ctx context.Context, m DashboardModel)
 		body["name"] = m.Name.ValueString()
 	}
 	if !m.DashboardGroupId.IsNull() && !m.DashboardGroupId.IsUnknown() {
-		body["dashboard_group_id"] = m.DashboardGroupId.ValueInt64()
+		body["dashboard_group_id"] = idToAPI(m.DashboardGroupId.ValueString())
 	}
 	if !m.RefreshInterval.IsNull() && !m.RefreshInterval.IsUnknown() {
 		body["refresh_interval"] = m.RefreshInterval.ValueInt64()
@@ -315,10 +315,14 @@ func (r *DashboardResource) updateBody(ctx context.Context, config, plan, state 
 	if !state.DashboardGroupId.IsNull() && !state.DashboardGroupId.IsUnknown() && plan.DashboardGroupId.IsNull() {
 		body["dashboard_group_id"] = nil
 	}
+	if !state.SourceEligibilitySql.IsNull() && !state.SourceEligibilitySql.IsUnknown() && plan.SourceEligibilitySql.IsNull() {
+		body["source_eligibility_sql"] = nil
+	}
 	return body
 }
 
 func (r *DashboardResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, dashboardKeptOnRemoval, &resp.Diagnostics)
 	var plan DashboardModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request DashboardModel
@@ -387,10 +391,10 @@ func populateDashboard(ctx context.Context, m *DashboardModel, attrs map[string]
 	}
 	if rawValue, exists := attrs["dashboard_group_id"]; exists {
 		if rawValue == nil {
-			m.DashboardGroupId = types.Int64Null()
+			m.DashboardGroupId = types.StringNull()
 		} else {
-			if v, ok := int64FromAPI(attrs["dashboard_group_id"]); ok {
-				m.DashboardGroupId = types.Int64Value(v)
+			if v, ok := stringFromAPI(attrs["dashboard_group_id"]); ok {
+				m.DashboardGroupId = types.StringValue(v)
 			}
 		}
 	}
@@ -403,8 +407,14 @@ func populateDashboard(ctx context.Context, m *DashboardModel, attrs map[string]
 	if v, ok := stringFromAPI(attrs["date_range_to"]); ok {
 		m.DateRangeTo = types.StringValue(v)
 	}
-	if v, ok := stringFromAPI(attrs["source_eligibility_sql"]); ok {
-		m.SourceEligibilitySql = types.StringValue(v)
+	if rawValue, exists := attrs["source_eligibility_sql"]; exists {
+		if rawValue == nil {
+			m.SourceEligibilitySql = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["source_eligibility_sql"]); ok {
+				m.SourceEligibilitySql = types.StringValue(v)
+			}
+		}
 	}
 	if m.Variables.IsNull() || m.Variables.IsUnknown() {
 		if raw, ok := attrs["variables"]; ok && raw != nil {
@@ -513,6 +523,7 @@ func (r *DashboardResource) mergeResponse(ctx context.Context, m DashboardModel,
 }
 
 func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, dashboardKeptOnRemoval, &resp.Diagnostics)
 	var plan DashboardModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request DashboardModel
@@ -560,6 +571,13 @@ func (r *DashboardResource) Delete(ctx context.Context, req resource.DeleteReque
 	}
 }
 
+// Attributes whose removal from the configuration keeps the server's value (no default, no null).
+var dashboardKeptOnRemoval = []string{"variables"}
+
+func (r *DashboardResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	warnKeptOnRemoval(ctx, "betterstack_dashboard", req, resp, dashboardKeptOnRemoval)
+}
+
 func (r *DashboardResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
@@ -570,6 +588,6 @@ var _ resource.ResourceWithMoveState = &DashboardResource{}
 // logtail_dashboard (registry.terraform.io/BetterStackHQ/logtail).
 func (r *DashboardResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{\"variable\":\"variables\"},\"constants\":{},\"transforms\":[{\"op\":\"sentinel_null\",\"path\":\"dashboard_group_id\",\"value\":0},{\"op\":\"sentinel_omit\",\"path\":\"variables[].sql_definition\",\"value\":\"\"},{\"op\":\"sentinel_omit\",\"path\":\"variables[].default_values\",\"value\":[]}],\"ignored_fields\":[\"team_id\",\"team_name\",\"data\"],\"instructions\":[\"Keep every attribute: the legacy provider wrote the same /api/v2/dashboards fields this /api/v3 resource takes. Rename variable blocks to the variables object list, and a dashboard_group_id of 0 to null. Move team_name to the provider's team_id (or a provider alias for that team); team_id now reads back as the t-prefixed id. Import uses the existing id.\",\"A dashboard the legacy provider created from data (the import API) keeps its id, charts, queries, alerts, sections and variables: drop data from the configuration, since this resource takes no exported document and must not call import again. Its charts and sections stay unmanaged unless imported as their own resources, and no child may be imported twice.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_dashboard\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"computed\":true,\"description\":\"The time when this dashboard was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"description\":\"The ID of the dashboard group this dashboard belongs to. Use 0 to remove from group.\",\"diff_suppress_func\":\"provider.init.func6\",\"name\":\"dashboard_group_id\",\"optional\":true,\"type\":\"int\"},{\"description\":\"The dashboard configuration data as a JSON string. When set, the dashboard is created via the import API and any change forces re-creation. Cannot be combined with individual fields like refresh_interval, date_range_from, chart and variable blocks, etc.\",\"force_new\":true,\"name\":\"data\",\"optional\":true,\"type\":\"string\",\"note\":\"unmarshalled to interface{} before send; switches create to /import\",\"json\":\"data\"},{\"computed\":true,\"description\":\"The start of the date range (e.g., 'now-3h', 'now-24h').\",\"name\":\"date_range_from\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The end of the date range (e.g., 'now').\",\"name\":\"date_range_to\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this dashboard.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"The name of the dashboard.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The auto-refresh interval in seconds.\",\"name\":\"refresh_interval\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"SQL expression to filter eligible sources.\",\"name\":\"source_eligibility_sql\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The team ID of the dashboard.\",\"name\":\"team_id\",\"type\":\"int\",\"note\":\"plain *int here, NOT StringOrInt - inconsistent with source/collector\"},{\"description\":\"The team name to associate with the dashboard when using a global API token. You can't update this value later.\",\"diff_suppress_func\":\"provider.init.func5\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\",\"note\":\"diff-suppressed after create; cleared on update\"},{\"computed\":true,\"description\":\"The time when this dashboard was last updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"description\":\"Variables for this dashboard. Default variables (time, start_time, end_time, source) are auto-created.\",\"name\":\"variable\",\"optional\":true,\"type\":\"list(object)\",\"note\":\"TF name `variable` maps to JSON `variables`\",\"json\":\"variables\"},{\"computed\":true,\"description\":\"For 'string', 'number', and 'boolean' variables: fallback value used when `values` is empty. For 'select_value' variables: the predefined options shown in the picker. Unused for other types.\",\"name\":\"variable.default_values\",\"optional\":true,\"type\":\"list(string)\"},{\"description\":\"The name of the variable (used as {{name}} in queries).\",\"name\":\"variable.name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"SQL definition for 'select_with_sql' or 'multi_select_with_sql' type variables.\",\"name\":\"variable.sql_definition\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The selected values. For 'source' variables these are the source IDs the variable resolves to (e.g. `logtail_source.web.id`) - this is the field that selects the source. For other types it is the current picker selection or input.\",\"name\":\"variable.values\",\"optional\":true,\"type\":\"list(string)\"},{\"description\":\"The type of variable: 'source', 'string', 'number', 'date', 'datetime', 'boolean', 'sql_expression', 'select_value', 'select_with_sql', or 'multi_select_with_sql'.\",\"name\":\"variable.variable_type\",\"required\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func42\"}],\"response_projections\":[]}"),
+		legacyStateMover("{\"renames\":{\"variable\":\"variables\"},\"constants\":{},\"transforms\":[{\"op\":\"sentinel_null\",\"path\":\"dashboard_group_id\",\"value\":0},{\"op\":\"sentinel_omit\",\"path\":\"variables[].sql_definition\",\"value\":\"\"},{\"op\":\"sentinel_omit\",\"path\":\"variables[].default_values\",\"value\":[]},{\"op\":\"string_id\",\"path\":\"dashboard_group_id\"}],\"ignored_fields\":[\"team_id\",\"team_name\",\"data\"],\"instructions\":[\"Keep every attribute: the legacy provider wrote the same /api/v2/dashboards fields this /api/v3 resource takes. Rename variable blocks to the variables object list, and a dashboard_group_id of 0 to null. Move team_name to the provider's team_id (or a provider alias for that team); team_id now reads back as the t-prefixed id. Import uses the existing id.\",\"A dashboard the legacy provider created from data (the import API) keeps its id, charts, queries, alerts, sections and variables: drop data from the configuration, since this resource takes no exported document and must not call import again. Its charts and sections stay unmanaged unless imported as their own resources, and no child may be imported twice.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_dashboard\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"computed\":true,\"description\":\"The time when this dashboard was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"description\":\"The ID of the dashboard group this dashboard belongs to. Use 0 to remove from group.\",\"diff_suppress_func\":\"provider.init.func6\",\"name\":\"dashboard_group_id\",\"optional\":true,\"type\":\"int\"},{\"description\":\"The dashboard configuration data as a JSON string. When set, the dashboard is created via the import API and any change forces re-creation. Cannot be combined with individual fields like refresh_interval, date_range_from, chart and variable blocks, etc.\",\"force_new\":true,\"name\":\"data\",\"optional\":true,\"type\":\"string\",\"note\":\"unmarshalled to interface{} before send; switches create to /import\",\"json\":\"data\"},{\"computed\":true,\"description\":\"The start of the date range (e.g., 'now-3h', 'now-24h').\",\"name\":\"date_range_from\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The end of the date range (e.g., 'now').\",\"name\":\"date_range_to\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this dashboard.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"The name of the dashboard.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The auto-refresh interval in seconds.\",\"name\":\"refresh_interval\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"SQL expression to filter eligible sources.\",\"name\":\"source_eligibility_sql\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The team ID of the dashboard.\",\"name\":\"team_id\",\"type\":\"int\",\"note\":\"plain *int here, NOT StringOrInt - inconsistent with source/collector\"},{\"description\":\"The team name to associate with the dashboard when using a global API token. You can't update this value later.\",\"diff_suppress_func\":\"provider.init.func5\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\",\"note\":\"diff-suppressed after create; cleared on update\"},{\"computed\":true,\"description\":\"The time when this dashboard was last updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"description\":\"Variables for this dashboard. Default variables (time, start_time, end_time, source) are auto-created.\",\"name\":\"variable\",\"optional\":true,\"type\":\"list(object)\",\"note\":\"TF name `variable` maps to JSON `variables`\",\"json\":\"variables\"},{\"computed\":true,\"description\":\"For 'string', 'number', and 'boolean' variables: fallback value used when `values` is empty. For 'select_value' variables: the predefined options shown in the picker. Unused for other types.\",\"name\":\"variable.default_values\",\"optional\":true,\"type\":\"list(string)\"},{\"description\":\"The name of the variable (used as {{name}} in queries).\",\"name\":\"variable.name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"SQL definition for 'select_with_sql' or 'multi_select_with_sql' type variables.\",\"name\":\"variable.sql_definition\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The selected values. For 'source' variables these are the source IDs the variable resolves to (e.g. `logtail_source.web.id`) - this is the field that selects the source. For other types it is the current picker selection or input.\",\"name\":\"variable.values\",\"optional\":true,\"type\":\"list(string)\"},{\"description\":\"The type of variable: 'source', 'string', 'number', 'date', 'datetime', 'boolean', 'sql_expression', 'select_value', 'select_with_sql', or 'multi_select_with_sql'.\",\"name\":\"variable.variable_type\",\"required\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func42\"}],\"response_projections\":[]}"),
 	}
 }

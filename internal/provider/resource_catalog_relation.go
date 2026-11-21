@@ -34,6 +34,7 @@ type CatalogRelationModel struct {
 	MatchMode      types.String `tfsdk:"match_mode"`
 	Name           types.String `tfsdk:"name"`
 	OrganizationId types.String `tfsdk:"organization_id"`
+	RecordsCount   types.Int64  `tfsdk:"records_count"`
 }
 
 func (r *CatalogRelationResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -49,6 +50,7 @@ func (r *CatalogRelationResource) Schema(ctx context.Context, req resource.Schem
 			"match_mode":      schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("any"), Description: "How primary attributes combine when matching records: `any` matches a record when any primary attribute matches, `all` when every primary attribute matches.", Validators: []validator.String{stringvalidator.OneOf("any", "all")}},
 			"name":            schema.StringAttribute{Required: true, Description: "Catalog relation name."},
 			"organization_id": schema.StringAttribute{Optional: true, Computed: true, Description: "Organization that owns this catalog relation, as a plain numeric Better Stack ID.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_catalog_relation"}}},
+			"records_count":   schema.Int64Attribute{Computed: true, Description: "Number of catalog records in this catalog relation."},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -174,6 +176,9 @@ func populateCatalogRelation(ctx context.Context, m *CatalogRelationModel, attrs
 	}
 	if v, ok := stringFromAPI(attrs["match_mode"]); ok {
 		m.MatchMode = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(attrs["records_count"]); ok {
+		m.RecordsCount = types.Int64Value(v)
 	}
 }
 

@@ -40,11 +40,11 @@ Optional attributes are also computed: left unset, they take the server-side def
 
 - `name` (String) Chart name. Defaults to `Your chart`.
 - `description` (String) Chart description. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `x` (Number) Grid x position. The grid is 12 columns wide. If left out, the chart goes in the first free space that fits.
-- `y` (Number) Grid y position. Set automatically when left out.
+- `x` (Number) Grid x position. The grid is 12 columns wide. If left out, the chart goes in the first free space that fits. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `y` (Number) Grid y position. Set automatically when left out. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
 - `w` (Number) Grid width. Defaults to `6`.
 - `h` (Number) Grid height. Defaults to `4`.
-- `settings` (Dynamic) Display settings for the chart type, such as unit, axes, legend, stacking and decimal places. Defaults to an empty object.
+- `settings` (Dynamic) Display settings for the chart type, such as unit, axes, legend, stacking and decimal places. Defaults to an empty object. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
 
 ### Read-Only
 
@@ -54,7 +54,7 @@ Optional attributes are also computed: left unset, they take the server-side def
 <a id="nestedatt--queries"></a>
 ### Nested Schema for `queries`
 
-- `id` (Number)
+- `id` (String)
 - `query_type` (String)
 - `name` (String)
 - `source_variable` (String)
@@ -247,7 +247,7 @@ Optional attributes are also computed: left unset, they take the server-side def
 <a id="nestedatt--queries_result"></a>
 ### Nested Schema for `queries_result`
 
-- `id` (Number)
+- `id` (String)
 - `query_type` (String)
 - `name` (String)
 - `source_variable` (String)

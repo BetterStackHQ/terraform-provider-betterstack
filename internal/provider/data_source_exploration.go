@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -36,7 +35,7 @@ func (d *ExplorationDataSource) Schema(ctx context.Context, req datasource.Schem
 			"created_at":           schema.StringAttribute{Computed: true, Description: "When the exploration was created."},
 			"date_range_from":      schema.StringAttribute{Computed: true, Description: "Default range start, for example now-3h. Applied only when sent, so it can't be cleared."},
 			"date_range_to":        schema.StringAttribute{Computed: true, Description: "Default range end, for example now. Applied only when sent, so it can't be cleared."},
-			"exploration_group_id": schema.Int64Attribute{Optional: true, Computed: true, Description: "Group this exploration belongs to. Send `null` or `\"0\"` to remove it from its group."},
+			"exploration_group_id": schema.StringAttribute{Optional: true, Computed: true, Description: "Group this exploration belongs to. Send `null` or `\"0\"` to remove it from its group."},
 			"name":                 schema.StringAttribute{Optional: true, Computed: true, Description: "Exploration name. The chart takes its name from it, so the chart's name is never sent."},
 			"queries":              schema.DynamicAttribute{Computed: true, Description: "The chart's queries, in ID order. Updating an exploration replaces all of its queries. Each query takes only the keys its `query_type` uses: `sql_query` and `source_variable` for `sql_expression`, `where_condition` and `source_variable` for `tail_query`, and `static_text` for `static_text`. Sending a key another type uses, or more than one query on a chart other than `line_chart`, returns 422."},
 			"queries_result":       schema.DynamicAttribute{Computed: true, Description: "Complete server result for `queries`, including computed fields."},
@@ -75,10 +74,10 @@ func (d *ExplorationDataSource) Read(ctx context.Context, req datasource.ReadReq
 			return
 		}
 		out = got
-		if !data.ExplorationGroupId.IsNull() && !data.ExplorationGroupId.IsUnknown() && strconv.FormatInt(data.ExplorationGroupId.ValueInt64(), 10) != "" {
+		if !data.ExplorationGroupId.IsNull() && !data.ExplorationGroupId.IsUnknown() && data.ExplorationGroupId.ValueString() != "" {
 			matched := false
 			for _, field := range []string{"exploration_group_id"} {
-				if stringifyScalar(out[field]) == strconv.FormatInt(data.ExplorationGroupId.ValueInt64(), 10) {
+				if stringifyScalar(out[field]) == data.ExplorationGroupId.ValueString() {
 					matched = true
 					break
 				}
@@ -111,9 +110,9 @@ func (d *ExplorationDataSource) Read(ctx context.Context, req datasource.ReadReq
 			"exploration_group_id": {"exploration_group_id"},
 			"name":                 {"name"},
 		}
-		if !data.ExplorationGroupId.IsNull() && !data.ExplorationGroupId.IsUnknown() && strconv.FormatInt(data.ExplorationGroupId.ValueInt64(), 10) != "" {
-			q.Set("exploration_group_id", strconv.FormatInt(data.ExplorationGroupId.ValueInt64(), 10))
-			want["exploration_group_id"] = strconv.FormatInt(data.ExplorationGroupId.ValueInt64(), 10)
+		if !data.ExplorationGroupId.IsNull() && !data.ExplorationGroupId.IsUnknown() && data.ExplorationGroupId.ValueString() != "" {
+			q.Set("exploration_group_id", data.ExplorationGroupId.ValueString())
+			want["exploration_group_id"] = data.ExplorationGroupId.ValueString()
 		}
 		if !data.Name.IsNull() && !data.Name.IsUnknown() && data.Name.ValueString() != "" {
 			want["name"] = data.Name.ValueString()

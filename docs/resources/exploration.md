@@ -35,8 +35,8 @@ Optional attributes are also computed: left unset, they take the server-side def
 
 - `date_range_from` (String) Default range start, for example now-3h. Applied only when sent, so it can't be cleared. Defaults to `now-3h`.
 - `date_range_to` (String) Default range end, for example now. Applied only when sent, so it can't be cleared. Defaults to `now`.
-- `exploration_group_id` (Number) Group this exploration belongs to. Send `null` or `"0"` to remove it from its group. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `variables` (Dynamic, see [nested schema](#nestedatt--variables)) Template variables. An update replaces all variables: any you don't send is removed, except the built-in time, start_time, end_time and source variables, which always exist. `sql_definition` applies only to `select_with_sql` and `multi_select_with_sql` variables. `allow_multiple_values` is saved only for `select_value` and `select_with_sql` variables. A source variable's values are IDs of sources the team can access.
+- `exploration_group_id` (String) Group this exploration belongs to. Send `null` or `"0"` to remove it from its group. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `variables` (Dynamic, see [nested schema](#nestedatt--variables)) Template variables. An update replaces all variables: any you don't send is removed, except the built-in time, start_time, end_time and source variables, which always exist. `sql_definition` applies only to `select_with_sql` and `multi_select_with_sql` variables. `allow_multiple_values` is saved only for `select_value` and `select_with_sql` variables. A source variable's values are IDs of sources the team can access. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
 
 ### Read-Only
 
@@ -57,7 +57,7 @@ Optional attributes are also computed: left unset, they take the server-side def
 <a id="nestedatt--queries"></a>
 ### Nested Schema for `queries`
 
-- `id` (Number)
+- `id` (String)
 - `query_type` (String) Query type. Only `sql_expression`, `tail_query` and `static_text` can be written through the API. Other types are read-only: you can replace them with a writable type, never edit them. Valid values: `sql_expression`, `tail_query`, `static_text`, `pql_expression`, `tail_query_builder`, `query_builder`, `funnel_query`.
 - `name` (String)
 - `sql_query` (String)
@@ -90,7 +90,7 @@ Optional attributes are also computed: left unset, they take the server-side def
 <a id="nestedatt--queries_result"></a>
 ### Nested Schema for `queries_result`
 
-- `id` (Number)
+- `id` (String)
 - `query_type` (String) Query type. Only `sql_expression`, `tail_query` and `static_text` can be written through the API. Other types are read-only: you can replace them with a writable type, never edit them. Valid values: `sql_expression`, `tail_query`, `static_text`, `pql_expression`, `tail_query_builder`, `query_builder`, `funnel_query`.
 - `name` (String)
 - `sql_query` (String)

@@ -31,7 +31,7 @@ func (d *OnCallScheduleDataSource) Schema(ctx context.Context, req datasource.Sc
 		Description: "An on-call schedule: who is on call and when.",
 		Attributes: map[string]schema.Attribute{
 			"id":                       schema.StringAttribute{Optional: true, Computed: true, Description: "Look up by id, or by name."},
-			"default_calendar":         schema.BoolAttribute{Computed: true, Description: "Whether this is the team's default on-call schedule."},
+			"default_schedule":         schema.BoolAttribute{Computed: true, Description: "Whether this is the team's default on-call schedule."},
 			"name":                     schema.StringAttribute{Optional: true, Computed: true, Description: "Schedule name."},
 			"on_call_users":            schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true}, "first_name": schema.StringAttribute{Computed: true}, "last_name": schema.StringAttribute{Computed: true}, "email": schema.StringAttribute{Computed: true}, "phone_numbers": schema.ListAttribute{Computed: true, ElementType: types.StringType}}}, Description: "Users on call now, with their id, name, e-mail and phone numbers. When getting a single schedule, date picks another time. Each user's entry under relationships also has meta with email, on_holiday and holiday_ends_at."},
 			"slack_group_handle":       schema.StringAttribute{Computed: true, Description: "Handle of the Slack user group that follows who is on call, without the @. Null when none."},

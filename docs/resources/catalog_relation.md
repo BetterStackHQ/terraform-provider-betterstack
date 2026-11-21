@@ -36,6 +36,7 @@ Optional attributes are also computed: left unset, they take the server-side def
 ### Read-Only
 
 - `id` (String) The id of this catalog_relation.
+- `records_count` (Number) Number of catalog records in this catalog relation.
 
 ## Endpoints
 

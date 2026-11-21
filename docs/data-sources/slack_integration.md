@@ -58,7 +58,7 @@ Set `id`, or filter attributes matching exactly one record.
 ### Nested Schema for `channel_invitees`
 
 - `type` (String) What is invited. Valid values: `user`, `on_call_calendar`, `slack_user_group`.
-- `id` (Number) Id of the user, on-call calendar or Slack user group.
+- `id` (String) Id of the user, on-call calendar or Slack user group.
 
 <a id="nestedatt--alert_options"></a>
 ### Nested Schema for `alert_options`
@@ -78,7 +78,7 @@ Set `id`, or filter attributes matching exactly one record.
 ### Nested Schema for `status_page_update_resources`
 
 - `type` (String) Resource type. Valid values: `status_page`, `monitor`, `heartbeat`, `monitor_group`, `heartbeat_group`, `webhook_integration`, `email_integration`, `incoming_webhook`, `amazon_sns_integration`, `manually_tracked_item`, `logs_chart`, `catalog_reference`.
-- `id` (Number) Resource id.
+- `id` (String) Resource id.
 
 ## Endpoints
 

@@ -24,8 +24,8 @@ resource "betterstack_grafana_integration" "example" {
 
 Optional attributes are also computed: left unset, they take the server-side default.
 
-- `name` (String) Integration name.
-- `policy_id` (Number) ID of the escalation policy used for alerts. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `name` (String) Integration name. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `escalation_policy_id` (String) ID of the escalation policy used for alerts. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `paused` (Boolean) Whether the integration is paused. A paused integration opens no incidents. Defaults to `false`.
 - `call` (Boolean) Alert by phone call. Defaults to `false`.
 - `sms` (Boolean) Alert by SMS. Defaults to `false`.
@@ -33,7 +33,7 @@ Optional attributes are also computed: left unset, they take the server-side def
 - `push` (Boolean) Alert by push notification. Defaults to `false`.
 - `critical_alert` (Boolean) Alert by a critical push notification that bypasses silent mode. Defaults to `false`.
 - `team_wait` (Number) Seconds before escalating to the whole team. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `recovery_period` (Number) Seconds a resolved alert must hold before the incident resolves. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `recovery_period` (Number) Seconds a resolved alert must hold before the incident resolves. Has no effect for this integration, since an incident resolves as soon as Grafana reports the alert as resolved. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 
 ### Read-Only
 
@@ -43,11 +43,11 @@ Optional attributes are also computed: left unset, they take the server-side def
 
 ## Endpoints
 
-- `GET /api/v2/grafana-integrations`
-- `GET /api/v2/grafana-integrations/:id`
-- `POST /api/v2/grafana-integrations`
-- `PATCH /api/v2/grafana-integrations/:id`
-- `DELETE /api/v2/grafana-integrations/:id`
+- `GET /api/v3/grafana-integrations`
+- `GET /api/v3/grafana-integrations/:id`
+- `POST /api/v3/grafana-integrations`
+- `PATCH /api/v3/grafana-integrations/:id`
+- `DELETE /api/v3/grafana-integrations/:id`
 
 -> alerting_rule is accepted on write but not read back.
 

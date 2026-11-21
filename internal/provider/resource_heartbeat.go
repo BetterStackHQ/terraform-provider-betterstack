@@ -9,10 +9,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
@@ -21,6 +20,7 @@ import (
 var _ resource.Resource = &HeartbeatResource{}
 var _ resource.ResourceWithConfigure = &HeartbeatResource{}
 var _ resource.ResourceWithImportState = &HeartbeatResource{}
+var _ resource.ResourceWithModifyPlan = &HeartbeatResource{}
 
 type HeartbeatResource struct {
 	client *Client
@@ -36,8 +36,9 @@ type HeartbeatModel struct {
 	CreatedAt           types.String `tfsdk:"created_at"`
 	CriticalAlert       types.Bool   `tfsdk:"critical_alert"`
 	Email               types.Bool   `tfsdk:"email"`
+	EscalationPolicyId  types.String `tfsdk:"escalation_policy_id"`
 	Grace               types.Int64  `tfsdk:"grace"`
-	HeartbeatGroupId    types.Int64  `tfsdk:"heartbeat_group_id"`
+	HeartbeatGroupId    types.String `tfsdk:"heartbeat_group_id"`
 	MaintenanceDays     types.Set    `tfsdk:"maintenance_days"`
 	MaintenanceFrom     types.String `tfsdk:"maintenance_from"`
 	MaintenanceTimezone types.String `tfsdk:"maintenance_timezone"`
@@ -47,7 +48,6 @@ type HeartbeatModel struct {
 	Paused              types.Bool   `tfsdk:"paused"`
 	PausedAt            types.String `tfsdk:"paused_at"`
 	Period              types.Int64  `tfsdk:"period"`
-	PolicyId            types.String `tfsdk:"policy_id"`
 	Push                types.Bool   `tfsdk:"push"`
 	ServerTimezone      types.String `tfsdk:"server_timezone"`
 	Sms                 types.Bool   `tfsdk:"sms"`
@@ -193,13 +193,14 @@ func (r *HeartbeatResource) Schema(ctx context.Context, req resource.SchemaReque
 		Description: "A heartbeat that expects a periodic ping and alerts if one fails to arrive in time.",
 		Attributes: map[string]schema.Attribute{
 			"id":                   schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"call":                 schema.BoolAttribute{Optional: true, Computed: true, Description: "Alert by phone call.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
+			"call":                 schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Alert by phone call."},
 			"created_at":           schema.StringAttribute{Computed: true, Description: "When the heartbeat was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"critical_alert":       schema.BoolAttribute{Optional: true, Computed: true, Description: "Alert by a critical push notification that bypasses silent mode.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
-			"email":                schema.BoolAttribute{Optional: true, Computed: true, Description: "Alert by e-mail.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
+			"critical_alert":       schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Alert by a critical push notification that bypasses silent mode."},
+			"email":                schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Alert by e-mail."},
+			"escalation_policy_id": schema.StringAttribute{Optional: true, Description: "ID of the escalation policy used for alerts. Returned as a string. You can send it as a number or a string."},
 			"grace":                schema.Int64Attribute{Required: true, Description: "How long to wait after the period before alerting, in seconds. At least 0."},
-			"heartbeat_group_id":   schema.Int64Attribute{Optional: true, Description: "ID of the heartbeat group this heartbeat belongs to."},
-			"maintenance_days":     schema.SetAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Days of the week the maintenance window applies to.", PlanModifiers: []planmodifier.Set{setplanmodifier.UseStateForUnknown()}},
+			"heartbeat_group_id":   schema.StringAttribute{Optional: true, Description: "ID of the heartbeat group this heartbeat belongs to."},
+			"maintenance_days":     schema.SetAttribute{Optional: true, Computed: true, Default: setdefault.StaticValue(types.SetValueMust(types.StringType, []attr.Value{types.StringValue("mon"), types.StringValue("tue"), types.StringValue("wed"), types.StringValue("thu"), types.StringValue("fri"), types.StringValue("sat"), types.StringValue("sun")})), ElementType: types.StringType, Description: "Days of the week the maintenance window applies to."},
 			"maintenance_from":     schema.StringAttribute{Optional: true, Description: "Start time of the maintenance window, as `HH:MM:SS`."},
 			"maintenance_timezone": schema.StringAttribute{Optional: true, Description: "Time zone of the maintenance window."},
 			"maintenance_to":       schema.StringAttribute{Optional: true, Description: "End time of the maintenance window, as `HH:MM:SS`."},
@@ -208,10 +209,9 @@ func (r *HeartbeatResource) Schema(ctx context.Context, req resource.SchemaReque
 			"paused":               schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether the heartbeat is paused."},
 			"paused_at":            schema.StringAttribute{Computed: true, Description: "When the heartbeat was paused."},
 			"period":               schema.Int64Attribute{Required: true, Description: "Expected time between pings, in seconds. At least 30 and less than a year."},
-			"policy_id":            schema.StringAttribute{Optional: true, Description: "ID of the escalation policy used for alerts. Returned as a string. You can send it as a number or a string."},
-			"push":                 schema.BoolAttribute{Optional: true, Computed: true, Description: "Alert by push notification.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
+			"push":                 schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Alert by push notification."},
 			"server_timezone":      schema.StringAttribute{Optional: true, Description: "IANA time zone, such as `Europe/London`, that keeps expected pings at the same local time of day. Only accepted for a period of 1 hour (3600 seconds) or more."},
-			"sms":                  schema.BoolAttribute{Optional: true, Computed: true, Description: "Alert by SMS.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
+			"sms":                  schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Alert by SMS."},
 			"sort_index":           schema.Int64Attribute{Optional: true, Description: "Display order within the group."},
 			"status":               schema.StringAttribute{Computed: true, Description: "Current heartbeat status."},
 			"team_name":            schema.StringAttribute{Computed: true, Description: "Name of the team that owns this heartbeat."},
@@ -256,7 +256,7 @@ func (r *HeartbeatResource) body(ctx context.Context, m HeartbeatModel) map[stri
 		body["grace"] = m.Grace.ValueInt64()
 	}
 	if !m.HeartbeatGroupId.IsNull() && !m.HeartbeatGroupId.IsUnknown() {
-		body["heartbeat_group_id"] = m.HeartbeatGroupId.ValueInt64()
+		body["heartbeat_group_id"] = idToAPI(m.HeartbeatGroupId.ValueString())
 	}
 	if !m.SortIndex.IsNull() && !m.SortIndex.IsUnknown() {
 		body["sort_index"] = m.SortIndex.ValueInt64()
@@ -279,8 +279,8 @@ func (r *HeartbeatResource) body(ctx context.Context, m HeartbeatModel) map[stri
 	if !m.TeamWait.IsNull() && !m.TeamWait.IsUnknown() {
 		body["team_wait"] = m.TeamWait.ValueInt64()
 	}
-	if !m.PolicyId.IsNull() && !m.PolicyId.IsUnknown() {
-		body["policy_id"] = m.PolicyId.ValueString()
+	if !m.EscalationPolicyId.IsNull() && !m.EscalationPolicyId.IsUnknown() {
+		body["escalation_policy_id"] = m.EscalationPolicyId.ValueString()
 	}
 	if !m.ServerTimezone.IsNull() && !m.ServerTimezone.IsUnknown() {
 		body["server_timezone"] = m.ServerTimezone.ValueString()
@@ -314,8 +314,8 @@ func (r *HeartbeatResource) updateBody(ctx context.Context, config, plan, state 
 	if !state.TeamWait.IsNull() && !state.TeamWait.IsUnknown() && plan.TeamWait.IsNull() {
 		body["team_wait"] = nil
 	}
-	if !state.PolicyId.IsNull() && !state.PolicyId.IsUnknown() && plan.PolicyId.IsNull() {
-		body["policy_id"] = nil
+	if !state.EscalationPolicyId.IsNull() && !state.EscalationPolicyId.IsUnknown() && plan.EscalationPolicyId.IsNull() {
+		body["escalation_policy_id"] = nil
 	}
 	if !state.ServerTimezone.IsNull() && !state.ServerTimezone.IsUnknown() && plan.ServerTimezone.IsNull() {
 		body["server_timezone"] = nil
@@ -333,11 +333,18 @@ func (r *HeartbeatResource) updateBody(ctx context.Context, config, plan, state 
 }
 
 func (r *HeartbeatResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, heartbeatKeptOnRemoval, &resp.Diagnostics)
 	var plan HeartbeatModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request HeartbeatModel
 	resp.Diagnostics.Append(configWithPlannedUnknowns(ctx, req.Config, req.Plan, nullValue(req.Plan.Raw.Type()), &request)...)
-	request.Paused = plan.Paused // its schema default travels when unset, so removing the line resets it
+	request.Call = plan.Call                       // its schema default travels when unset, so removing the line resets it
+	request.CriticalAlert = plan.CriticalAlert     // its schema default travels when unset, so removing the line resets it
+	request.Email = plan.Email                     // its schema default travels when unset, so removing the line resets it
+	request.MaintenanceDays = plan.MaintenanceDays // its schema default travels when unset, so removing the line resets it
+	request.Paused = plan.Paused                   // its schema default travels when unset, so removing the line resets it
+	request.Push = plan.Push                       // its schema default travels when unset, so removing the line resets it
+	request.Sms = plan.Sms                         // its schema default travels when unset, so removing the line resets it
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -425,10 +432,10 @@ func populateHeartbeat(ctx context.Context, m *HeartbeatModel, attrs map[string]
 	}
 	if rawValue, exists := attrs["heartbeat_group_id"]; exists {
 		if rawValue == nil {
-			m.HeartbeatGroupId = types.Int64Null()
+			m.HeartbeatGroupId = types.StringNull()
 		} else {
-			if v, ok := int64FromAPI(attrs["heartbeat_group_id"]); ok {
-				m.HeartbeatGroupId = types.Int64Value(v)
+			if v, ok := stringFromAPI(attrs["heartbeat_group_id"]); ok {
+				m.HeartbeatGroupId = types.StringValue(v)
 			}
 		}
 	}
@@ -465,12 +472,12 @@ func populateHeartbeat(ctx context.Context, m *HeartbeatModel, attrs map[string]
 			}
 		}
 	}
-	if rawValue, exists := attrs["policy_id"]; exists {
+	if rawValue, exists := attrs["escalation_policy_id"]; exists {
 		if rawValue == nil {
-			m.PolicyId = types.StringNull()
+			m.EscalationPolicyId = types.StringNull()
 		} else {
-			if v, ok := stringFromAPI(attrs["policy_id"]); ok {
-				m.PolicyId = types.StringValue(v)
+			if v, ok := stringFromAPI(attrs["escalation_policy_id"]); ok {
+				m.EscalationPolicyId = types.StringValue(v)
 			}
 		}
 	}
@@ -538,6 +545,7 @@ func populateHeartbeat(ctx context.Context, m *HeartbeatModel, attrs map[string]
 }
 
 func (r *HeartbeatResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, heartbeatKeptOnRemoval, &resp.Diagnostics)
 	var plan HeartbeatModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request HeartbeatModel
@@ -549,8 +557,26 @@ func (r *HeartbeatResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 	// An unset line's default travels only when it changes the stored value (the line was just
 	// removed): resending an unchanged default can act on its own, e.g. unpause a group's members.
+	if !plan.Call.Equal(state.Call) {
+		request.Call = plan.Call
+	}
+	if !plan.CriticalAlert.Equal(state.CriticalAlert) {
+		request.CriticalAlert = plan.CriticalAlert
+	}
+	if !plan.Email.Equal(state.Email) {
+		request.Email = plan.Email
+	}
+	if !plan.MaintenanceDays.Equal(state.MaintenanceDays) {
+		request.MaintenanceDays = plan.MaintenanceDays
+	}
 	if !plan.Paused.Equal(state.Paused) {
 		request.Paused = plan.Paused
+	}
+	if !plan.Push.Equal(state.Push) {
+		request.Push = plan.Push
+	}
+	if !plan.Sms.Equal(state.Sms) {
+		request.Sms = plan.Sms
 	}
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
@@ -578,6 +604,13 @@ func (r *HeartbeatResource) Delete(ctx context.Context, req resource.DeleteReque
 	}
 }
 
+// Attributes whose removal from the configuration keeps the server's value (no default, no null).
+var heartbeatKeptOnRemoval = []string{"metadata"}
+
+func (r *HeartbeatResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	warnKeptOnRemoval(ctx, "betterstack_heartbeat", req, resp, heartbeatKeptOnRemoval)
+}
+
 func (r *HeartbeatResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
@@ -588,6 +621,6 @@ var _ resource.ResourceWithMoveState = &HeartbeatResource{}
 // betteruptime_heartbeat (registry.terraform.io/BetterStackHQ/better-uptime).
 func (r *HeartbeatResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[],\"ignored_fields\":[\"team_name\"],\"instructions\":[\"Keep every attribute: the legacy provider wrote the same /api/v2/heartbeats fields. Move team_name to the provider's team_id (or a provider alias for that team). Keep the existing heartbeat id, so the ping URL stays the same.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/better-uptime\",\"source_type\":\"betteruptime_heartbeat\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"computed\":true,\"description\":\"Whether to call when a new incident is created.\",\"name\":\"call\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"The time when this heartbeat was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether to send a critical push notification that ignores the mute switch and Do not Disturb mode when a new incident is created.\",\"name\":\"critical_alert\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Whether to send an email when a new incident is created.\",\"name\":\"email\",\"optional\":true,\"type\":\"bool\"},{\"description\":\"Heartbeats can fluctuate; specify this value to control what is still acceptable. Minimum value: 0 seconds. We recommend setting this to approx. 20% of period\",\"name\":\"grace\",\"required\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"Set this attribute if you want to add this heartbeat to a heartbeat group..\",\"name\":\"heartbeat_group_id\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The ID of this heartbeat.\",\"name\":\"id\",\"type\":\"string\"},{\"computed\":true,\"description\":\"An array of maintenance days to set. If a maintenance window is overnight both affected days should be set. Allowed values are [\\\"mon\\\", \\\"tue\\\", \\\"wed\\\", \\\"thu\\\", \\\"fri\\\", \\\"sat\\\", \\\"sun\\\"] or any subset of these days.\",\"name\":\"maintenance_days\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"Start of the maintenance window each day. We won't create incidents during this window. Example: \\\"01:00:00\\\"\",\"name\":\"maintenance_from\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The timezone to use for the maintenance window each day. Defaults to UTC. The accepted values can be found in the Rails TimeZone documentation. https://api.rubyonrails.org/classes/ActiveSupport/TimeZone.html\",\"name\":\"maintenance_timezone\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"End of the maintenance window each day. Example: \\\"03:00:00\\\"\",\"name\":\"maintenance_to\",\"optional\":true,\"type\":\"string\"},{\"description\":\"A name of the service for this heartbeat.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Set to true to pause monitoring — we won't notify you about downtime. Set to false to resume monitoring.\",\"name\":\"paused\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"The time when this heartbeat was paused.\",\"name\":\"paused_at\",\"type\":\"string\"},{\"description\":\"How often should we expect this heartbeat? In seconds. Minimum value: 30 seconds\",\"name\":\"period\",\"required\":true,\"type\":\"int\"},{\"description\":\"Set the escalation policy for the heartbeat.\",\"name\":\"policy_id\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether to send a push notification when a new incident is created.\",\"name\":\"push\",\"optional\":true,\"type\":\"bool\"},{\"description\":\"The IANA timezone (e.g. \\\"Europe/Berlin\\\") used to evaluate this heartbeat's period against wall-clock time, keeping daily and cron-style schedules aligned across daylight saving time changes. Only applies to periods of 1 hour or longer; it is cleared for shorter periods.\",\"name\":\"server_timezone\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether to send an SMS when a new incident is created.\",\"name\":\"sms\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"An index controlling the position of a heartbeat in the heartbeat group.\",\"diff_suppress_func\":\"provider.init.func1\",\"name\":\"sort_index\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The status of this heartbeat.\",\"name\":\"status\",\"type\":\"string\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.teamNameSchema.func1\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"How long to wait before escalating the incident alert to the team. Leave blank to disable escalating to the entire team.\",\"name\":\"team_wait\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The time when this heartbeat was updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The url of this heartbeat.\",\"name\":\"url\",\"type\":\"string\"}],\"response_projections\":[]}"),
+		legacyStateMover("{\"renames\":{\"policy_id\":\"escalation_policy_id\"},\"constants\":{},\"transforms\":[{\"op\":\"string_id\",\"path\":\"heartbeat_group_id\"}],\"ignored_fields\":[\"team_name\"],\"instructions\":[\"Keep every attribute: the legacy provider wrote the same fields on /api/v2/heartbeats, where escalation_policy_id was policy_id. Move team_name to the provider's team_id (or a provider alias for that team). Keep the existing heartbeat id, so the ping URL stays the same.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/better-uptime\",\"source_type\":\"betteruptime_heartbeat\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"computed\":true,\"description\":\"Whether to call when a new incident is created.\",\"name\":\"call\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"The time when this heartbeat was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether to send a critical push notification that ignores the mute switch and Do not Disturb mode when a new incident is created.\",\"name\":\"critical_alert\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Whether to send an email when a new incident is created.\",\"name\":\"email\",\"optional\":true,\"type\":\"bool\"},{\"description\":\"Heartbeats can fluctuate; specify this value to control what is still acceptable. Minimum value: 0 seconds. We recommend setting this to approx. 20% of period\",\"name\":\"grace\",\"required\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"Set this attribute if you want to add this heartbeat to a heartbeat group..\",\"name\":\"heartbeat_group_id\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The ID of this heartbeat.\",\"name\":\"id\",\"type\":\"string\"},{\"computed\":true,\"description\":\"An array of maintenance days to set. If a maintenance window is overnight both affected days should be set. Allowed values are [\\\"mon\\\", \\\"tue\\\", \\\"wed\\\", \\\"thu\\\", \\\"fri\\\", \\\"sat\\\", \\\"sun\\\"] or any subset of these days.\",\"name\":\"maintenance_days\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"Start of the maintenance window each day. We won't create incidents during this window. Example: \\\"01:00:00\\\"\",\"name\":\"maintenance_from\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The timezone to use for the maintenance window each day. Defaults to UTC. The accepted values can be found in the Rails TimeZone documentation. https://api.rubyonrails.org/classes/ActiveSupport/TimeZone.html\",\"name\":\"maintenance_timezone\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"End of the maintenance window each day. Example: \\\"03:00:00\\\"\",\"name\":\"maintenance_to\",\"optional\":true,\"type\":\"string\"},{\"description\":\"A name of the service for this heartbeat.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Set to true to pause monitoring — we won't notify you about downtime. Set to false to resume monitoring.\",\"name\":\"paused\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"The time when this heartbeat was paused.\",\"name\":\"paused_at\",\"type\":\"string\"},{\"description\":\"How often should we expect this heartbeat? In seconds. Minimum value: 30 seconds\",\"name\":\"period\",\"required\":true,\"type\":\"int\"},{\"description\":\"Set the escalation policy for the heartbeat.\",\"name\":\"policy_id\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether to send a push notification when a new incident is created.\",\"name\":\"push\",\"optional\":true,\"type\":\"bool\"},{\"description\":\"The IANA timezone (e.g. \\\"Europe/Berlin\\\") used to evaluate this heartbeat's period against wall-clock time, keeping daily and cron-style schedules aligned across daylight saving time changes. Only applies to periods of 1 hour or longer; it is cleared for shorter periods.\",\"name\":\"server_timezone\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether to send an SMS when a new incident is created.\",\"name\":\"sms\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"An index controlling the position of a heartbeat in the heartbeat group.\",\"diff_suppress_func\":\"provider.init.func1\",\"name\":\"sort_index\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The status of this heartbeat.\",\"name\":\"status\",\"type\":\"string\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.teamNameSchema.func1\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"How long to wait before escalating the incident alert to the team. Leave blank to disable escalating to the entire team.\",\"name\":\"team_wait\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The time when this heartbeat was updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The url of this heartbeat.\",\"name\":\"url\",\"type\":\"string\"}],\"response_projections\":[]}"),
 	}
 }

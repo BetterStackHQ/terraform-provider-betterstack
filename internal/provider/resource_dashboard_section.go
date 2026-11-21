@@ -19,6 +19,7 @@ import (
 var _ resource.Resource = &DashboardSectionResource{}
 var _ resource.ResourceWithConfigure = &DashboardSectionResource{}
 var _ resource.ResourceWithImportState = &DashboardSectionResource{}
+var _ resource.ResourceWithModifyPlan = &DashboardSectionResource{}
 
 type DashboardSectionResource struct {
 	client *Client
@@ -113,6 +114,7 @@ func (r *DashboardSectionResource) updateBody(ctx context.Context, config, plan,
 }
 
 func (r *DashboardSectionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, dashboardSectionKeptOnRemoval, &resp.Diagnostics)
 	var plan DashboardSectionModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request DashboardSectionModel
@@ -194,6 +196,7 @@ func populateDashboardSection(ctx context.Context, m *DashboardSectionModel, att
 }
 
 func (r *DashboardSectionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, dashboardSectionKeptOnRemoval, &resp.Diagnostics)
 	var plan DashboardSectionModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request DashboardSectionModel
@@ -234,6 +237,13 @@ func (r *DashboardSectionResource) Delete(ctx context.Context, req resource.Dele
 	if err := r.client.Delete(ctx, dashboardSectionBinding, vars); err != nil {
 		addAPIError(&resp.Diagnostics, "deleting dashboard_section", err, req.State.Raw.Type())
 	}
+}
+
+// Attributes whose removal from the configuration keeps the server's value (no default, no null).
+var dashboardSectionKeptOnRemoval = []string{"y"}
+
+func (r *DashboardSectionResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	warnKeptOnRemoval(ctx, "betterstack_dashboard_section", req, resp, dashboardSectionKeptOnRemoval)
 }
 
 // The object hangs off a parent collection, so its address is composite:

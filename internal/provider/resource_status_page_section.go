@@ -18,6 +18,7 @@ import (
 var _ resource.Resource = &StatusPageSectionResource{}
 var _ resource.ResourceWithConfigure = &StatusPageSectionResource{}
 var _ resource.ResourceWithImportState = &StatusPageSectionResource{}
+var _ resource.ResourceWithModifyPlan = &StatusPageSectionResource{}
 
 type StatusPageSectionResource struct {
 	client *Client
@@ -82,6 +83,7 @@ func (r *StatusPageSectionResource) updateBody(ctx context.Context, config, plan
 }
 
 func (r *StatusPageSectionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, statusPageSectionKeptOnRemoval, &resp.Diagnostics)
 	var plan StatusPageSectionModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request StatusPageSectionModel
@@ -153,6 +155,7 @@ func populateStatusPageSection(ctx context.Context, m *StatusPageSectionModel, a
 }
 
 func (r *StatusPageSectionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, statusPageSectionKeptOnRemoval, &resp.Diagnostics)
 	var plan StatusPageSectionModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request StatusPageSectionModel
@@ -188,6 +191,13 @@ func (r *StatusPageSectionResource) Delete(ctx context.Context, req resource.Del
 	if err := r.client.Delete(ctx, statusPageSectionBinding, vars); err != nil {
 		addAPIError(&resp.Diagnostics, "deleting status_page_section", err, req.State.Raw.Type())
 	}
+}
+
+// Attributes whose removal from the configuration keeps the server's value (no default, no null).
+var statusPageSectionKeptOnRemoval = []string{"position"}
+
+func (r *StatusPageSectionResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	warnKeptOnRemoval(ctx, "betterstack_status_page_section", req, resp, statusPageSectionKeptOnRemoval)
 }
 
 // The object hangs off a parent collection, so its address is composite:

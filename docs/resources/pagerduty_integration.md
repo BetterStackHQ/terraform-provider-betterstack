@@ -42,11 +42,11 @@ Optional attributes are also computed: left unset, they take the server-side def
 
 ## Endpoints
 
-- `GET /api/v2/pager-duty-webhooks`
-- `GET /api/v2/pager-duty-webhooks/:id`
-- `POST /api/v2/pager-duty-webhooks`
-- `PATCH /api/v2/pager-duty-webhooks/:id`
-- `DELETE /api/v2/pager-duty-webhooks/:id`
+- `GET /api/v3/pagerduty-integrations`
+- `GET /api/v3/pagerduty-integrations/:id`
+- `POST /api/v3/pagerduty-integrations`
+- `PATCH /api/v3/pagerduty-integrations/:id`
+- `DELETE /api/v3/pagerduty-integrations/:id`
 
 ## Import
 

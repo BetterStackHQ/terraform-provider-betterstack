@@ -29,6 +29,7 @@ data "betterstack_catalog_relation" "example" {
 - `name` (String) Catalog relation name.
 - `description` (String) What this catalog relation describes.
 - `match_mode` (String) How primary attributes combine when matching records: `any` matches a record when any primary attribute matches, `all` when every primary attribute matches. Valid values: `any`, `all`.
+- `records_count` (Number) Number of catalog records in this catalog relation.
 
 ## Endpoints
 

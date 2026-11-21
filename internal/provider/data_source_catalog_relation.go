@@ -33,6 +33,7 @@ func (d *CatalogRelationDataSource) Schema(ctx context.Context, req datasource.S
 			"match_mode":      schema.StringAttribute{Computed: true, Description: "How primary attributes combine when matching records: `any` matches a record when any primary attribute matches, `all` when every primary attribute matches."},
 			"name":            schema.StringAttribute{Computed: true, Description: "Catalog relation name."},
 			"organization_id": schema.StringAttribute{Computed: true, Description: "Organization that owns this catalog relation, as a plain numeric Better Stack ID."},
+			"records_count":   schema.Int64Attribute{Computed: true, Description: "Number of catalog records in this catalog relation."},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)

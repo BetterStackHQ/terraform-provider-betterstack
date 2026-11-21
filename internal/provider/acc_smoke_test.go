@@ -49,14 +49,14 @@ var smokeCases = []smokeCase{
 		name: "alert",
 		addr: "betterstack_alert.test",
 		createConfig: `resource "betterstack_alert" "test" {
-  dashboard_id = 1
-  chart_id     = 1
+  dashboard_id = "12345"
+  chart_id     = "12345"
   name         = "example"
   alert_type   = "threshold"
 }`,
 		updateConfig: `resource "betterstack_alert" "test" {
-  dashboard_id = 1
-  chart_id     = 1
+  dashboard_id = "12345"
+  chart_id     = "12345"
   name         = "example"
   alert_type   = "threshold"
   string_value = "example-updated"
@@ -88,10 +88,10 @@ var smokeCases = []smokeCase{
   deletion_protection = false
 }`,
 		updateConfig: `resource "betterstack_application" "test" {
-  name                   = "example"
-  platform               = "react_errors"
-  github_repository_name = "example-updated"
-  deletion_protection    = false
+  name                 = "example"
+  platform             = "react_errors"
+  application_group_id = "12345-updated"
+  deletion_protection  = false
 }`,
 		replaceConfig: `resource "betterstack_application" "test" {
   name                = "example"
@@ -164,7 +164,7 @@ var smokeCases = []smokeCase{
 		addr: "betterstack_catalog_record.test",
 		createConfig: `resource "betterstack_catalog_record" "test" {
   catalog_relation_id = "12345"
-  attributes          = [{ attribute = { name = "example" } }]
+  attributes          = [{ attribute = { id = "example" } }]
 }`,
 		importIgnore:   []string{},
 		importParts:    []string{"catalog_relation_id", "id"},
@@ -261,12 +261,12 @@ var smokeCases = []smokeCase{
   name = "example"
 }`,
 		updateConfig: `resource "betterstack_dashboard" "test" {
-  name            = "example"
-  date_range_from = "example-updated"
+  name               = "example"
+  dashboard_group_id = "12345-updated"
 }`,
 		replaceConfig: `resource "betterstack_dashboard" "test" {
-  name                = "example"
-  resource_group_name = "example-updated"
+  name        = "example"
+  template_id = "12345-updated"
 }`,
 		importIgnore:   []string{"resource_group_name", "source_id", "template_id", "variables."},
 		importParts:    []string{"id"},
@@ -290,10 +290,10 @@ var smokeCases = []smokeCase{
 		importIgnore: []string{"queries."},
 		importParts:  []string{"dashboard_id", "id"},
 		computedFields: map[string]map[string]interface{}{
-			"queries": {"id": 1},
+			"queries": {"id": "example"},
 		},
 		computedChecks: map[string]string{
-			"queries_result.0.id": "1",
+			"queries_result.0.id": "example",
 		},
 	},
 	{
@@ -445,7 +445,8 @@ var smokeCases = []smokeCase{
   name = "example"
 }`,
 		updateConfig: `resource "betterstack_escalation_policy" "test" {
-  name = "example-updated"
+  name                       = "example"
+  escalation_policy_group_id = "12345-updated"
 }`,
 		importIgnore:   []string{},
 		importParts:    []string{"id"},
@@ -483,10 +484,10 @@ var smokeCases = []smokeCase{
 		importIgnore: []string{"queries.", "variables."},
 		importParts:  []string{"id"},
 		computedFields: map[string]map[string]interface{}{
-			"queries": {"id": 1},
+			"queries": {"id": "example"},
 		},
 		computedChecks: map[string]string{
-			"queries_result.0.id": "1",
+			"queries_result.0.id": "example",
 		},
 	},
 	{
@@ -538,10 +539,10 @@ var smokeCases = []smokeCase{
   grace  = 1
 }`,
 		updateConfig: `resource "betterstack_heartbeat" "test" {
-  name      = "example"
-  period    = 1
-  grace     = 1
-  policy_id = "12345-updated"
+  name               = "example"
+  period             = 1
+  grace              = 1
+  heartbeat_group_id = "12345-updated"
 }`,
 		importIgnore:   []string{},
 		importParts:    []string{"id"},
@@ -690,7 +691,6 @@ var smokeCases = []smokeCase{
   rotation_length    = 1
   rotation_interval  = "hour"
   start_rotations_at = "2026-01-01T00:00:00Z"
-  end_rotations_at   = "2026-01-01T00:00:00Z"
 }`,
 		updateConfig: `resource "betterstack_on_call_rotation" "test" {
   id                 = "example"
@@ -698,10 +698,9 @@ var smokeCases = []smokeCase{
   rotation_length    = 1
   rotation_interval  = "hour"
   start_rotations_at = "2026-01-01T00:00:00Z"
-  end_rotations_at   = "2026-01-01T00:00:00Z"
   timezone           = "UTC-updated"
 }`,
-		importIgnore:   []string{},
+		importIgnore:   []string{"apply_from", "apply_from_timezone"},
 		importParts:    []string{"id"},
 		computedFields: map[string]map[string]interface{}{},
 		computedChecks: map[string]string{},
@@ -793,11 +792,11 @@ var smokeCases = []smokeCase{
 		addr: "betterstack_release.test",
 		createConfig: `resource "betterstack_release" "test" {
   version        = "example"
-  application_id = 1
+  application_id = "12345"
 }`,
 		replaceConfig: `resource "betterstack_release" "test" {
   version        = "example"
-  application_id = 1
+  application_id = "12345"
   team_id        = "12345-updated"
 }`,
 		importIgnore:   []string{"environment", "team_id"},
@@ -812,7 +811,8 @@ var smokeCases = []smokeCase{
   name = "example"
 }`,
 		updateConfig: `resource "betterstack_severity" "test" {
-  name = "example-updated"
+  name              = "example"
+  severity_group_id = "12345-updated"
 }`,
 		importIgnore:   []string{},
 		importParts:    []string{"id"},
@@ -844,7 +844,7 @@ var smokeCases = []smokeCase{
 		updateConfig: `resource "betterstack_source" "test" {
   name                = "example"
   platform            = "apache2"
-  live_tail_pattern   = "example-updated"
+  source_group_id     = "12345-updated"
   deletion_protection = false
 }`,
 		replaceConfig: `resource "betterstack_source" "test" {
@@ -924,7 +924,7 @@ var smokeCases = []smokeCase{
   company_name    = "example"
   subdomain       = "example-page"
   timezone        = "UTC"
-  organization_id = 2
+  organization_id = "12345-updated"
 }`,
 		importIgnore:   []string{"password"},
 		importParts:    []string{"id"},
@@ -942,7 +942,7 @@ var smokeCases = []smokeCase{
 }`,
 		replaceConfig: `resource "betterstack_status_page_group" "test" {
   name            = "example"
-  organization_id = 2
+  organization_id = "12345-updated"
 }`,
 		importIgnore:   []string{"organization_id"},
 		importParts:    []string{"id"},
@@ -958,10 +958,10 @@ var smokeCases = []smokeCase{
   public_name    = "example"
 }`,
 		updateConfig: `resource "betterstack_status_page_resource" "test" {
-  status_page_id = "12345"
-  resource_type  = "Monitor"
-  public_name    = "example"
-  explanation    = "example-updated"
+  status_page_id         = "12345"
+  resource_type          = "Monitor"
+  public_name            = "example"
+  status_page_section_id = "12345-updated"
 }`,
 		importIgnore:   []string{},
 		importParts:    []string{"status_page_id", "id"},

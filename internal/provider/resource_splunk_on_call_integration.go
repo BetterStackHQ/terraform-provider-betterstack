@@ -42,7 +42,7 @@ func (r *SplunkOnCallIntegrationResource) Schema(ctx context.Context, req resour
 		Description: "Forwards Better Stack incidents to Splunk On-Call, formerly VictorOps.",
 		Attributes: map[string]schema.Attribute{
 			"id":                                 schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"name":                               schema.StringAttribute{Optional: true, Computed: true, Description: "Integration name.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"name":                               schema.StringAttribute{Optional: true, Description: "Integration name."},
 			"notify_alongside_primary_responder": schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Also notify the primary on-call responder."},
 			"team_name":                          schema.StringAttribute{Computed: true, Description: "Name of the team that owns this integration."},
 			"url":                                schema.StringAttribute{Required: true, Description: "Splunk On-Call REST endpoint URL.", Sensitive: true},
@@ -70,6 +70,15 @@ func (r *SplunkOnCallIntegrationResource) body(ctx context.Context, m SplunkOnCa
 	}
 	if !m.NotifyAlongsidePrimaryResponder.IsNull() && !m.NotifyAlongsidePrimaryResponder.IsUnknown() {
 		body["notify_alongside_primary_responder"] = m.NotifyAlongsidePrimaryResponder.ValueBool()
+	}
+	return body
+}
+
+// updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
+func (r *SplunkOnCallIntegrationResource) updateBody(ctx context.Context, config, plan, state SplunkOnCallIntegrationModel) map[string]interface{} {
+	body := r.body(ctx, config)
+	if !state.Name.IsNull() && !state.Name.IsUnknown() && plan.Name.IsNull() {
+		body["name"] = nil
 	}
 	return body
 }
@@ -130,8 +139,14 @@ func populateSplunkOnCallIntegration(ctx context.Context, m *SplunkOnCallIntegra
 	if attrs == nil {
 		return
 	}
-	if v, ok := stringFromAPI(attrs["name"]); ok {
-		m.Name = types.StringValue(v)
+	if rawValue, exists := attrs["name"]; exists {
+		if rawValue == nil {
+			m.Name = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["name"]); ok {
+				m.Name = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := stringFromAPI(attrs["team_name"]); ok {
 		m.TeamName = types.StringValue(v)
@@ -161,7 +176,7 @@ func (r *SplunkOnCallIntegrationResource) Update(ctx context.Context, req resour
 	}
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
-	out, err := r.client.Update(ctx, splunkOnCallIntegrationBinding, vars, r.body(ctx, request))
+	out, err := r.client.Update(ctx, splunkOnCallIntegrationBinding, vars, r.updateBody(ctx, request, plan, state))
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "updating splunk_on_call_integration", err, req.Plan.Raw.Type())
 		return

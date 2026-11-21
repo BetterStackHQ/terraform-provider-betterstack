@@ -63,7 +63,7 @@ data "betterstack_errors_microsoft_teams_integration" "example" {
 <a id="nestedatt--routes--applications"></a>
 ### Nested Schema for `routes.applications`
 
-- `application_id` (Number)
+- `application_id` (String)
 - `environments` (List of String)
 
 <a id="nestedatt--routes--channels"></a>

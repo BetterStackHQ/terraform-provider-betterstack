@@ -27,8 +27,8 @@ resource "betterstack_outgoing_email_integration" "example" {
 
 Optional attributes are also computed: left unset, they take the server-side default.
 
-- `name` (String) Integration name.
-- `templates` (Attributes List, see [nested schema](#nestedatt--templates)) Custom subject, title and body for each incident stage, as `[{incident_stage, subject, title, body}]`. Stages in the list are created or updated, and stages left out are removed. Leave the list out to keep the current templates. A blank subject, title or body uses the default template.
+- `name` (String) Integration name. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `templates` (Attributes List, see [nested schema](#nestedatt--templates)) Custom subject, title and body for each incident stage, as `[{incident_stage, subject, title, body}]`. Stages in the list are created or updated, and stages left out are removed. Leave the list out to keep the current templates. A blank subject, title or body uses the default template. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
 - `on_incident_started` (Boolean) E-mail the recipients when an incident starts. Defaults to `true`.
 - `on_incident_acknowledged` (Boolean) E-mail the recipients when an incident is acknowledged. Defaults to `true`.
 - `on_incident_resolved` (Boolean) E-mail the recipients when an incident is resolved. Defaults to `true`.

@@ -154,7 +154,7 @@ func TestRepresentativeBindingsMatchLiteralContracts(t *testing.T) {
 	}{
 		{
 			name: "uptime monitor", binding: monitorBinding,
-			createPath: "/api/v2/monitors", readPath: "/api/v2/monitors/{id}",
+			createPath: "/api/v3/monitors", readPath: "/api/v3/monitors/{id}",
 			envelope: envelope{
 				ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"},
 				IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{},
@@ -193,8 +193,8 @@ func TestRepresentativeBindingsMatchLiteralContracts(t *testing.T) {
 		},
 		{
 			name: "incidents on-call rotation", binding: onCallRotationBinding,
-			createPath: "/api/v2/on-calls/{id}/rotation", readPath: "/api/v2/on-calls/{id}/rotation",
-			// A bare singleton: the rotation object is the body, addressed by its calendar's id.
+			createPath: "/api/v3/on-call-schedules/{id}/rotation", readPath: "/api/v3/on-call-schedules/{id}/rotation",
+			// A bare singleton: the rotation object is the body, addressed by its schedule's id.
 			envelope: envelope{ItemPath: []string{}, AttributesPath: []string{}, IDPath: []string{"id"}, RequestPath: []string{}},
 		},
 	}
@@ -286,7 +286,7 @@ func TestExplorationBodyUsesConfigPresenceAndPlannedUnknowns(t *testing.T) {
 	r := &ExplorationResource{}
 	config := ExplorationModel{
 		Name:               types.StringValue("resolved-name"),
-		ExplorationGroupId: types.Int64Null(),
+		ExplorationGroupId: types.StringNull(),
 	}
 	body := r.body(context.Background(), config)
 	if body["name"] != "resolved-name" {
@@ -298,7 +298,7 @@ func TestExplorationBodyUsesConfigPresenceAndPlannedUnknowns(t *testing.T) {
 
 	plan := config
 	state := config
-	state.ExplorationGroupId = types.Int64Value(17)
+	state.ExplorationGroupId = types.StringValue("17")
 	body = r.updateBody(context.Background(), config, plan, state)
 	if value, present := body["exploration_group_id"]; !present || value != nil {
 		t.Fatalf("removing a prior value must be present as JSON null: %#v", body)

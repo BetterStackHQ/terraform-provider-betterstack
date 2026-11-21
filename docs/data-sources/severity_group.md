@@ -33,8 +33,8 @@ data "betterstack_severity_group" "example" {
 
 ## Endpoints
 
-- `GET /api/v2/urgency-groups`
-- `GET /api/v2/urgency-groups/:id`
-- `POST /api/v2/urgency-groups`
-- `PATCH /api/v2/urgency-groups/:id`
-- `DELETE /api/v2/urgency-groups/:id`
+- `GET /api/v3/severity-groups`
+- `GET /api/v3/severity-groups/:id`
+- `POST /api/v3/severity-groups`
+- `PATCH /api/v3/severity-groups/:id`
+- `DELETE /api/v3/severity-groups/:id`

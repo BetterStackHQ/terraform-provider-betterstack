@@ -13,7 +13,7 @@ A dashboard of charts visualizing logs, metrics, and traces.
 
 ```terraform
 data "betterstack_dashboard" "example" {
-  dashboard_group_id = 789
+  dashboard_group_id = "789"
 }
 ```
 
@@ -25,7 +25,7 @@ Set `id`, or filter attributes matching exactly one record.
 
 - `id` (String) Look up by id.
 - `name` (String) Dashboard name.
-- `dashboard_group_id` (Number) Group this dashboard belongs to. Send `null` to remove it from its group.
+- `dashboard_group_id` (String) Group this dashboard belongs to. Send `null` to remove it from its group.
 
 ### Read-Only
 
@@ -39,8 +39,8 @@ Set `id`, or filter attributes matching exactly one record.
 - `charts` (Attributes List, see [nested schema](#nestedatt--charts)) Charts on the dashboard. Returned when you get one dashboard.
 - `sections` (Attributes List, see [nested schema](#nestedatt--sections)) Sections on the dashboard. Returned when you get one dashboard.
 - `has_overlaps` (Boolean) Whether any charts overlap on the grid. Returned when you get one dashboard.
-- `template_id` (Number) ID of the dashboard template to create the dashboard from, as GET /api/v4/dashboards/templates lists it. The dashboard starts with the template's charts, sections and alerts. With it, creating a dashboard accepts only `name`, `source_id`, and either `dashboard_group_id` or `resource_group_name`.
-- `source_id` (Number) ID of the source to set the new dashboard up for. With it, creating a dashboard accepts only `name`, `template_id`, and either `dashboard_group_id` or `resource_group_name`.
+- `template_id` (String) ID of the dashboard template to create the dashboard from, as GET /api/v4/dashboards/templates lists it. The dashboard starts with the template's charts, sections and alerts. With it, creating a dashboard accepts only `name`, `source_id`, and either `dashboard_group_id` or `resource_group_name`.
+- `source_id` (String) ID of the source to set the new dashboard up for. With it, creating a dashboard accepts only `name`, `template_id`, and either `dashboard_group_id` or `resource_group_name`.
 - `resource_group_name` (String) Name of the dashboard group to put the new dashboard in. The team's group with that name is used, or created when there is none. Use it instead of `dashboard_group_id`, not with it.
 - `created_at` (String (RFC 3339)) When the dashboard was created.
 - `updated_at` (String (RFC 3339)) When the dashboard was last updated.
@@ -59,7 +59,7 @@ Set `id`, or filter attributes matching exactly one record.
 <a id="nestedatt--charts"></a>
 ### Nested Schema for `charts`
 
-- `id` (Number)
+- `id` (String)
 - `chart_type` (String)
 - `name` (String)
 - `x` (Number)
@@ -70,7 +70,7 @@ Set `id`, or filter attributes matching exactly one record.
 <a id="nestedatt--sections"></a>
 ### Nested Schema for `sections`
 
-- `id` (Number)
+- `id` (String)
 - `name` (String)
 - `y` (Number)
 - `collapsed` (Boolean)

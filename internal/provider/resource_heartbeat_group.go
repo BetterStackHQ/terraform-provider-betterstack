@@ -16,6 +16,7 @@ import (
 var _ resource.Resource = &HeartbeatGroupResource{}
 var _ resource.ResourceWithConfigure = &HeartbeatGroupResource{}
 var _ resource.ResourceWithImportState = &HeartbeatGroupResource{}
+var _ resource.ResourceWithModifyPlan = &HeartbeatGroupResource{}
 
 type HeartbeatGroupResource struct {
 	client *Client
@@ -109,6 +110,7 @@ func (r *HeartbeatGroupResource) updateBody(ctx context.Context, config, plan, s
 }
 
 func (r *HeartbeatGroupResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, heartbeatGroupKeptOnRemoval, &resp.Diagnostics)
 	var plan HeartbeatGroupModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request HeartbeatGroupModel
@@ -209,6 +211,7 @@ func populateHeartbeatGroup(ctx context.Context, m *HeartbeatGroupModel, attrs m
 }
 
 func (r *HeartbeatGroupResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, heartbeatGroupKeptOnRemoval, &resp.Diagnostics)
 	var plan HeartbeatGroupModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request HeartbeatGroupModel
@@ -242,6 +245,13 @@ func (r *HeartbeatGroupResource) Delete(ctx context.Context, req resource.Delete
 	if err := r.client.Delete(ctx, heartbeatGroupBinding, vars); err != nil {
 		addAPIError(&resp.Diagnostics, "deleting heartbeat_group", err, req.State.Raw.Type())
 	}
+}
+
+// Attributes whose removal from the configuration keeps the server's value (no default, no null).
+var heartbeatGroupKeptOnRemoval = []string{"paused"}
+
+func (r *HeartbeatGroupResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	warnKeptOnRemoval(ctx, "betterstack_heartbeat_group", req, resp, heartbeatGroupKeptOnRemoval)
 }
 
 func (r *HeartbeatGroupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

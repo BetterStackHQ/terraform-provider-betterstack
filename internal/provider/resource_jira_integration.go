@@ -17,6 +17,7 @@ import (
 var _ resource.Resource = &JiraIntegrationResource{}
 var _ resource.ResourceWithConfigure = &JiraIntegrationResource{}
 var _ resource.ResourceWithImportState = &JiraIntegrationResource{}
+var _ resource.ResourceWithModifyPlan = &JiraIntegrationResource{}
 
 type JiraIntegrationResource struct {
 	client *Client
@@ -91,6 +92,7 @@ func (r *JiraIntegrationResource) body(ctx context.Context, m JiraIntegrationMod
 }
 
 func (r *JiraIntegrationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, jiraIntegrationKeptOnRemoval, &resp.Diagnostics)
 	var plan JiraIntegrationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request JiraIntegrationModel
@@ -206,6 +208,7 @@ func populateJiraIntegration(ctx context.Context, m *JiraIntegrationModel, attrs
 }
 
 func (r *JiraIntegrationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, jiraIntegrationKeptOnRemoval, &resp.Diagnostics)
 	var plan JiraIntegrationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request JiraIntegrationModel
@@ -236,6 +239,13 @@ func (r *JiraIntegrationResource) Update(ctx context.Context, req resource.Updat
 func (r *JiraIntegrationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retention is explicit IaC policy: removal forgets state and never deletes remote history.
 	return
+}
+
+// Attributes whose removal from the configuration keeps the server's value (no default, no null).
+var jiraIntegrationKeptOnRemoval = []string{"jira_fields", "jira_issue_type_id", "jira_project_key", "name"}
+
+func (r *JiraIntegrationResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	warnKeptOnRemoval(ctx, "betterstack_jira_integration", req, resp, jiraIntegrationKeptOnRemoval)
 }
 
 func (r *JiraIntegrationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

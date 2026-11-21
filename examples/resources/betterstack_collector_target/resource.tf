@@ -1,5 +1,5 @@
 resource "betterstack_collector_target" "example" {
-  collector_id = "12345"
+  collector_id = "1"
   kind         = "postgres"
   host         = "db.example.com"
 }

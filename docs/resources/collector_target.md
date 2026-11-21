@@ -15,7 +15,7 @@ A database or process a collector scrapes for metrics, for example Postgres, ngi
 
 ```terraform
 resource "betterstack_collector_target" "example" {
-  collector_id = "12345"
+  collector_id = "1"
   kind         = "postgres"
   host         = "db.example.com"
 }
@@ -39,16 +39,16 @@ This object lives under a parent collection, so its parent is part of its addres
 Optional attributes are also computed: left unset, they take the server-side default.
 
 - `enabled` (Boolean) Whether the collector scrapes this target. Disabling it sets `status` to `disabled`. Enabling it again checks the target again. Defaults to `true`.
-- `port` (Number) Target port (databases, nginx, apache, kafka, traefik).
-- `service` (String) Service name (nginx, apache, kafka, traefik, prometheus).
-- `listen_ip` (String) Listen IP (nginx, apache, kafka, traefik).
-- `endpoint` (String) Scrape endpoint (prometheus).
-- `scheme` (String) Scheme (elasticsearch). Valid values: `http`, `https`.
-- `username` (String) Auth username (databases, elasticsearch).
-- `password` (String, Sensitive) Auth password (databases, elasticsearch). Never returned by any read. Write-only: the API never returns it; Terraform keeps the configured value.
-- `api_key` (String, Sensitive) API key (elasticsearch). Never returned by any read. Write-only: the API never returns it; Terraform keeps the configured value.
-- `ssl_mode` (String) SSL mode (postgres, pgbouncer). Valid values: `disable`, `require`, `verify-ca`.
-- `tls` (String) TLS mode (mysql). Valid values: `false`, `true`, `skip-verify`, `preferred`.
+- `port` (Number) Target port (databases, nginx, apache, kafka, traefik). Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `service` (String) Service name (nginx, apache, kafka, traefik, prometheus). Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `listen_ip` (String) Listen IP (nginx, apache, kafka, traefik). Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `endpoint` (String) Scrape endpoint (prometheus). Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `scheme` (String) Scheme (elasticsearch). Valid values: `http`, `https`. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `username` (String) Auth username (databases, elasticsearch). Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `password` (String, Sensitive) Auth password (databases, elasticsearch). Never returned by any read. Write-only: the API never returns it; Terraform keeps the configured value. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `api_key` (String, Sensitive) API key (elasticsearch). Never returned by any read. Write-only: the API never returns it; Terraform keeps the configured value. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `ssl_mode` (String) SSL mode (postgres, pgbouncer). Valid values: `disable`, `require`, `verify-ca`. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `tls` (String) TLS mode (mysql). Valid values: `false`, `true`, `skip-verify`, `preferred`. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
 
 ### Read-Only
 

@@ -15,7 +15,7 @@ A rule that extracts a metric, or a label, from a source's logs using a SQL expr
 
 ```terraform
 resource "betterstack_metric" "example" {
-  source_id      = "12345"
+  source_id      = "123"
   name           = "level"
   sql_expression = "JSONExtract(raw, 'level', 'Nullable(String)')"
 }
@@ -38,8 +38,8 @@ This object lives under a parent collection, so its parent is part of its addres
 
 Optional attributes are also computed: left unset, they take the server-side default.
 
-- `type` (String) Stored ClickHouse type. Valid values: `string`, `string_low_cardinality`, `int64_delta`, `int64`, `uint64_delta`, `uint64`, `float64_delta`, `datetime64_delta`, `boolean`.
-- `aggregations` (List of String) Aggregations to precompute: `avg`, `count`, `uniq`, `max`, `min`, `sum` or `histogram`. An empty array makes this a label rather than a metric.
+- `type` (String) Stored ClickHouse type. Valid values: `string`, `string_low_cardinality`, `int64_delta`, `int64`, `uint64_delta`, `uint64`, `float64_delta`, `datetime64_delta`, `boolean`. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `aggregations` (List of String) Aggregations to precompute: `avg`, `count`, `uniq`, `max`, `min`, `sum` or `histogram`. An empty array makes this a label rather than a metric. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
 - `build_type` (String) Whether this change also applies to logs already stored. `new_data` applies the rule to new logs only. `historical_logs` also rebuilds the stored metrics, which is expensive. Valid values: `new_data`, `historical_logs`. Defaults to `new_data`. Write-only: the API never returns it; Terraform keeps the configured value.
 
 ### Read-Only

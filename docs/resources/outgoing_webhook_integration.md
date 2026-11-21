@@ -29,7 +29,7 @@ resource "betterstack_outgoing_webhook_integration" "example" {
 
 Optional attributes are also computed: left unset, they take the server-side default.
 
-- `name` (String) Integration name.
+- `name` (String) Integration name. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `metadata_api_version` (String) How template variables show metadata. With v2, a key shows its last plain-text value. With v3, it shows every value with its type. Valid values: `v2`, `v3`. Defaults to `v3`.
 - `on_incident_started` (Boolean) Fire when an incident starts. Defaults to `true` when `trigger_type` is `incident_change`; other trigger types don't take it.
 - `on_incident_acknowledged` (Boolean) Fire when an incident is acknowledged. Defaults to `true` when `trigger_type` is `incident_change`; other trigger types don't take it.
@@ -37,7 +37,7 @@ Optional attributes are also computed: left unset, they take the server-side def
 - `on_incident_reopened` (Boolean) Fire when an incident is reopened. Defaults to `true` when `trigger_type` is `incident_change`; other trigger types don't take it.
 - `on_incident_comment` (Boolean) Fire on a new incident comment. Defaults to `true` when `trigger_type` is `incident_change`; other trigger types don't take it.
 - `notify_alongside_primary_responder` (Boolean) Also notify the primary on-call responder. Defaults to `true` when `trigger_type` is `incident_change`; other trigger types don't take it.
-- `custom_webhook_template_attributes` (Attributes, see [nested schema](#nestedatt--custom_webhook_template_attributes)) Custom request method, headers, body and basic authentication. Leave it out to keep the saved template unchanged. Write-only: the API never returns it; Terraform keeps the configured value.
+- `custom_webhook_template_attributes` (Attributes, see [nested schema](#nestedatt--custom_webhook_template_attributes)) Custom request method, headers, body and basic authentication. Leave it out to keep the saved template unchanged. Write-only: the API never returns it; Terraform keeps the configured value. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
 
 ### Read-Only
 

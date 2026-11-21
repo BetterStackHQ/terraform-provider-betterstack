@@ -22,9 +22,9 @@ resource "betterstack_email_integration" "example" {
 
 Optional attributes are also computed: left unset, they take the server-side default.
 
-- `name` (String) Integration name.
-- `metadata` (Attributes Map, see [nested schema](#nestedatt--metadata)) Custom metadata. Each key holds a list of values. A value is a string, written as `{type: "String", value}`, or a catalog reference, written as `{type, item_id, name, email}`. Team references are returned as team IDs such as `t123`. Each key holds its list under `values`, for example `{ owner = { values = [ ... ] } }`.
-- `policy_id` (String) ID of the escalation policy used for alerts. Returned as a string. You can send it as a number or a string. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `name` (String) Integration name. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `metadata` (Attributes Map, see [nested schema](#nestedatt--metadata)) Custom metadata. Each key holds a list of values. A value is a string, written as `{type: "String", value}`, or a catalog reference, written as `{type, item_id, name, email}`. Team references are returned as team IDs such as `t123`. Each key holds its list under `values`, for example `{ owner = { values = [ ... ] } }`. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `escalation_policy_id` (String) ID of the escalation policy used for alerts. Returned as a string. You can send it as a number or a string. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `paused` (Boolean) Whether the integration is paused. A paused integration opens no incidents. Defaults to `false`.
 - `call` (Boolean) Alert by phone call. Defaults to `false`.
 - `sms` (Boolean) Alert by SMS. Defaults to `false`.
@@ -32,11 +32,11 @@ Optional attributes are also computed: left unset, they take the server-side def
 - `push` (Boolean) Alert by push notification. Defaults to `false`.
 - `critical_alert` (Boolean) Alert by a critical push notification that bypasses silent mode. Defaults to `false`.
 - `team_wait` (Number) Seconds before escalating to the whole team. Defaults to `180`.
-- `recovery_period` (Number) Seconds a matching resolved e-mail must hold before the incident resolves. One of 0, 60, 180, 300, 900, 1800, 3600, 7200. Defaults to `0`.
-- `started_rule_type` (String) How the started rules open an incident: `any` when one rule matches, `all` when every rule matches. `unused` turns off opening incidents by rules. Valid values: `unused`, `any`, `all`.
-- `acknowledged_rule_type` (String) How the acknowledged rules acknowledge the incident: `any` when one rule matches, `all` when every rule matches. `unused` turns off acknowledging by rules. Valid values: `unused`, `any`, `all`.
-- `resolved_rule_type` (String) How the resolved rules resolve the incident: `any` when one rule matches, `all` when every rule matches. `unused` turns off resolving by rules. Valid values: `unused`, `any`, `all`.
-- `cause_field` (Attributes, see [nested schema](#nestedatt--cause_field)) Field that extracts the incident cause.
+- `recovery_period` (Number) Seconds a matching resolved e-mail must hold before the incident resolves. One of 0, 60, 180, 300, 900, 1800, 3600, 7200. Has no effect while `resolved_rule_type` is `unused`. Defaults to `0`.
+- `started_rule_type` (String) How the started rules open an incident: `any` when one rule matches, `all` when every rule matches. `unused` turns off opening incidents by rules. Valid values: `unused`, `any`, `all`. Defaults to `unused`.
+- `acknowledged_rule_type` (String) How the acknowledged rules acknowledge the incident: `any` when one rule matches, `all` when every rule matches. `unused` turns off acknowledging by rules. Valid values: `unused`, `any`, `all`. Defaults to `unused`.
+- `resolved_rule_type` (String) How the resolved rules resolve the incident: `any` when one rule matches, `all` when every rule matches. `unused` turns off resolving by rules. Valid values: `unused`, `any`, `all`. Defaults to `unused`.
+- `cause_field` (Attributes, see [nested schema](#nestedatt--cause_field)) Field that extracts the incident cause. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
 - `title_field` (Attributes, see [nested schema](#nestedatt--title_field)) Field that extracts the incident title. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `started_alert_id_field` (Attributes, see [nested schema](#nestedatt--started_alert_id_field)) Field that extracts the alert ID, which links the started, acknowledged and resolved e-mails of one alert. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `acknowledged_alert_id_field` (Attributes, see [nested schema](#nestedatt--acknowledged_alert_id_field)) Field that extracts the alert ID from an acknowledging e-mail. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
@@ -44,9 +44,9 @@ Optional attributes are also computed: left unset, they take the server-side def
 - `other_started_fields` (Attributes List, see [nested schema](#nestedatt--other_started_fields)) Custom fields extracted from a started e-mail, stored as incident metadata. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `other_acknowledged_fields` (Attributes List, see [nested schema](#nestedatt--other_acknowledged_fields)) Custom fields extracted from an acknowledging e-mail. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `other_resolved_fields` (Attributes List, see [nested schema](#nestedatt--other_resolved_fields)) Custom fields extracted from a resolving e-mail. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `started_rules` (Attributes List, see [nested schema](#nestedatt--started_rules)) Rules that classify an e-mail as opening an incident.
-- `acknowledged_rules` (Attributes List, see [nested schema](#nestedatt--acknowledged_rules)) Rules that classify an e-mail as acknowledging the incident.
-- `resolved_rules` (Attributes List, see [nested schema](#nestedatt--resolved_rules)) Rules that classify an e-mail as resolving the incident.
+- `started_rules` (Attributes List, see [nested schema](#nestedatt--started_rules)) Rules that classify an e-mail as opening an incident. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `acknowledged_rules` (Attributes List, see [nested schema](#nestedatt--acknowledged_rules)) Rules that classify an e-mail as acknowledging the incident. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `resolved_rules` (Attributes List, see [nested schema](#nestedatt--resolved_rules)) Rules that classify an e-mail as resolving the incident. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
 
 ### Read-Only
 
@@ -181,11 +181,11 @@ Optional attributes are also computed: left unset, they take the server-side def
 
 ## Endpoints
 
-- `GET /api/v2/email-integrations`
-- `GET /api/v2/email-integrations/:id`
-- `POST /api/v2/email-integrations`
-- `PATCH /api/v2/email-integrations/:id`
-- `DELETE /api/v2/email-integrations/:id`
+- `GET /api/v3/email-integrations`
+- `GET /api/v3/email-integrations/:id`
+- `POST /api/v3/email-integrations`
+- `PATCH /api/v3/email-integrations/:id`
+- `DELETE /api/v3/email-integrations/:id`
 
 -> cause_field, title_field, started_alert_id_field, acknowledged_alert_id_field and resolved_alert_id_field each hold one extraction field, as an object or `null`. other_started_fields, other_acknowledged_fields, other_resolved_fields, started_rules, acknowledged_rules and resolved_rules are lists. A list you send is the complete new set for that event and replaces the current one.
 

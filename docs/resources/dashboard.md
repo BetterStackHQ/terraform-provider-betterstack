@@ -29,14 +29,14 @@ resource "betterstack_dashboard" "example" {
 
 Optional attributes are also computed: left unset, they take the server-side default.
 
-- `dashboard_group_id` (Number) Group this dashboard belongs to. Send `null` to remove it from its group. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `dashboard_group_id` (String) Group this dashboard belongs to. Send `null` to remove it from its group. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `refresh_interval` (Number) Auto-refresh interval in seconds. Defaults to `30`.
 - `date_range_from` (String) Default range start, for example now-3h. Defaults to `now-3h`.
 - `date_range_to` (String) Default range end, for example now. Defaults to `now`.
-- `source_eligibility_sql` (String) SQL that decides which sources this dashboard's charts can read. Returned when you get one dashboard.
-- `variables` (Dynamic, see [nested schema](#nestedatt--variables)) Template variables, returned when you get one dashboard. An update replaces all variables: any you don't send is removed, except the built-in time, start_time, end_time and source variables, which always exist. The built-in variables keep their own type. `sql_definition` is accepted only on `select_with_sql` and `multi_select_with_sql` variables.
-- `template_id` (Number) ID of the dashboard template to create the dashboard from, as GET /api/v4/dashboards/templates lists it. The dashboard starts with the template's charts, sections and alerts. With it, creating a dashboard accepts only `name`, `source_id`, and either `dashboard_group_id` or `resource_group_name`. Write-only: the API never returns it; Terraform keeps the configured value. Can only be set when creating the resource; changing it afterwards replaces the resource.
-- `source_id` (Number) ID of the source to set the new dashboard up for. With it, creating a dashboard accepts only `name`, `template_id`, and either `dashboard_group_id` or `resource_group_name`. Write-only: the API never returns it; Terraform keeps the configured value. Can only be set when creating the resource; changing it afterwards replaces the resource.
+- `source_eligibility_sql` (String) SQL that decides which sources this dashboard's charts can read. Returned when you get one dashboard. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `variables` (Dynamic, see [nested schema](#nestedatt--variables)) Template variables, returned when you get one dashboard. An update replaces all variables: any you don't send is removed, except the built-in time, start_time, end_time and source variables, which always exist. The built-in variables keep their own type. `sql_definition` is accepted only on `select_with_sql` and `multi_select_with_sql` variables. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `template_id` (String) ID of the dashboard template to create the dashboard from, as GET /api/v4/dashboards/templates lists it. The dashboard starts with the template's charts, sections and alerts. With it, creating a dashboard accepts only `name`, `source_id`, and either `dashboard_group_id` or `resource_group_name`. Write-only: the API never returns it; Terraform keeps the configured value. Can only be set when creating the resource; changing it afterwards replaces the resource.
+- `source_id` (String) ID of the source to set the new dashboard up for. With it, creating a dashboard accepts only `name`, `template_id`, and either `dashboard_group_id` or `resource_group_name`. Write-only: the API never returns it; Terraform keeps the configured value. Can only be set when creating the resource; changing it afterwards replaces the resource.
 - `resource_group_name` (String) Name of the dashboard group to put the new dashboard in. The team's group with that name is used, or created when there is none. Use it instead of `dashboard_group_id`, not with it. Write-only: the API never returns it; Terraform keeps the configured value. Can only be set when creating the resource; changing it afterwards replaces the resource.
 
 ### Read-Only
@@ -64,7 +64,7 @@ Optional attributes are also computed: left unset, they take the server-side def
 <a id="nestedatt--charts"></a>
 ### Nested Schema for `charts`
 
-- `id` (Number)
+- `id` (String)
 - `chart_type` (String)
 - `name` (String)
 - `x` (Number)
@@ -75,7 +75,7 @@ Optional attributes are also computed: left unset, they take the server-side def
 <a id="nestedatt--sections"></a>
 ### Nested Schema for `sections`
 
-- `id` (Number)
+- `id` (String)
 - `name` (String)
 - `y` (Number)
 - `collapsed` (Boolean)

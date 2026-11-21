@@ -32,12 +32,12 @@ resource "betterstack_errors_microsoft_teams_integration" "example" {
 
 Optional attributes are also computed: left unset, they take the server-side default.
 
-- `notifications` (Attributes, see [nested schema](#nestedatt--notifications)) "Notify me when": which events post to the channels. An update changes only the toggles sent.
-- `occurrence_threshold_count` (Number) Number of occurrences for `notifications.occurrence_threshold`.
-- `occurrence_threshold_interval` (String) Time window for `notifications.occurrence_threshold`. Valid values: `minute`, `hour`, `day`, `week`.
-- `affected_users_threshold_count` (Number) Total number of affected users for `notifications.affected_users_threshold`.
-- `tag_filter` (Attributes List, see [nested schema](#nestedatt--tag_filter)) Acts on an error only when one of its exceptions has every tag listed, each with one of its values. Empty means every error. At most 10 tags with 50 values each, 200 characters per tag or value, each tag once. An update replaces the whole list.
-- `routes` (Attributes List, see [nested schema](#nestedatt--routes)) Which applications' errors go to which channels. An application in no route gets no messages unless a route has no applications. Empty means everything goes to the channel the app was added to. An update replaces the whole list.
+- `notifications` (Attributes, see [nested schema](#nestedatt--notifications)) "Notify me when": which events post to the channels. An update changes only the toggles sent. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `occurrence_threshold_count` (Number) Number of occurrences for `notifications.occurrence_threshold`. Defaults to `10`.
+- `occurrence_threshold_interval` (String) Time window for `notifications.occurrence_threshold`. Valid values: `minute`, `hour`, `day`, `week`. Defaults to `minute`.
+- `affected_users_threshold_count` (Number) Total number of affected users for `notifications.affected_users_threshold`. Defaults to `10`.
+- `tag_filter` (Attributes List, see [nested schema](#nestedatt--tag_filter)) Acts on an error only when one of its exceptions has every tag listed, each with one of its values. Empty means every error. At most 10 tags with 50 values each, 200 characters per tag or value, each tag once. An update replaces the whole list. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `routes` (Attributes List, see [nested schema](#nestedatt--routes)) Which applications' errors go to which channels. An application in no route gets no messages unless a route has no applications. Empty means everything goes to the channel the app was added to. An update replaces the whole list. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
 
 ### Read-Only
 
@@ -73,7 +73,7 @@ Optional attributes are also computed: left unset, they take the server-side def
 <a id="nestedatt--routes--applications"></a>
 ### Nested Schema for `routes.applications`
 
-- `application_id` (Number)
+- `application_id` (String)
 - `environments` (List of String)
 
 <a id="nestedatt--routes--channels"></a>

@@ -26,6 +26,7 @@ import (
 var _ resource.Resource = &StatusPageResourceResource{}
 var _ resource.ResourceWithConfigure = &StatusPageResourceResource{}
 var _ resource.ResourceWithImportState = &StatusPageResourceResource{}
+var _ resource.ResourceWithModifyPlan = &StatusPageResourceResource{}
 
 type StatusPageResourceResource struct {
 	client *Client
@@ -47,12 +48,12 @@ type StatusPageResourceModel struct {
 	MarkAsDownMetadataRule     types.Object  `tfsdk:"mark_as_down_metadata_rule"`
 	Position                   types.Int64   `tfsdk:"position"`
 	PublicName                 types.String  `tfsdk:"public_name"`
-	ResourceId                 types.Int64   `tfsdk:"resource_id"`
+	ResourceId                 types.String  `tfsdk:"resource_id"`
 	ResourceType               types.String  `tfsdk:"resource_type"`
 	Status                     types.String  `tfsdk:"status"`
 	StatusHistory              types.List    `tfsdk:"status_history"`
 	StatusPageId               types.String  `tfsdk:"status_page_id"`
-	StatusPageSectionId        types.Int64   `tfsdk:"status_page_section_id"`
+	StatusPageSectionId        types.String  `tfsdk:"status_page_section_id"`
 	WidgetType                 types.String  `tfsdk:"widget_type"`
 }
 
@@ -522,12 +523,12 @@ func (r *StatusPageResourceResource) Schema(ctx context.Context, req resource.Sc
 			"mark_as_down_metadata_rule":     schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"key": schema.StringAttribute{Optional: true, Computed: true}, "values": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true}, "value": schema.StringAttribute{Optional: true, Computed: true}, "item_id": schema.StringAttribute{Optional: true, Computed: true}, "name": schema.StringAttribute{Optional: true, Computed: true}, "email": schema.StringAttribute{Optional: true, Computed: true}}}}}, Description: "The incident metadata rule used when `mark_as_down_for` is `incident_matching_metadata`. It has a `key` and `values`, each either `{type: String, value}` or a catalog item `{type, item_id, name, email}`. A Team `item_id` reads back as a `t`-prefixed ID, and other item IDs are numbers. Returned only when `mark_as_down_for` is `incident_matching_metadata`.", PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()}},
 			"position":                       schema.Int64Attribute{Optional: true, Computed: true, Description: "0-based display order within the section. Inserting at a position shifts the items at or after it down one. With fixed_position true, which Terraform always sends, the position is written as given and nothing shifts. A position past the end lands last. Left out, the new one is added at the end. Must be a non-negative integer.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
 			"public_name":                    schema.StringAttribute{Required: true, Description: "Name shown publicly for this item."},
-			"resource_id":                    schema.Int64Attribute{Optional: true, Computed: true, Description: "ID of the monitor, heartbeat or group to show. Required unless `resource_type` is `ManuallyTrackedItem`: leave it out there to create a new manually tracked item.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
+			"resource_id":                    schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the monitor, heartbeat or group to show. Required unless `resource_type` is `ManuallyTrackedItem`: leave it out there to create a new manually tracked item.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"resource_type":                  schema.StringAttribute{Required: true, Description: "Type of the resource to show. A group reads back as `MonitorGroup` or `HeartbeatGroup`, depending on what it groups.", Validators: []validator.String{stringvalidator.OneOf("Monitor", "MonitorGroup", "Heartbeat", "HeartbeatGroup", "WebhookIntegration", "EmailIntegration", "IncomingWebhook", "AmazonSnsIntegration", "ManuallyTrackedItem", "LogsChart", "CatalogReference", "ThirdPartyService")}},
 			"status":                         schema.StringAttribute{Computed: true, Description: "Current reported status."},
 			"status_history":                 schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"day": schema.StringAttribute{Computed: true}, "status": schema.StringAttribute{Computed: true}, "downtime_duration": schema.Int64Attribute{Computed: true}, "maintenance_duration": schema.Int64Attribute{Computed: true}}}, Description: "Daily status over the page's history window. Each day has `day`, `status`, and `downtime_duration` and `maintenance_duration` in seconds."},
 			"status_page_id":                 schema.StringAttribute{Required: true, Description: "Id of the parent this status page belongs to.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_status_page_resource"}}},
-			"status_page_section_id":         schema.Int64Attribute{Optional: true, Computed: true, Description: "Section to place this item in. Omit to use the page's first section, or a newly created default section on a page with none.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
+			"status_page_section_id":         schema.StringAttribute{Optional: true, Computed: true, Description: "Section to place this item in. Omit to use the page's first section, or a newly created default section on a page with none.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"widget_type":                    schema.StringAttribute{Optional: true, Computed: true, Description: "How this item is rendered.", Validators: []validator.String{stringvalidator.OneOf("plain", "history", "intraday_history", "response_times", "intraday_response_times", "chart_only")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 		},
 	}
@@ -546,10 +547,10 @@ func (r *StatusPageResourceResource) Configure(ctx context.Context, req resource
 func (r *StatusPageResourceResource) body(ctx context.Context, m StatusPageResourceModel) map[string]interface{} {
 	body := map[string]interface{}{}
 	if !m.StatusPageSectionId.IsNull() && !m.StatusPageSectionId.IsUnknown() {
-		body["status_page_section_id"] = m.StatusPageSectionId.ValueInt64()
+		body["status_page_section_id"] = idToAPI(m.StatusPageSectionId.ValueString())
 	}
 	if !m.ResourceId.IsNull() && !m.ResourceId.IsUnknown() {
-		body["resource_id"] = m.ResourceId.ValueInt64()
+		body["resource_id"] = idToAPI(m.ResourceId.ValueString())
 	}
 	if !m.ResourceType.IsNull() && !m.ResourceType.IsUnknown() {
 		body["resource_type"] = m.ResourceType.ValueString()
@@ -598,6 +599,7 @@ func (r *StatusPageResourceResource) updateBody(ctx context.Context, config, pla
 }
 
 func (r *StatusPageResourceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, statusPageResourceKeptOnRemoval, &resp.Diagnostics)
 	var plan StatusPageResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request StatusPageResourceModel
@@ -656,11 +658,11 @@ func populateStatusPageResource(ctx context.Context, m *StatusPageResourceModel,
 	if attrs == nil {
 		return
 	}
-	if v, ok := int64FromAPI(attrs["status_page_section_id"]); ok {
-		m.StatusPageSectionId = types.Int64Value(v)
+	if v, ok := stringFromAPI(attrs["status_page_section_id"]); ok {
+		m.StatusPageSectionId = types.StringValue(v)
 	}
-	if v, ok := int64FromAPI(attrs["resource_id"]); ok {
-		m.ResourceId = types.Int64Value(v)
+	if v, ok := stringFromAPI(attrs["resource_id"]); ok {
+		m.ResourceId = types.StringValue(v)
 	}
 	if v, ok := stringFromAPI(attrs["resource_type"]); ok {
 		m.ResourceType = types.StringValue(v)
@@ -727,6 +729,7 @@ func populateStatusPageResource(ctx context.Context, m *StatusPageResourceModel,
 }
 
 func (r *StatusPageResourceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, statusPageResourceKeptOnRemoval, &resp.Diagnostics)
 	var plan StatusPageResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request StatusPageResourceModel
@@ -770,6 +773,13 @@ func (r *StatusPageResourceResource) Delete(ctx context.Context, req resource.De
 	if err := r.client.Delete(ctx, statusPageResourceBinding, vars); err != nil {
 		addAPIError(&resp.Diagnostics, "deleting status_page_resource", err, req.State.Raw.Type())
 	}
+}
+
+// Attributes whose removal from the configuration keeps the server's value (no default, no null).
+var statusPageResourceKeptOnRemoval = []string{"catalog_reference", "history", "mark_as_degraded_metadata_rule", "mark_as_down_metadata_rule", "position", "resource_id", "status_page_section_id", "widget_type"}
+
+func (r *StatusPageResourceResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	warnKeptOnRemoval(ctx, "betterstack_status_page_resource", req, resp, statusPageResourceKeptOnRemoval)
 }
 
 // The object hangs off a parent collection, so its address is composite:

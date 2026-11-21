@@ -8,7 +8,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -19,6 +21,7 @@ import (
 var _ resource.Resource = &TeamResource{}
 var _ resource.ResourceWithConfigure = &TeamResource{}
 var _ resource.ResourceWithImportState = &TeamResource{}
+var _ resource.ResourceWithModifyPlan = &TeamResource{}
 
 type TeamResource struct {
 	client *Client
@@ -40,7 +43,7 @@ type TeamModel struct {
 	OnCallReminderPush              types.Bool   `tfsdk:"on_call_reminder_push"`
 	OnCallReminderSms               types.Bool   `tfsdk:"on_call_reminder_sms"`
 	OpenedEmailsTrackingEnabled     types.Bool   `tfsdk:"opened_emails_tracking_enabled"`
-	OrganizationId                  types.Int64  `tfsdk:"organization_id"`
+	OrganizationId                  types.String `tfsdk:"organization_id"`
 	ReportingEnabled                types.Bool   `tfsdk:"reporting_enabled"`
 	UpdatedAt                       types.String `tfsdk:"updated_at"`
 }
@@ -56,16 +59,16 @@ func (r *TeamResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 			"id":                                    schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"created_at":                            schema.StringAttribute{Computed: true, Description: "When the team was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"incident_grouping_metadata_scope":      schema.ListAttribute{Optional: true, Computed: true, Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{types.StringValue("Origin")})), ElementType: types.StringType, Description: "Metadata keys whose values must match for incidents to be grouped. New teams start with [\"Origin\"]."},
-			"incident_grouping_period":              schema.Int64Attribute{Optional: true, Computed: true, Description: "Seconds within which a new incident is grouped with an open one, from 0 to 2147483647. New teams start at 300.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
+			"incident_grouping_period":              schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(300), Description: "Seconds within which a new incident is grouped with an open one, from 0 to 2147483647. New teams start at 300."},
 			"name":                                  schema.StringAttribute{Required: true, Description: "The team's name. Unique within the organization, ignoring letter case."},
-			"notify_about_all_incidents_in_a_group": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether every incident in a group alerts, rather than only the first. New teams start at true.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
+			"notify_about_all_incidents_in_a_group": schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether every incident in a group alerts, rather than only the first. New teams start at true."},
 			"on_call_reminder_email":                schema.BoolAttribute{Optional: true, Computed: true, Description: "Send on-call reminders by e-mail. Turning it on needs a plan with on-call scheduling. New teams start at true.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
 			"on_call_reminder_lead_time":            schema.Int64Attribute{Optional: true, Computed: true, Description: "Seconds before an on-call shift starts to remind the person: one of 0 (off), 3600, 21600, 43200, 86400, 172800 or 604800. A value other than 0 needs a plan with on-call scheduling. New teams start at 86400.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
 			"on_call_reminder_push":                 schema.BoolAttribute{Optional: true, Computed: true, Description: "Send on-call reminders as push notifications. Turning it on needs a plan with on-call scheduling and push alerts. New teams start at true.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
-			"on_call_reminder_sms":                  schema.BoolAttribute{Optional: true, Computed: true, Description: "Send on-call reminders by SMS. Turning it on needs a plan with on-call scheduling and SMS alerts. New teams start at false.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
-			"opened_emails_tracking_enabled":        schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether the incident timeline records opened alert e-mails. New teams start at true.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
-			"organization_id":                       schema.Int64Attribute{Computed: true, Description: "ID of the organization the team belongs to.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
-			"reporting_enabled":                     schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether reporting is on. New teams start at false.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
+			"on_call_reminder_sms":                  schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Send on-call reminders by SMS. Turning it on needs a plan with on-call scheduling and SMS alerts. New teams start at false."},
+			"opened_emails_tracking_enabled":        schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether the incident timeline records opened alert e-mails. New teams start at true."},
+			"organization_id":                       schema.StringAttribute{Computed: true, Description: "ID of the organization the team belongs to.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"reporting_enabled":                     schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether reporting is on. New teams start at false."},
 			"updated_at":                            schema.StringAttribute{Computed: true, Description: "When the team was last updated."},
 		},
 	}
@@ -119,11 +122,17 @@ func (r *TeamResource) body(ctx context.Context, m TeamModel) map[string]interfa
 }
 
 func (r *TeamResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, teamKeptOnRemoval, &resp.Diagnostics)
 	var plan TeamModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request TeamModel
 	resp.Diagnostics.Append(configWithPlannedUnknowns(ctx, req.Config, req.Plan, nullValue(req.Plan.Raw.Type()), &request)...)
-	request.IncidentGroupingMetadataScope = plan.IncidentGroupingMetadataScope // its schema default travels when unset, so removing the line resets it
+	request.IncidentGroupingMetadataScope = plan.IncidentGroupingMetadataScope     // its schema default travels when unset, so removing the line resets it
+	request.IncidentGroupingPeriod = plan.IncidentGroupingPeriod                   // its schema default travels when unset, so removing the line resets it
+	request.NotifyAboutAllIncidentsInAGroup = plan.NotifyAboutAllIncidentsInAGroup // its schema default travels when unset, so removing the line resets it
+	request.OnCallReminderSms = plan.OnCallReminderSms                             // its schema default travels when unset, so removing the line resets it
+	request.OpenedEmailsTrackingEnabled = plan.OpenedEmailsTrackingEnabled         // its schema default travels when unset, so removing the line resets it
+	request.ReportingEnabled = plan.ReportingEnabled                               // its schema default travels when unset, so removing the line resets it
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -177,8 +186,8 @@ func populateTeam(ctx context.Context, m *TeamModel, attrs map[string]interface{
 	if v, ok := stringFromAPI(attrs["name"]); ok {
 		m.Name = types.StringValue(v)
 	}
-	if v, ok := int64FromAPI(attrs["organization_id"]); ok {
-		m.OrganizationId = types.Int64Value(v)
+	if v, ok := stringFromAPI(attrs["organization_id"]); ok {
+		m.OrganizationId = types.StringValue(v)
 	}
 	if v, ok := int64FromAPI(attrs["incident_grouping_period"]); ok {
 		m.IncidentGroupingPeriod = types.Int64Value(v)
@@ -223,6 +232,7 @@ func populateTeam(ctx context.Context, m *TeamModel, attrs map[string]interface{
 }
 
 func (r *TeamResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, teamKeptOnRemoval, &resp.Diagnostics)
 	var plan TeamModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request TeamModel
@@ -236,6 +246,21 @@ func (r *TeamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	// removed): resending an unchanged default can act on its own, e.g. unpause a group's members.
 	if !plan.IncidentGroupingMetadataScope.Equal(state.IncidentGroupingMetadataScope) {
 		request.IncidentGroupingMetadataScope = plan.IncidentGroupingMetadataScope
+	}
+	if !plan.IncidentGroupingPeriod.Equal(state.IncidentGroupingPeriod) {
+		request.IncidentGroupingPeriod = plan.IncidentGroupingPeriod
+	}
+	if !plan.NotifyAboutAllIncidentsInAGroup.Equal(state.NotifyAboutAllIncidentsInAGroup) {
+		request.NotifyAboutAllIncidentsInAGroup = plan.NotifyAboutAllIncidentsInAGroup
+	}
+	if !plan.OnCallReminderSms.Equal(state.OnCallReminderSms) {
+		request.OnCallReminderSms = plan.OnCallReminderSms
+	}
+	if !plan.OpenedEmailsTrackingEnabled.Equal(state.OpenedEmailsTrackingEnabled) {
+		request.OpenedEmailsTrackingEnabled = plan.OpenedEmailsTrackingEnabled
+	}
+	if !plan.ReportingEnabled.Equal(state.ReportingEnabled) {
+		request.ReportingEnabled = plan.ReportingEnabled
 	}
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
@@ -261,6 +286,13 @@ func (r *TeamResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 	if err := r.client.Delete(ctx, teamBinding, vars); err != nil {
 		addAPIError(&resp.Diagnostics, "deleting team", err, req.State.Raw.Type())
 	}
+}
+
+// Attributes whose removal from the configuration keeps the server's value (no default, no null).
+var teamKeptOnRemoval = []string{"on_call_reminder_email", "on_call_reminder_lead_time", "on_call_reminder_push"}
+
+func (r *TeamResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	warnKeptOnRemoval(ctx, "betterstack_team", req, resp, teamKeptOnRemoval)
 }
 
 func (r *TeamResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

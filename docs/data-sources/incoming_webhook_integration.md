@@ -30,7 +30,7 @@ Set `id`, or filter attributes matching exactly one record.
 
 - `team_name` (String) Name of the team that owns this integration.
 - `metadata` (Attributes Map, see [nested schema](#nestedatt--metadata)) Custom metadata. Each key holds a list of values. A value is a string, written as `{type: "String", value}`, or a catalog reference, written as `{type, item_id, name, email}`. Team references are returned as team IDs such as `t123`. Each key holds its list under `values`, for example `{ owner = { values = [ ... ] } }`.
-- `policy_id` (String) ID of the escalation policy used for alerts. Returned as a string. You can send it as a number or a string.
+- `escalation_policy_id` (String) ID of the escalation policy used for alerts. Returned as a string. You can send it as a number or a string.
 - `url` (String, Sensitive) URL that third-party payloads are posted to.
 - `paused` (Boolean) Whether the integration is paused. A paused integration opens no incidents.
 - `call` (Boolean) Alert by phone call.
@@ -39,7 +39,7 @@ Set `id`, or filter attributes matching exactly one record.
 - `push` (Boolean) Alert by push notification.
 - `critical_alert` (Boolean) Alert by a critical push notification that bypasses silent mode.
 - `team_wait` (Number) Seconds before escalating to the whole team.
-- `recovery_period` (Number) Seconds a matching resolved payload must hold before the incident resolves. One of 0, 60, 180, 300, 900, 1800, 3600, 7200.
+- `recovery_period` (Number) Seconds a matching resolved payload must hold before the incident resolves. One of 0, 60, 180, 300, 900, 1800, 3600, 7200. Has no effect while `resolved_rule_type` is `unused`.
 - `started_rule_type` (String) How the started rules open an incident: `any` when one rule matches, `all` when every rule matches. `unused` turns off opening incidents by rules. Valid values: `unused`, `any`, `all`.
 - `acknowledged_rule_type` (String) How the acknowledged rules acknowledge the incident: `any` when one rule matches, `all` when every rule matches. `unused` turns off acknowledging by rules. Valid values: `unused`, `any`, `all`.
 - `resolved_rule_type` (String) How the resolved rules resolve the incident: `any` when one rule matches, `all` when every rule matches. `unused` turns off resolving by rules. Valid values: `unused`, `any`, `all`.
@@ -196,8 +196,8 @@ Set `id`, or filter attributes matching exactly one record.
 
 ## Endpoints
 
-- `GET /api/v2/incoming-webhooks`
-- `GET /api/v2/incoming-webhooks/:id`
-- `POST /api/v2/incoming-webhooks`
-- `PATCH /api/v2/incoming-webhooks/:id`
-- `DELETE /api/v2/incoming-webhooks/:id`
+- `GET /api/v3/incoming-webhooks`
+- `GET /api/v3/incoming-webhooks/:id`
+- `POST /api/v3/incoming-webhooks`
+- `PATCH /api/v3/incoming-webhooks/:id`
+- `DELETE /api/v3/incoming-webhooks/:id`

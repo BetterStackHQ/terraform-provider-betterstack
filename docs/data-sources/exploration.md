@@ -13,7 +13,7 @@ A saved exploration: a chart, its queries, and its variables over logs, metrics,
 
 ```terraform
 data "betterstack_exploration" "example" {
-  exploration_group_id = 456
+  exploration_group_id = "456"
 }
 ```
 
@@ -25,7 +25,7 @@ Set `id`, or filter attributes matching exactly one record.
 
 - `id` (String) Look up by id.
 - `name` (String) Exploration name. The chart takes its name from it, so the chart's name is never sent.
-- `exploration_group_id` (Number) Group this exploration belongs to. Send `null` or `"0"` to remove it from its group.
+- `exploration_group_id` (String) Group this exploration belongs to. Send `null` or `"0"` to remove it from its group.
 
 ### Read-Only
 
@@ -50,7 +50,7 @@ Set `id`, or filter attributes matching exactly one record.
 <a id="nestedatt--queries"></a>
 ### Nested Schema for `queries`
 
-- `id` (Number)
+- `id` (String)
 - `query_type` (String) Query type. Only `sql_expression`, `tail_query` and `static_text` can be written through the API. Other types are read-only: you can replace them with a writable type, never edit them. Valid values: `sql_expression`, `tail_query`, `static_text`, `pql_expression`, `tail_query_builder`, `query_builder`, `funnel_query`.
 - `name` (String)
 - `sql_query` (String)
@@ -83,7 +83,7 @@ Set `id`, or filter attributes matching exactly one record.
 <a id="nestedatt--queries_result"></a>
 ### Nested Schema for `queries_result`
 
-- `id` (Number)
+- `id` (String)
 - `query_type` (String) Query type. Only `sql_expression`, `tail_query` and `static_text` can be written through the API. Other types are read-only: you can replace them with a writable type, never edit them. Valid values: `sql_expression`, `tail_query`, `static_text`, `pql_expression`, `tail_query_builder`, `query_builder`, `funnel_query`.
 - `name` (String)
 - `sql_query` (String)

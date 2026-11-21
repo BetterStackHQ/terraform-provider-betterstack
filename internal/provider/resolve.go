@@ -479,6 +479,15 @@ func dynamicString(ctx context.Context, value types.Dynamic) string {
 
 // --- tolerant scalar coercions (the API stringifies some ids and numbers) ---------------------
 
+// idToAPI sends an id the way the API takes it: Terraform holds every id as a string, and an API
+// whose ids are numbers gets the number. An id that isn't a number (a Team's t123) goes as written.
+func idToAPI(s string) interface{} {
+	if n, err := strconv.ParseInt(s, 10, 64); err == nil {
+		return n
+	}
+	return s
+}
+
 func stringFromAPI(v interface{}) (string, bool) {
 	switch s := v.(type) {
 	case string:
@@ -903,6 +912,80 @@ func warnReplace(resourceType string, p path.Path, before, after bool, diags *di
 	}
 	diags.AddAttributeWarning(p, "Changing "+p.String()+" replaces the resource",
 		"Applying this plan deletes the existing object and creates a new one in its place.")
+}
+
+// configuredKey is the private-state key holding which kept-on-removal attributes the last apply
+// had configured. Only an attribute in it can have been removed: one never configured holds the
+// server's value from the start, and a plan that warned about it on every run would be noise.
+const configuredKey = "configured"
+
+type privateGetter interface {
+	GetKey(ctx context.Context, key string) ([]byte, diag.Diagnostics)
+}
+
+type privateSetter interface {
+	SetKey(ctx context.Context, key string, value []byte) diag.Diagnostics
+}
+
+// rememberConfigured records which of names the applied configuration set. It runs after a create
+// or update that succeeded; a refresh carries the record over unchanged.
+func rememberConfigured(ctx context.Context, config tfsdk.Config, private privateSetter, names []string, diags *diag.Diagnostics) {
+	if diags.HasError() || private == nil {
+		return
+	}
+	set := []string{}
+	for _, name := range names {
+		var v attr.Value
+		if d := config.GetAttribute(ctx, path.Root(name), &v); d.HasError() || v == nil || v.IsNull() {
+			continue
+		}
+		set = append(set, name)
+	}
+	raw, err := json.Marshal(set)
+	if err != nil {
+		return
+	}
+	diags.Append(private.SetKey(ctx, configuredKey, raw)...)
+}
+
+// warnKeptOnRemoval warns, for each of names the last apply configured and this configuration no
+// longer sets, that the server keeps its value: the attribute has no default to reset to and no
+// null to send, so the plan shows no change for the removed line. Setting it again ends the warning.
+func warnKeptOnRemoval(ctx context.Context, resourceType string, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse, names []string) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() || req.Private == nil {
+		return
+	}
+	raw, d := privateGetter(req.Private).GetKey(ctx, configuredKey)
+	if d.HasError() || len(raw) == 0 {
+		return
+	}
+	var applied []string
+	if json.Unmarshal(raw, &applied) != nil {
+		return
+	}
+	was := map[string]bool{}
+	for _, name := range applied {
+		was[name] = true
+	}
+	for _, name := range names {
+		if !was[name] {
+			continue
+		}
+		var config, state attr.Value
+		if d := req.Config.GetAttribute(ctx, path.Root(name), &config); d.HasError() || config == nil || !config.IsNull() {
+			continue
+		}
+		if d := req.State.GetAttribute(ctx, path.Root(name), &state); d.HasError() || state == nil || state.IsNull() {
+			continue
+		}
+		p := path.Root(name)
+		if pulumiNames != nil {
+			resp.Diagnostics.AddWarning("", "Removing "+pulumiNames(resourceType, p)+" keeps its current value in Better Stack: it has no default to reset to. Set it to the value you want instead.")
+			continue
+		}
+		resp.Diagnostics.AddAttributeWarning(p, "Removing "+name+" keeps its current value",
+			name+" has no default to reset to, so Better Stack keeps the value it has now and the plan shows no change. Set it to the value you want instead.")
+	}
 }
 
 // resource is the Terraform type, for the Pulumi property name.

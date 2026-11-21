@@ -34,8 +34,8 @@ data "betterstack_heartbeat_group" "example" {
 
 ## Endpoints
 
-- `GET /api/v2/heartbeat-groups`
-- `GET /api/v2/heartbeat-groups/:id`
-- `POST /api/v2/heartbeat-groups`
-- `PATCH /api/v2/heartbeat-groups/:id`
-- `DELETE /api/v2/heartbeat-groups/:id`
+- `GET /api/v3/heartbeat-groups`
+- `GET /api/v3/heartbeat-groups/:id`
+- `POST /api/v3/heartbeat-groups`
+- `PATCH /api/v3/heartbeat-groups/:id`
+- `DELETE /api/v3/heartbeat-groups/:id`

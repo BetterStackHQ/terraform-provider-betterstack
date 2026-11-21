@@ -14,7 +14,7 @@ A catalog record: one entry in a catalog relation, with values for its attribute
 ```terraform
 resource "betterstack_catalog_record" "example" {
   catalog_relation_id = "12345"
-  attributes          = [{ attribute = { name = "example" } }]
+  attributes          = [{ attribute = { id = "example" } }]
 }
 ```
 
@@ -43,7 +43,7 @@ This object lives under a parent collection, so its parent is part of its addres
 <a id="nestedatt--attributes--attribute"></a>
 ### Nested Schema for `attributes.attribute`
 
-- `id` (Number)
+- `id` (String)
 - `name` (String)
 
 <a id="nestedatt--attributes--values"></a>

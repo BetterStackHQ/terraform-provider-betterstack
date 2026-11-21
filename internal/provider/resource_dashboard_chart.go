@@ -24,6 +24,7 @@ import (
 var _ resource.Resource = &DashboardChartResource{}
 var _ resource.ResourceWithConfigure = &DashboardChartResource{}
 var _ resource.ResourceWithImportState = &DashboardChartResource{}
+var _ resource.ResourceWithModifyPlan = &DashboardChartResource{}
 
 type DashboardChartResource struct {
 	client *Client
@@ -176,6 +177,7 @@ func (r *DashboardChartResource) updateBody(ctx context.Context, config, plan, s
 }
 
 func (r *DashboardChartResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, dashboardChartKeptOnRemoval, &resp.Diagnostics)
 	var plan DashboardChartModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request DashboardChartModel
@@ -305,6 +307,7 @@ func populateDashboardChart(ctx context.Context, m *DashboardChartModel, attrs m
 }
 
 func (r *DashboardChartResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, dashboardChartKeptOnRemoval, &resp.Diagnostics)
 	var plan DashboardChartModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request DashboardChartModel
@@ -351,6 +354,13 @@ func (r *DashboardChartResource) Delete(ctx context.Context, req resource.Delete
 	if err := r.client.Delete(ctx, dashboardChartBinding, vars); err != nil {
 		addAPIError(&resp.Diagnostics, "deleting dashboard_chart", err, req.State.Raw.Type())
 	}
+}
+
+// Attributes whose removal from the configuration keeps the server's value (no default, no null).
+var dashboardChartKeptOnRemoval = []string{"settings", "x", "y"}
+
+func (r *DashboardChartResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	warnKeptOnRemoval(ctx, "betterstack_dashboard_chart", req, resp, dashboardChartKeptOnRemoval)
 }
 
 // The object hangs off a parent collection, so its address is composite:

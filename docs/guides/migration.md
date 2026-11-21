@@ -104,7 +104,7 @@ Minimum target provider version: **0.1.0**. Each entry names its supported state
 - Destination: `betterstack_amazon_sns_integration`.
 - Supported state schema versions: `0`.
 - Handling: guided configuration/state transition.
-- Rename to data.betterstack_amazon_sns_integration with the same exact name and selected provider team. Update single extraction outputs from list indexing to objects.
+- Rename to data.betterstack_amazon_sns_integration with the same exact name and selected provider team. Update single extraction outputs from list indexing to objects. Rename references to policy_id to escalation_policy_id.
 
 Replace the data-source type and refresh. Exact lookup must find one SNS receiver, not an IncomingWebhook; missing or duplicate names fail. Retain topic_arn, subscription_state and URL output references. Do not import data-source state.
 
@@ -114,7 +114,7 @@ Replace the data-source type and refresh. Exact lookup must find one SNS receive
 - Destination: `betterstack_incoming_webhook_integration`.
 - Supported state schema versions: `0`.
 - Handling: guided configuration/state transition.
-- Rename to data.betterstack_incoming_webhook_integration and preserve the exact name lookup. Single extraction-field outputs are objects rather than one-element lists; update output indexing.
+- Rename to data.betterstack_incoming_webhook_integration and preserve the exact name lookup. Single extraction-field outputs are objects rather than one-element lists; update output indexing. Rename references to policy_id to escalation_policy_id.
 
 Replace the data-source type, keep name and the selected provider team, and refresh. Missing or duplicate names fail. Data-source state is not imported or moved.
 
@@ -134,7 +134,7 @@ Rename the data source and retain its cluster filters; refresh reads the live pu
 - Destination: `betterstack_monitor`.
 - Supported state schema versions: `0`.
 - Handling: guided configuration/state transition.
-- Rename to data.betterstack_monitor and retain the exact url filter.
+- Rename to data.betterstack_monitor and retain the exact url filter. Rename references to policy_id to escalation_policy_id.
 
 Replace the data source type and retain url and selected provider team; refresh performs an exact match. Multiple matches now fail instead of choosing the first, so add a unique pronounceable_name or use id if necessary. Do not import or move data-source state.
 
@@ -144,7 +144,7 @@ Replace the data source type and retain url and selected provider team; refresh 
 - Destination: `betterstack_on_call_schedule`.
 - Supported state schema versions: `0`.
 - Handling: guided configuration/state transition.
-- Rename to data.betterstack_on_call_schedule. Exact name lookup remains available; an omitted or empty name selects the default schedule through the documented default id alias.
+- Rename to data.betterstack_on_call_schedule. Exact name lookup remains available; an omitted or empty name selects the default schedule through the documented default id alias. Rename references to default_calendar to default_schedule.
 
 Replace the data-source type and retain the provider team and optional name. Rewrite references to inline on_call_rotation through data.betterstack_on_call_rotation at the same calendar id. Refresh data sources; do not import, recreate, or regenerate schedules.
 
@@ -154,7 +154,7 @@ Replace the data-source type and retain the provider team and optional name. Rew
 - Destination: `betterstack_escalation_policy`.
 - Supported state schema versions: `0`.
 - Handling: guided configuration/state transition.
-- Rename to data.betterstack_escalation_policy and retain exact name lookup under the same provider team. Rewrite outputs that read instructions comment/reminder fields to their instructions_ names.
+- Rename to data.betterstack_escalation_policy and retain exact name lookup under the same provider team. Rewrite outputs that read policy_group_id, a step's urgency_id or policy_id, or the instructions comment/reminder fields to escalation_policy_group_id, severity_id, escalation_policy_id and their instructions_ names.
 
 Replace the data-source type and refresh. Zero or duplicate names fail rather than choosing an arbitrary policy; an explicit id can disambiguate. Do not import or move data-source state.
 
@@ -174,7 +174,7 @@ Replace the data-source declaration without importing state. Use the same organi
 - Destination: `betterstack_severity`.
 - Supported state schema versions: `0`.
 - Handling: guided configuration/state transition.
-- Rename to data.betterstack_severity; preserve exact name lookup and the selected provider team. Rename references to severity_group_id to urgency_group_id.
+- Rename to data.betterstack_severity; preserve exact name lookup and the selected provider team.
 
 Replace the data-source type, retain name, and refresh. Zero or duplicate matches fail; use an explicit id to disambiguate. Data-source state is not imported or moved.
 
@@ -203,12 +203,13 @@ Keep this team member data source on the legacy better-uptime provider for now. 
 - Destination: `betterstack_amazon_sns_integration`.
 - Supported state schema versions: `0`.
 - Handling: one-to-one moved state, subject to whole-state and ownership validation.
+- Rename `policy_id` to `escalation_policy_id` in configuration and dependent expressions.
 - Conversion: `{"op":"singleton","path":"cause_field"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
 - Conversion: `{"op":"singleton","path":"title_field"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
 - Conversion: `{"op":"singleton","path":"started_alert_id_field"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
 - Conversion: `{"op":"singleton","path":"acknowledged_alert_id_field"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
 - Conversion: `{"op":"singleton","path":"resolved_alert_id_field"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
-- Keep the AmazonSnsIntegration id, receiving URL, topic ARN and subscription state; do not recreate the receiver or restart AWS confirmation. Keep every attribute: the legacy provider wrote the same /api/v2/amazon-sns fields. Convert the five single extraction blocks to objects while keeping rules/custom fields as arrays. Preserve the SNS Subject/title and Message/body extraction defaults and every configured override explicitly. Move team_name to the provider's team_id (or a provider alias for that team). topic_arn and subscription_state remain computed, never writable.
+- Keep the AmazonSnsIntegration id, receiving URL, topic ARN and subscription state; do not recreate the receiver or restart AWS confirmation. Keep every attribute: the legacy provider wrote the same fields on /api/v2/amazon-sns, where escalation_policy_id was policy_id. Convert the five single extraction blocks to objects while keeping rules/custom fields as arrays. Preserve the SNS Subject/title and Message/body extraction defaults and every configured override explicitly. Move team_name to the provider's team_id (or a provider alias for that team). topic_arn and subscription_state remain computed, never writable.
 
 ### Resource: `betteruptime_aws_cloudwatch_integration`
 
@@ -216,8 +217,9 @@ Keep this team member data source on the legacy better-uptime provider for now. 
 - Destination: `betterstack_aws_cloudwatch_integration`.
 - Supported state schema versions: `0`.
 - Handling: one-to-one moved state, subject to whole-state and ownership validation.
-- Conversion: `{"op":"sentinel_null","path":"policy_id","value":0}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
-- Rename to betterstack_aws_cloudwatch_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same /api/v2/aws-cloudwatch-integrations fields. A policy_id of 0 becomes null. Move team_name to the provider's team_id (or a provider alias for that team).
+- Rename `policy_id` to `escalation_policy_id` in configuration and dependent expressions.
+- Conversion: `{"op":"sentinel_null","path":"escalation_policy_id","value":0}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
+- Rename to betterstack_aws_cloudwatch_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same fields on /api/v2/aws-cloudwatch-integrations, where escalation_policy_id was policy_id. A policy_id of 0 becomes a null escalation_policy_id. Move team_name to the provider's team_id (or a provider alias for that team).
 
 ### Resource: `betteruptime_azure_integration`
 
@@ -225,8 +227,9 @@ Keep this team member data source on the legacy better-uptime provider for now. 
 - Destination: `betterstack_azure_integration`.
 - Supported state schema versions: `0`.
 - Handling: one-to-one moved state, subject to whole-state and ownership validation.
-- Conversion: `{"op":"sentinel_null","path":"policy_id","value":0}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
-- Rename to betterstack_azure_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same /api/v2/azure-integrations fields. A policy_id of 0 becomes null. Move team_name to the provider's team_id (or a provider alias for that team).
+- Rename `policy_id` to `escalation_policy_id` in configuration and dependent expressions.
+- Conversion: `{"op":"sentinel_null","path":"escalation_policy_id","value":0}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
+- Rename to betterstack_azure_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same fields on /api/v2/azure-integrations, where escalation_policy_id was policy_id. A policy_id of 0 becomes a null escalation_policy_id. Move team_name to the provider's team_id (or a provider alias for that team).
 
 ### Resource: `betteruptime_catalog_attribute`
 
@@ -263,8 +266,9 @@ Read GET /api/v3/catalog/relations/RELATION/records/ID with the legacy relation_
 - Destination: `betterstack_datadog_integration`.
 - Supported state schema versions: `0`.
 - Handling: one-to-one moved state, subject to whole-state and ownership validation.
-- Conversion: `{"op":"sentinel_null","path":"policy_id","value":0}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
-- Rename to betterstack_datadog_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same /api/v2/datadog-integrations fields. A policy_id of 0 becomes null. Move team_name to the provider's team_id (or a provider alias for that team).
+- Rename `policy_id` to `escalation_policy_id` in configuration and dependent expressions.
+- Conversion: `{"op":"sentinel_null","path":"escalation_policy_id","value":0}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
+- Rename to betterstack_datadog_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same fields on /api/v2/datadog-integrations, where escalation_policy_id was policy_id. A policy_id of 0 becomes a null escalation_policy_id. Move team_name to the provider's team_id (or a provider alias for that team).
 
 ### Resource: `betteruptime_elastic_integration`
 
@@ -272,8 +276,9 @@ Read GET /api/v3/catalog/relations/RELATION/records/ID with the legacy relation_
 - Destination: `betterstack_elastic_integration`.
 - Supported state schema versions: `0`.
 - Handling: one-to-one moved state, subject to whole-state and ownership validation.
-- Conversion: `{"op":"sentinel_null","path":"policy_id","value":0}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
-- Rename to betterstack_elastic_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same /api/v2/elastic-integrations fields. A policy_id of 0 becomes null. Move team_name to the provider's team_id (or a provider alias for that team).
+- Rename `policy_id` to `escalation_policy_id` in configuration and dependent expressions.
+- Conversion: `{"op":"sentinel_null","path":"escalation_policy_id","value":0}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
+- Rename to betterstack_elastic_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same fields on /api/v2/elastic-integrations, where escalation_policy_id was policy_id. A policy_id of 0 becomes a null escalation_policy_id. Move team_name to the provider's team_id (or a provider alias for that team).
 
 ### Resource: `betteruptime_email_integration`
 
@@ -281,14 +286,15 @@ Read GET /api/v3/catalog/relations/RELATION/records/ID with the legacy relation_
 - Destination: `betterstack_email_integration`.
 - Supported state schema versions: `0`.
 - Handling: guided configuration; `betterstack terraform migrate` verifies the current ID and emits `removed` (state-only) plus `import` blocks.
+- Rename `policy_id` to `escalation_policy_id` in configuration and dependent expressions.
 - Conversion: `{"op":"singleton","path":"cause_field"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
 - Conversion: `{"op":"singleton","path":"acknowledged_alert_id_field"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
 - Conversion: `{"op":"singleton","path":"resolved_alert_id_field"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
 - Conversion: `{"op":"singleton","path":"started_alert_id_field"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
 - Conversion: `{"op":"singleton","path":"title_field"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
-- Keep every attribute: the legacy provider wrote the same /api/v2/email-integrations fields. Convert the five single extraction blocks to objects; keep custom fields and rules as ordered arrays. Legacy target_field belongs to the shared webhook schema but has no meaning for an e-mail's from_email/subject/body targets; remove only those placeholders, not match content. Move team_name to the provider's team_id (or a provider alias for that team).
+- Keep every attribute: the legacy provider wrote the same fields on /api/v2/email-integrations, where escalation_policy_id was policy_id. Convert the five single extraction blocks to objects; keep custom fields and rules as ordered arrays. Legacy target_field belongs to the shared webhook schema but has no meaning for an e-mail's from_email/subject/body targets; remove only those placeholders, not match content. Move team_name to the provider's team_id (or a provider alias for that team).
 
-Back up state and stop concurrent applies. Read GET /api/v2/email-integrations/:id under the same team and compare every extraction/rule/channel setting to the translated HCL, preserving effective defaults. Review a state-only old-address removal plus import of betterstack_email_integration with the same id; never call DELETE or POST. Require a no-op plan and unchanged receiving email_address afterward.
+Back up state and stop concurrent applies. Read GET /api/v3/email-integrations/:id under the same team and compare every extraction/rule/channel setting to the translated HCL, preserving effective defaults. Review a state-only old-address removal plus import of betterstack_email_integration with the same id; never call DELETE or POST. Require a no-op plan and unchanged receiving email_address afterward.
 
 ### Resource: `betteruptime_google_monitoring_integration`
 
@@ -296,8 +302,9 @@ Back up state and stop concurrent applies. Read GET /api/v2/email-integrations/:
 - Destination: `betterstack_google_monitoring_integration`.
 - Supported state schema versions: `0`.
 - Handling: one-to-one moved state, subject to whole-state and ownership validation.
-- Conversion: `{"op":"sentinel_null","path":"policy_id","value":0}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
-- Rename to betterstack_google_monitoring_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same /api/v2/google-monitoring-integrations fields. A policy_id of 0 becomes null. Move team_name to the provider's team_id (or a provider alias for that team).
+- Rename `policy_id` to `escalation_policy_id` in configuration and dependent expressions.
+- Conversion: `{"op":"sentinel_null","path":"escalation_policy_id","value":0}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
+- Rename to betterstack_google_monitoring_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same fields on /api/v2/google-monitoring-integrations, where escalation_policy_id was policy_id. A policy_id of 0 becomes a null escalation_policy_id. Move team_name to the provider's team_id (or a provider alias for that team).
 
 ### Resource: `betteruptime_grafana_integration`
 
@@ -305,8 +312,9 @@ Back up state and stop concurrent applies. Read GET /api/v2/email-integrations/:
 - Destination: `betterstack_grafana_integration`.
 - Supported state schema versions: `0`.
 - Handling: one-to-one moved state, subject to whole-state and ownership validation.
-- Conversion: `{"op":"sentinel_null","path":"policy_id","value":0}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
-- Rename to betterstack_grafana_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same /api/v2/grafana-integrations fields. A policy_id of 0 becomes null. Move team_name to the provider's team_id (or a provider alias for that team).
+- Rename `policy_id` to `escalation_policy_id` in configuration and dependent expressions.
+- Conversion: `{"op":"sentinel_null","path":"escalation_policy_id","value":0}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
+- Rename to betterstack_grafana_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same fields on /api/v2/grafana-integrations, where escalation_policy_id was policy_id. A policy_id of 0 becomes a null escalation_policy_id. Move team_name to the provider's team_id (or a provider alias for that team).
 
 ### Resource: `betteruptime_heartbeat`
 
@@ -314,7 +322,8 @@ Back up state and stop concurrent applies. Read GET /api/v2/email-integrations/:
 - Destination: `betterstack_heartbeat`.
 - Supported state schema versions: `0`.
 - Handling: one-to-one moved state, subject to whole-state and ownership validation.
-- Keep every attribute: the legacy provider wrote the same /api/v2/heartbeats fields. Move team_name to the provider's team_id (or a provider alias for that team). Keep the existing heartbeat id, so the ping URL stays the same.
+- Rename `policy_id` to `escalation_policy_id` in configuration and dependent expressions.
+- Keep every attribute: the legacy provider wrote the same fields on /api/v2/heartbeats, where escalation_policy_id was policy_id. Move team_name to the provider's team_id (or a provider alias for that team). Keep the existing heartbeat id, so the ping URL stays the same.
 
 ### Resource: `betteruptime_heartbeat_group`
 
@@ -330,12 +339,13 @@ Back up state and stop concurrent applies. Read GET /api/v2/email-integrations/:
 - Destination: `betterstack_incoming_webhook_integration`.
 - Supported state schema versions: `0`.
 - Handling: one-to-one moved state, subject to whole-state and ownership validation.
+- Rename `policy_id` to `escalation_policy_id` in configuration and dependent expressions.
 - Conversion: `{"op":"singleton","path":"cause_field"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
 - Conversion: `{"op":"singleton","path":"title_field"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
 - Conversion: `{"op":"singleton","path":"started_alert_id_field"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
 - Conversion: `{"op":"singleton","path":"acknowledged_alert_id_field"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
 - Conversion: `{"op":"singleton","path":"resolved_alert_id_field"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
-- Keep the existing receiver id and URL; do not recreate its secret receiving token. Keep every attribute: the legacy provider wrote the same /api/v2/incoming-webhooks fields. Convert the five single extraction blocks to nullable objects, preserving extraction target, match type and content; keep custom fields and event rules as ordered arrays. Move team_name to the provider's team_id (or a provider alias for that team).
+- Keep the existing receiver id and URL; do not recreate its secret receiving token. Keep every attribute: the legacy provider wrote the same fields on /api/v2/incoming-webhooks, where escalation_policy_id was policy_id. Convert the five single extraction blocks to nullable objects, preserving extraction target, match type and content; keep custom fields and event rules as ordered arrays. Move team_name to the provider's team_id (or a provider alias for that team).
 
 ### Resource: `betteruptime_jira_integration`
 
@@ -364,9 +374,10 @@ Read GET /api/v4/metadata?owner_type=TYPE&owner_id=OWNER with the proved provide
 - Destination: `betterstack_monitor`.
 - Supported state schema versions: `0`.
 - Handling: one-to-one moved state, subject to whole-state and ownership validation.
+- Rename `policy_id` to `escalation_policy_id` in configuration and dependent expressions.
 - Conversion: `{"op":"sentinel_null","path":"monitor_group_id","value":0}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
 - Conversion: `{"op":"sentinel_null","path":"expiration_policy_id","value":0}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
-- Keep every attribute: the legacy provider wrote the same /api/v2/monitors fields. Its 0 for an unset monitor_group_id or expiration_policy_id becomes null, as the API reads it. Move team_name to the provider's team_id (or a provider alias for that team). Preserve all request headers by name/value, dropping only the obsolete header row ids. Import uses the existing id.
+- Keep every attribute: the legacy provider wrote the same fields on /api/v2/monitors, where escalation_policy_id was policy_id. Its 0 for an unset monitor_group_id or expiration_policy_id becomes null, as the API reads it. Move team_name to the provider's team_id (or a provider alias for that team). Preserve all request headers by name/value, dropping only the obsolete header row ids. Import uses the existing id.
 
 ### Resource: `betteruptime_monitor_group`
 
@@ -382,8 +393,9 @@ Read GET /api/v4/metadata?owner_type=TYPE&owner_id=OWNER with the proved provide
 - Destination: `betterstack_new_relic_integration`.
 - Supported state schema versions: `0`.
 - Handling: one-to-one moved state, subject to whole-state and ownership validation.
-- Conversion: `{"op":"sentinel_null","path":"policy_id","value":0}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
-- Rename to betterstack_new_relic_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same /api/v2/new-relic-integrations fields. A policy_id of 0 becomes null. Move team_name to the provider's team_id (or a provider alias for that team).
+- Rename `policy_id` to `escalation_policy_id` in configuration and dependent expressions.
+- Conversion: `{"op":"sentinel_null","path":"escalation_policy_id","value":0}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
+- Rename to betterstack_new_relic_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same fields on /api/v2/new-relic-integrations, where escalation_policy_id was policy_id. A policy_id of 0 becomes a null escalation_policy_id. Move team_name to the provider's team_id (or a provider alias for that team).
 
 ### Resource: `betteruptime_on_call_calendar`
 
@@ -391,9 +403,10 @@ Read GET /api/v4/metadata?owner_type=TYPE&owner_id=OWNER with the proved provide
 - Destination: `betterstack_on_call_schedule`.
 - Supported state schema versions: `0`.
 - Handling: guided configuration; `betterstack terraform migrate` verifies the current ID and emits `removed` (state-only) plus `import` blocks.
-- Keep the existing schedule id and name: the legacy provider wrote the same /api/v2/on-calls fields. Move team_name to the provider's team_id or alias. Split the legacy on_call_rotation block into a betterstack_on_call_rotation resource addressed by the schedule id. Preserve user ordering, length, rotation_start, rotation_end, timezone and working_hours. Preserve an omitted rotation rather than creating one.
+- Rename `default_calendar` to `default_schedule` in configuration and dependent expressions.
+- Keep the existing schedule id and name: the legacy provider wrote the same fields on /api/v2/on-calls, where default_schedule was default_calendar. Move team_name to the provider's team_id or alias. Split the legacy on_call_rotation block into a betterstack_on_call_rotation resource addressed by the schedule id. Preserve user ordering, length, rotation_start, rotation_end, timezone and working_hours. Preserve an omitted rotation rather than creating one.
 
-Back up state and stop concurrent applies. Read GET /api/v2/on-calls/:id and GET /api/v2/on-calls/:id/rotation under the same selected team. Review state-only removal of the old calendar address, import betterstack_on_call_schedule at the original calendar id, and, when the legacy state holds a rotation and the read returns one, import betterstack_on_call_rotation at the same calendar id. POST would replace the rotation and regenerate future shifts, and DELETE would remove shifts: neither is a migration operation. Keep the original schedule events and require a no-op plan.
+Back up state and stop concurrent applies. Read GET /api/v3/on-call-schedules/:id and GET /api/v3/on-call-schedules/:id/rotation under the same selected team. Review state-only removal of the old calendar address, import betterstack_on_call_schedule at the original calendar id, and, when the legacy state holds a rotation and the read returns one, import betterstack_on_call_rotation at the same calendar id. POST would replace the rotation and regenerate future shifts, and DELETE would remove shifts: neither is a migration operation. Keep the original schedule events and require a no-op plan.
 
 ### Resource: `betteruptime_outgoing_webhook`
 
@@ -421,14 +434,17 @@ Stop concurrent applies and save an ORIGINAL terraform state pull backup private
 - Destination: `betterstack_escalation_policy`.
 - Supported state schema versions: `0`.
 - Handling: guided configuration; `betterstack terraform migrate` verifies the current ID and emits `removed` (state-only) plus `import` blocks.
+- Rename `policy_group_id` to `escalation_policy_group_id` in configuration and dependent expressions.
+- Conversion: `{"op":"rename","path":"steps[].urgency_id","to":"steps[].severity_id"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
+- Conversion: `{"op":"rename","path":"steps[].policy_id","to":"steps[].escalation_policy_id"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
 - Conversion: `{"op":"rename","path":"steps[].comment","to":"steps[].instructions_comment"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
 - Conversion: `{"op":"rename","path":"steps[].reminder_enabled","to":"steps[].instructions_reminder_enabled"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
 - Conversion: `{"op":"rename","path":"steps[].reminder_interval_hours","to":"steps[].instructions_reminder_interval_hours"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
 - Conversion: `{"op":"sentinel_omit","path":"steps[].instructions_reminder_enabled","value":false}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
 - Conversion: `{"op":"sentinel_omit","path":"steps[].instructions_reminder_interval_hours","value":0}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
-- Rename to betterstack_escalation_policy and keep every policy attribute: the legacy provider wrote the same policy fields, on /api/v3. In ordered steps rename comment/reminder_enabled/reminder_interval_hours to instructions_comment/instructions_reminder_enabled/instructions_reminder_interval_hours. An entire_team member that names a team now reads its id as the t-prefixed team id (t123) instead of the local number. Move team_name to the provider's team_id or alias.
+- Rename to betterstack_escalation_policy and keep every policy attribute: the legacy provider wrote the same policy fields, on /api/v3. Rename policy_group_id to escalation_policy_group_id. In ordered steps rename urgency_id to severity_id, policy_id to escalation_policy_id, and comment/reminder_enabled/reminder_interval_hours to instructions_comment/instructions_reminder_enabled/instructions_reminder_interval_hours. An entire_team member that names a team now reads its id as the t-prefixed team id (t123) instead of the local number. Move team_name to the provider's team_id or alias.
 
-Read GET /api/v4/policies/:id and compare the full ordered steps to translated HCL. Keep wait-until timezones, time-branch windows, resolved action_type, typed metadata_values/no_value conditions and instructions reminders. Rewrite an entire_team member's numeric id to the t-prefixed team id the v4 read returns; the own-team member keeps no id. Convert deprecated metadata_values strings or metadata_value blocks to typed metadata_values, Team references as t-prefixed ids. Back up state, stop concurrent applies, review state-only old-address removal plus same-id import; no PATCH that rewrites steps and no DELETE. Require a no-op plan.
+Read GET /api/v5/escalation-policies/:id and compare the full ordered steps to translated HCL. Keep wait-until timezones, time-branch windows, resolved action_type, typed metadata_values/no_value conditions and instructions reminders. Rewrite an entire_team member's numeric id to the t-prefixed team id the read returns; the own-team member keeps no id. Convert deprecated metadata_values strings or metadata_value blocks to typed metadata_values, Team references as t-prefixed ids. Back up state, stop concurrent applies, review state-only old-address removal plus same-id import; no PATCH that rewrites steps and no DELETE. Require a no-op plan.
 
 ### Resource: `betteruptime_policy_group`
 
@@ -436,7 +452,7 @@ Read GET /api/v4/policies/:id and compare the full ordered steps to translated H
 - Destination: `betterstack_escalation_policy_group`.
 - Supported state schema versions: `0`.
 - Handling: one-to-one moved state, subject to whole-state and ownership validation.
-- Rename the resource to betterstack_escalation_policy_group and keep name and sort_index: the legacy provider wrote the same /api/v2/policy-groups fields. Move team_name to the provider's team_id or provider alias. Import uses the existing group id.
+- Rename the resource to betterstack_escalation_policy_group and keep name and sort_index: the legacy provider wrote the same fields on /api/v2/policy-groups. Move team_name to the provider's team_id or provider alias. Import uses the existing group id.
 
 ### Resource: `betteruptime_prometheus_integration`
 
@@ -444,8 +460,9 @@ Read GET /api/v4/policies/:id and compare the full ordered steps to translated H
 - Destination: `betterstack_prometheus_integration`.
 - Supported state schema versions: `0`.
 - Handling: one-to-one moved state, subject to whole-state and ownership validation.
-- Conversion: `{"op":"sentinel_null","path":"policy_id","value":0}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
-- Rename to betterstack_prometheus_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same /api/v2/prometheus-integrations fields. A policy_id of 0 becomes null. Move team_name to the provider's team_id (or a provider alias for that team).
+- Rename `policy_id` to `escalation_policy_id` in configuration and dependent expressions.
+- Conversion: `{"op":"sentinel_null","path":"escalation_policy_id","value":0}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
+- Rename to betterstack_prometheus_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same fields on /api/v2/prometheus-integrations, where escalation_policy_id was policy_id. A policy_id of 0 becomes a null escalation_policy_id. Move team_name to the provider's team_id (or a provider alias for that team).
 
 ### Resource: `betteruptime_severity`
 
@@ -453,8 +470,7 @@ Read GET /api/v4/policies/:id and compare the full ordered steps to translated H
 - Destination: `betterstack_severity`.
 - Supported state schema versions: `0`.
 - Handling: one-to-one moved state, subject to whole-state and ownership validation.
-- Rename `severity_group_id` to `urgency_group_id` in configuration and dependent expressions.
-- Rename severity_group_id to urgency_group_id, the wire name the legacy provider already sent. Keep the existing severity id, name and every notification channel. Move team_name to the provider's team_id (or a provider alias for that team).
+- Keep the existing severity id, name and every notification channel. Move team_name to the provider's team_id (or a provider alias for that team).
 
 ### Resource: `betteruptime_severity_group`
 
@@ -462,7 +478,7 @@ Read GET /api/v4/policies/:id and compare the full ordered steps to translated H
 - Destination: `betterstack_severity_group`.
 - Supported state schema versions: `0`.
 - Handling: one-to-one moved state, subject to whole-state and ownership validation.
-- Keep every attribute: the legacy provider wrote the same /api/v2/urgency-groups fields. Move team_name to the provider's team_id (or a provider alias for that team). Import uses the existing group id.
+- Keep every attribute: the legacy provider wrote the same fields on /api/v2/urgency-groups. Move team_name to the provider's team_id (or a provider alias for that team). Import uses the existing group id.
 
 ### Resource: `betteruptime_splunk_oncall_integration`
 

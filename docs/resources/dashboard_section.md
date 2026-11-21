@@ -36,7 +36,7 @@ This object lives under a parent collection, so its parent is part of its addres
 
 Optional attributes are also computed: left unset, they take the server-side default.
 
-- `y` (Number) Vertical position on the dashboard grid. Defaults to just below the last section or chart. If an update moves the section onto a chart, the layout is tidied up in the background.
+- `y` (Number) Vertical position on the dashboard grid. Defaults to just below the last section or chart. If an update moves the section onto a chart, the layout is tidied up in the background. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
 - `collapsed` (Boolean) Whether the section starts collapsed. Defaults to `false`.
 - `explanation` (String) Explanation of what the section groups, set by the AI tools. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 

@@ -30,7 +30,7 @@ resource "betterstack_monitor_group" "example" {
 Optional attributes are also computed: left unset, they take the server-side default.
 
 - `sort_index` (Number) Display order within the team. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `paused` (Boolean) Set to `true` to pause every monitor in the group, or `false` to resume them all. Returned as `true` only when the group has monitors and all of them are paused. Accepted on create, but it has no effect there because a new group has no monitors. Not accepted by the create request; the provider applies it in an immediate follow-up call once the resource exists.
+- `paused` (Boolean) Set to `true` to pause every monitor in the group, or `false` to resume them all. Returned as `true` only when the group has monitors and all of them are paused. Accepted on create, but it has no effect there because a new group has no monitors. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it. Not accepted by the create request; the provider applies it in an immediate follow-up call once the resource exists.
 
 ### Read-Only
 
@@ -41,11 +41,11 @@ Optional attributes are also computed: left unset, they take the server-side def
 
 ## Endpoints
 
-- `GET /api/v2/monitor-groups`
-- `GET /api/v2/monitor-groups/:id`
-- `POST /api/v2/monitor-groups`
-- `PATCH /api/v2/monitor-groups/:id`
-- `DELETE /api/v2/monitor-groups/:id`
+- `GET /api/v3/monitor-groups`
+- `GET /api/v3/monitor-groups/:id`
+- `POST /api/v3/monitor-groups`
+- `PATCH /api/v3/monitor-groups/:id`
+- `DELETE /api/v3/monitor-groups/:id`
 
 ## Import
 

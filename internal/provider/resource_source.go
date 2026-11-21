@@ -10,7 +10,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -65,7 +67,7 @@ type SourceModel struct {
 	ScrapeUrls                     types.List   `tfsdk:"scrape_urls"`
 	ServiceFields                  types.List   `tfsdk:"service_fields"`
 	SkipSslVerify                  types.Bool   `tfsdk:"skip_ssl_verify"`
-	SourceGroupId                  types.Int64  `tfsdk:"source_group_id"`
+	SourceGroupId                  types.String `tfsdk:"source_group_id"`
 	TableName                      types.String `tfsdk:"table_name"`
 	TeamId                         types.String `tfsdk:"team_id"`
 	TeamName                       types.String `tfsdk:"team_name"`
@@ -293,8 +295,8 @@ func (r *SourceResource) Schema(ctx context.Context, req resource.SchemaRequest,
 			"aws_auto_sub_log_groups": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether to subscribe new CloudWatch log groups automatically when they're discovered. Only for the `aws` platform, and returned only on AWS sources.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
 			"aws_external_id":         schema.StringAttribute{Optional: true, Computed: true, Description: "External ID from Better Stack's CloudFormation stack. Only for the `aws` platform.", Sensitive: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"aws_role_arn":            schema.StringAttribute{Optional: true, Computed: true, Description: "ARN of the IAM role from Better Stack's CloudFormation stack. Only for the `aws` platform.", Sensitive: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"blocked_metrics":         schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Metric names to drop when they're ingested.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"connected_source_ids":    schema.ListAttribute{Optional: true, Computed: true, ElementType: types.Int64Type, Description: "IDs of the sources connected to this one, for example to link spans and logs. An update replaces all connected sources. A connection goes both ways.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"blocked_metrics":         schema.ListAttribute{Optional: true, Computed: true, Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})), ElementType: types.StringType, Description: "Metric names to drop when they're ingested."},
+			"connected_source_ids":    schema.ListAttribute{Optional: true, Computed: true, Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})), ElementType: types.StringType, Description: "IDs of the sources connected to this one, for example to link spans and logs. An update replaces all connected sources. A connection goes both ways."},
 			"created_at":              schema.StringAttribute{Computed: true, Description: "When the source was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"custom_bucket":           schema.SingleNestedAttribute{Optional: true, Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true}, "endpoint": schema.StringAttribute{Optional: true, Computed: true}, "access_key_id": schema.StringAttribute{Optional: true, Computed: true}, "secret_access_key": schema.StringAttribute{Optional: true, Computed: true, Sensitive: true}, "keep_data_after_retention": schema.BoolAttribute{Optional: true, Computed: true}}, Description: "Your own S3-compatible bucket to archive data in. Set it on create. An update can send only `access_key_id` and `secret_access_key`, both together, to rotate the key pair. `secret_access_key` is never returned."},
 			"data_region": schema.StringAttribute{Optional: true, Computed: true, Description: "The data region, as the source picker names it: `europe`, `us`, `singapore` or a dedicated cluster's name. It reads back as that name. The older ids `germany`, `us_east` and `us_west` are also accepted. Set on create only. Omit it to use the organization's default.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIf(func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
@@ -313,14 +315,14 @@ func (r *SourceResource) Schema(ctx context.Context, req resource.SchemaRequest,
 			"metrics_retention":                  schema.Int64Attribute{Optional: true, Computed: true, Description: "Days to keep metrics. Refused with 422 on a plan with fixed retention, or for a number of days the plan doesn't offer.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
 			"name":                               schema.StringAttribute{Required: true, Description: "Source name."},
 			"platform":                           schema.StringAttribute{Required: true, Description: "The platform the source ingests from. Can't be changed after the source is created. `collector` is refused: create a collector with POST /api/v4/collectors, which creates its own source.", Validators: []validator.String{stringvalidator.OneOf("apache2", "aws", "aws_cloudwatch", "aws_ecs", "aws_elb", "aws_fargate", "azure", "azure_logs", "cloudflare_logpush", "cloudflare_prometheus_exporter", "cloudflare_worker", "datadog_agent", "digitalocean", "docker", "dokku", "dotnet", "elasticsearch", "erlang", "fastly", "filebeat", "flights", "fluentbit", "fluentd", "fly_io", "gcp", "go", "google_cloud_pubsub", "haproxy", "heroku", "http", "java", "javascript", "kubernetes", "logstash", "minio", "mongodb", "mysql", "nginx", "open_telemetry", "php", "postgresql", "prometheus", "prometheus_scrape", "python", "rabbitmq", "redis", "render", "rsyslog", "ruby", "syslog-ng", "traefik", "ubuntu", "vector", "vercel_integration", "winlogbeat")}, PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_source"}}},
-			"scrape_frequency_secs":              schema.Int64Attribute{Optional: true, Computed: true, Description: "Seconds between scrapes.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
-			"scrape_request_basic_auth_password": schema.StringAttribute{Optional: true, Computed: true, Description: "Password for basic authentication on scrape requests. Returned on reads, except on a source another team shares with yours.", Sensitive: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"scrape_request_basic_auth_user":     schema.StringAttribute{Optional: true, Computed: true, Description: "Username for basic authentication on scrape requests.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"scrape_frequency_secs":              schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(15), Description: "Seconds between scrapes."},
+			"scrape_request_basic_auth_password": schema.StringAttribute{Optional: true, Description: "Password for basic authentication on scrape requests. Returned on reads, except on a source another team shares with yours.", Sensitive: true},
+			"scrape_request_basic_auth_user":     schema.StringAttribute{Optional: true, Description: "Username for basic authentication on scrape requests."},
 			"scrape_request_headers":             schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true}, "value": schema.StringAttribute{Optional: true, Computed: true}}}, Description: "Custom headers sent with each scrape request, each with a `name` and a `value`.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"scrape_urls":                        schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "URLs to scrape. Only for platforms that scrape, such as `prometheus_scrape`.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"scrape_urls":                        schema.ListAttribute{Optional: true, Computed: true, Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})), ElementType: types.StringType, Description: "URLs to scrape. Only for platforms that scrape, such as `prometheus_scrape`."},
 			"service_fields":                     schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name_key": schema.StringAttribute{Optional: true, Computed: true}, "type_key": schema.StringAttribute{Optional: true, Computed: true}}}, Description: "Log fields that break data down by service, each with a `name_key` and a `type_key`. An update replaces all of them. `type_key` can be `null`.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"skip_ssl_verify":                    schema.BoolAttribute{Optional: true, Computed: true, Description: "Skip TLS verification when scraping.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
-			"source_group_id":                    schema.Int64Attribute{Optional: true, Description: "Source group this source belongs to. Send `null` or `\"0\"` to remove it from its group."},
+			"skip_ssl_verify":                    schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Skip TLS verification when scraping."},
+			"source_group_id":                    schema.StringAttribute{Optional: true, Description: "Source group this source belongs to. Send `null` or `\"0\"` to remove it from its group."},
 			"table_name":                         schema.StringAttribute{Computed: true, Description: "Underlying table name."},
 			"team_id":                            schema.StringAttribute{Computed: true, Description: "Team that owns the source, as its `t`-prefixed Better Stack team ID, such as `t123`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"team_name":                          schema.StringAttribute{Computed: true, Description: "Name of the team that owns the source."},
@@ -354,7 +356,7 @@ func (r *SourceResource) body(ctx context.Context, m SourceModel) map[string]int
 		body["data_region"] = m.DataRegion.ValueString()
 	}
 	if !m.SourceGroupId.IsNull() && !m.SourceGroupId.IsUnknown() {
-		body["source_group_id"] = m.SourceGroupId.ValueInt64()
+		body["source_group_id"] = idToAPI(m.SourceGroupId.ValueString())
 	}
 	if !m.IngestingPaused.IsNull() && !m.IngestingPaused.IsUnknown() {
 		body["ingesting_paused"] = m.IngestingPaused.ValueBool()
@@ -439,9 +441,13 @@ func (r *SourceResource) body(ctx context.Context, m SourceModel) map[string]int
 		body["custom_bucket"] = expandSourceCustomBucket(ctx, m.CustomBucket)
 	}
 	if !m.ConnectedSourceIds.IsNull() && !m.ConnectedSourceIds.IsUnknown() {
-		var vals []int64
+		var vals []string
 		m.ConnectedSourceIds.ElementsAs(ctx, &vals, false)
-		body["connected_source_ids"] = vals
+		wire := make([]interface{}, len(vals))
+		for i, v := range vals {
+			wire[i] = idToAPI(v)
+		}
+		body["connected_source_ids"] = wire
 	}
 	if !m.ServiceFields.IsNull() && !m.ServiceFields.IsUnknown() {
 		items := make([]map[string]interface{}, 0, len(m.ServiceFields.Elements()))
@@ -462,7 +468,7 @@ func (r *SourceResource) bodyForUpdate(ctx context.Context, m SourceModel) map[s
 		body["name"] = m.Name.ValueString()
 	}
 	if !m.SourceGroupId.IsNull() && !m.SourceGroupId.IsUnknown() {
-		body["source_group_id"] = m.SourceGroupId.ValueInt64()
+		body["source_group_id"] = idToAPI(m.SourceGroupId.ValueString())
 	}
 	if !m.IngestingPaused.IsNull() && !m.IngestingPaused.IsUnknown() {
 		body["ingesting_paused"] = m.IngestingPaused.ValueBool()
@@ -550,9 +556,13 @@ func (r *SourceResource) bodyForUpdate(ctx context.Context, m SourceModel) map[s
 		body["custom_bucket"] = expandSourceCustomBucket(ctx, m.CustomBucket)
 	}
 	if !m.ConnectedSourceIds.IsNull() && !m.ConnectedSourceIds.IsUnknown() {
-		var vals []int64
+		var vals []string
 		m.ConnectedSourceIds.ElementsAs(ctx, &vals, false)
-		body["connected_source_ids"] = vals
+		wire := make([]interface{}, len(vals))
+		for i, v := range vals {
+			wire[i] = idToAPI(v)
+		}
+		body["connected_source_ids"] = wire
 	}
 	if !m.ServiceFields.IsNull() && !m.ServiceFields.IsUnknown() {
 		items := make([]map[string]interface{}, 0, len(m.ServiceFields.Elements()))
@@ -581,6 +591,12 @@ func (r *SourceResource) updateBody(ctx context.Context, config, plan, state Sou
 	if !state.SourceGroupId.IsNull() && !state.SourceGroupId.IsUnknown() && plan.SourceGroupId.IsNull() {
 		body["source_group_id"] = nil
 	}
+	if !state.ScrapeRequestBasicAuthUser.IsNull() && !state.ScrapeRequestBasicAuthUser.IsUnknown() && plan.ScrapeRequestBasicAuthUser.IsNull() {
+		body["scrape_request_basic_auth_user"] = nil
+	}
+	if !state.ScrapeRequestBasicAuthPassword.IsNull() && !state.ScrapeRequestBasicAuthPassword.IsUnknown() && plan.ScrapeRequestBasicAuthPassword.IsNull() {
+		body["scrape_request_basic_auth_password"] = nil
+	}
 	if !state.GcpLogFilter.IsNull() && !state.GcpLogFilter.IsUnknown() && plan.GcpLogFilter.IsNull() {
 		body["gcp_log_filter"] = nil
 	}
@@ -591,11 +607,17 @@ func (r *SourceResource) updateBody(ctx context.Context, config, plan, state Sou
 }
 
 func (r *SourceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, sourceKeptOnRemoval, &resp.Diagnostics)
 	var plan SourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request SourceModel
 	resp.Diagnostics.Append(configWithPlannedUnknowns(ctx, req.Config, req.Plan, nullValue(req.Plan.Raw.Type()), &request)...)
-	request.IngestingPaused = plan.IngestingPaused // its schema default travels when unset, so removing the line resets it
+	request.BlockedMetrics = plan.BlockedMetrics           // its schema default travels when unset, so removing the line resets it
+	request.ConnectedSourceIds = plan.ConnectedSourceIds   // its schema default travels when unset, so removing the line resets it
+	request.IngestingPaused = plan.IngestingPaused         // its schema default travels when unset, so removing the line resets it
+	request.ScrapeFrequencySecs = plan.ScrapeFrequencySecs // its schema default travels when unset, so removing the line resets it
+	request.ScrapeUrls = plan.ScrapeUrls                   // its schema default travels when unset, so removing the line resets it
+	request.SkipSslVerify = plan.SkipSslVerify             // its schema default travels when unset, so removing the line resets it
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -688,10 +710,10 @@ func populateSource(ctx context.Context, m *SourceModel, attrs map[string]interf
 	}
 	if rawValue, exists := attrs["source_group_id"]; exists {
 		if rawValue == nil {
-			m.SourceGroupId = types.Int64Null()
+			m.SourceGroupId = types.StringNull()
 		} else {
-			if v, ok := int64FromAPI(attrs["source_group_id"]); ok {
-				m.SourceGroupId = types.Int64Value(v)
+			if v, ok := stringFromAPI(attrs["source_group_id"]); ok {
+				m.SourceGroupId = types.StringValue(v)
 			}
 		}
 	}
@@ -747,11 +769,23 @@ func populateSource(ctx context.Context, m *SourceModel, attrs map[string]interf
 		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: sourceScrapeRequestHeadersAttrTypes()}, items)
 		m.ScrapeRequestHeaders = lv
 	}
-	if v, ok := stringFromAPI(attrs["scrape_request_basic_auth_user"]); ok {
-		m.ScrapeRequestBasicAuthUser = types.StringValue(v)
+	if rawValue, exists := attrs["scrape_request_basic_auth_user"]; exists {
+		if rawValue == nil {
+			m.ScrapeRequestBasicAuthUser = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["scrape_request_basic_auth_user"]); ok {
+				m.ScrapeRequestBasicAuthUser = types.StringValue(v)
+			}
+		}
 	}
-	if v, ok := stringFromAPI(attrs["scrape_request_basic_auth_password"]); ok {
-		m.ScrapeRequestBasicAuthPassword = types.StringValue(v)
+	if rawValue, exists := attrs["scrape_request_basic_auth_password"]; exists {
+		if rawValue == nil {
+			m.ScrapeRequestBasicAuthPassword = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["scrape_request_basic_auth_password"]); ok {
+				m.ScrapeRequestBasicAuthPassword = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := boolFromAPI(attrs["skip_ssl_verify"]); ok {
 		m.SkipSslVerify = types.BoolValue(v)
@@ -789,13 +823,13 @@ func populateSource(ctx context.Context, m *SourceModel, attrs map[string]interf
 		}
 	}
 	if raw, ok := attrs["connected_source_ids"].([]interface{}); ok {
-		vals := make([]int64, 0, len(raw))
+		vals := make([]string, 0, len(raw))
 		for _, e := range raw {
-			if ev, ok := int64FromAPI(e); ok {
+			if ev, ok := stringFromAPI(e); ok {
 				vals = append(vals, ev)
 			}
 		}
-		lv, _ := types.ListValueFrom(ctx, types.Int64Type, vals)
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
 		m.ConnectedSourceIds = lv
 	}
 	if raw, ok := attrs["service_fields"].([]interface{}); ok {
@@ -885,6 +919,7 @@ func (r *SourceResource) mergeResponse(ctx context.Context, m SourceModel, attrs
 }
 
 func (r *SourceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, sourceKeptOnRemoval, &resp.Diagnostics)
 	var plan SourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request SourceModel
@@ -896,8 +931,23 @@ func (r *SourceResource) Update(ctx context.Context, req resource.UpdateRequest,
 	}
 	// An unset line's default travels only when it changes the stored value (the line was just
 	// removed): resending an unchanged default can act on its own, e.g. unpause a group's members.
+	if !plan.BlockedMetrics.Equal(state.BlockedMetrics) {
+		request.BlockedMetrics = plan.BlockedMetrics
+	}
+	if !plan.ConnectedSourceIds.Equal(state.ConnectedSourceIds) {
+		request.ConnectedSourceIds = plan.ConnectedSourceIds
+	}
 	if !plan.IngestingPaused.Equal(state.IngestingPaused) {
 		request.IngestingPaused = plan.IngestingPaused
+	}
+	if !plan.ScrapeFrequencySecs.Equal(state.ScrapeFrequencySecs) {
+		request.ScrapeFrequencySecs = plan.ScrapeFrequencySecs
+	}
+	if !plan.ScrapeUrls.Equal(state.ScrapeUrls) {
+		request.ScrapeUrls = plan.ScrapeUrls
+	}
+	if !plan.SkipSslVerify.Equal(state.SkipSslVerify) {
+		request.SkipSslVerify = plan.SkipSslVerify
 	}
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
@@ -929,8 +979,12 @@ func (r *SourceResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	}
 }
 
+// Attributes whose removal from the configuration keeps the server's value (no default, no null).
+var sourceKeptOnRemoval = []string{"aws_account_id", "aws_auto_sub_log_groups", "aws_external_id", "aws_role_arn", "gcp_account_id", "gcp_metrics_filters", "gcp_project_id", "gcp_project_number", "live_tail_pattern", "logs_retention", "metrics_retention", "scrape_request_headers", "service_fields", "vrl_transformation_logs", "vrl_transformation_spans"}
+
 func (r *SourceResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	refuseProtectedDestroy(ctx, req, resp, "source")
+	warnKeptOnRemoval(ctx, "betterstack_source", req, resp, sourceKeptOnRemoval)
 }
 
 func (r *SourceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
@@ -943,6 +997,6 @@ var _ resource.ResourceWithMoveState = &SourceResource{}
 // logtail_source (registry.terraform.io/BetterStackHQ/logtail).
 func (r *SourceResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"singleton\",\"path\":\"custom_bucket\"},{\"op\":\"sentinel_null\",\"path\":\"source_group_id\",\"value\":0},{\"op\":\"sentinel_null\",\"path\":\"vrl_transformation\",\"value\":\"\"},{\"op\":\"sentinel_null\",\"path\":\"vrl_transformation_logs\",\"value\":\"\"},{\"op\":\"rename\",\"path\":\"vrl_transformation\",\"to\":\"vrl_transformation_logs\"}],\"ignored_fields\":[\"team_id\",\"team_name\",\"code_mapping_stack_root\",\"code_mapping_source_root\"],\"instructions\":[\"Keep every attribute: the legacy provider wrote the same source fields to /api/v2/sources. Resolve the source with a read of /api/v4/sources/:id under the intended credential and verify its t-prefixed team_id before moving. Legacy numeric team_id and team_name are obsolete scope representations, not ids to prefix: put the verified team on the provider (using aliases for separate teams); computed team_id refreshes from the API.\",\"Convert custom_bucket from a one-element block to an object, retaining secret_access_key from the existing sensitive input. Keep the original source id. Convert the historical vrl_transformation alias to vrl_transformation_logs; conflicting nonempty values require operator resolution. Drop code_mapping_stack_root and code_mapping_source_root: a telemetry source refuses them, they belong to errors applications.\",\"A logtail_source_aws_account or logtail_source_gcp_project on this source folds into this block: its readable settings join it, its write-only linkage stays on the server; never import a second owner.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_source\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"description\":\"Metric names to mark as spam (one entry per metric). Listed metrics are rejected during ingestion and not billed.\",\"name\":\"blocked_metrics\",\"optional\":true,\"type\":\"list(string)\"},{\"description\":\"Source code root path that replaces the stack trace root prefix. Used to map container or build paths to the corresponding repository paths for git blame.\",\"name\":\"code_mapping_source_root\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Stack trace root path prefix to match. When a stack trace file starts with this prefix, it will be replaced with the source code root to map to the correct repository path.\",\"name\":\"code_mapping_stack_root\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this monitor group was created.\",\"name\":\"created_at\",\"type\":\"string\",\"note\":\"description string wrongly says 'this monitor group' (better-uptime leftover, published in docs)\",\"json\":\"created_at\"},{\"description\":\"Optional custom S3-compatible bucket configuration for the source. Can only be set when creating the source and cannot be added, changed, or removed afterwards - recreate the source to use a different bucket. Better Stack validates the credentials by writing and reading a test object in the bucket during creation.\",\"max_items\":1,\"name\":\"custom_bucket\",\"optional\":true,\"type\":\"list(object)\",\"note\":\"create-only, 422 on update\",\"json\":\"custom_bucket\"},{\"description\":\"Access key ID\",\"name\":\"custom_bucket.access_key_id\",\"required\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\"},{\"description\":\"Bucket endpoint including the bucket name, e.g. `https://s3.us-east-1.amazonaws.com/my-bucket` or `https://my-bucket.s3.us-east-1.amazonaws.com`.\",\"name\":\"custom_bucket.endpoint\",\"required\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\"},{\"default\":false,\"description\":\"Whether we should keep data in the bucket after the retention period.\",\"name\":\"custom_bucket.keep_data_after_retention\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"deprecated\":\"Do not set the bucket name - it is always derived from `endpoint`. This attribute will be removed in a future release.\",\"description\":\"Bucket name derived from `endpoint`. Deprecated - do not set this attribute.\",\"name\":\"custom_bucket.name\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Secret access key\",\"name\":\"custom_bucket.secret_access_key\",\"required\":true,\"sensitive\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\",\"note\":\"never returned; preserved from state\"},{\"computed\":true,\"description\":\"Data region or private cluster name to create the source in. Permitted values for most plans are: `us_west`, `germany`, `singapore`. This value can only be set at creation time and cannot be changed afterwards. The API returns the specific cluster name, which may differ from the value you provide (for example, `germany` may read back as `eu-nbg-2`).  \\nWhen importing an existing source, leave `data_region` unset in your configuration - Terraform reads it from the API. Pinning it to an identifier that differs from the stored cluster name produces a spurious `data_region cannot be changed after source is created` error.\",\"name\":\"data_region\",\"optional\":true,\"type\":\"string\",\"note\":\"create-only; never overwritten from the API once set\",\"json\":\"data_region\"},{\"computed\":true,\"description\":\"The ID of this source.\",\"name\":\"id\",\"type\":\"string\",\"json\":\"data.id\"},{\"computed\":true,\"description\":\"The host where the logs or metrics should be sent. See [documentation](https://betterstack.com/docs/logs/start/) for your specific source platform for details.\",\"name\":\"ingesting_host\",\"type\":\"string\",\"json\":\"ingesting_host\"},{\"computed\":true,\"description\":\"This property allows you to temporarily pause data ingesting for this source (e.g., when you are reaching your plan's usage quota and you want to prioritize some sources over others).\",\"name\":\"ingesting_paused\",\"optional\":true,\"type\":\"bool\",\"json\":\"ingesting_paused\"},{\"computed\":true,\"description\":\"Freeform text template for formatting Live tail output with columns wrapped in {column} brackets. Example: \\\"PID: {message_json.pid} {level} {message}\\\"\",\"name\":\"live_tail_pattern\",\"optional\":true,\"type\":\"string\",\"json\":\"live_tail_pattern\"},{\"computed\":true,\"description\":\"Data retention for logs in days. There might be additional charges for longer retention.\",\"name\":\"logs_retention\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntBetween.func58\",\"json\":\"logs_retention\"},{\"computed\":true,\"description\":\"Data retention for metrics in days. There might be additional charges for longer retention.\",\"name\":\"metrics_retention\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntBetween.func59\",\"json\":\"metrics_retention\"},{\"description\":\"The name of this source.\",\"name\":\"name\",\"required\":true,\"type\":\"string\",\"json\":\"name\"},{\"description\":\"The platform of this source. This value can be set only when you're creating a new source. You can't update this value later. Valid values are:\\n    - `apache2`\\n    - `aws`\\n    - `aws_cloudwatch`\\n    - `aws_ecs`\\n    - `aws_elb`\\n    - `aws_fargate`\\n    - `azure`\\n    - `azure_logs`\\n    - `cloudflare_logpush`\\n    - `cloudflare_prometheus_exporter`\\n    - `cloudflare_worker`\\n    - `datadog_agent`\\n    - `digitalocean`\\n    - `docker`\\n    - `dokku`\\n    - `dotnet`\\n    - `elasticsearch`\\n    - `erlang`\\n    - `fastly`\\n    - `filebeat`\\n    - `flights`\\n    - `fluentbit`\\n    - `fluentd`\\n    - `fly_io`\\n    - `gcp`\\n    - `go`\\n    - `google_cloud_pubsub`\\n    - `haproxy`\\n    - `heroku`\\n    - `http`\\n    - `java`\\n    - `javascript`\\n    - `kubernetes`\\n    - `logstash`\\n    - `minio`\\n    - `mongodb`\\n    - `mysql`\\n    - `nginx`\\n    - `open_telemetry`\\n    - `php`\\n    - `postgresql`\\n    - `prometheus`\\n    - `prometheus_scrape`\\n    - `python`\\n    - `rabbitmq`\\n    - `redis`\\n    - `render`\\n    - `rsyslog`\\n    - `ruby`\\n    - `syslog-ng`\\n    - `traefik`\\n    - `ubuntu`\\n    - `vector`\\n    - `vercel_integration`\\n    - `winlogbeat`\",\"force_new\":true,\"name\":\"platform\",\"required\":true,\"type\":\"string\",\"validate_diag_func\":\"provider.init.func14\",\"note\":\"54 allowed values (resource_source.go:17-73)\",\"json\":\"platform\"},{\"description\":\"For scrape platform types, how often to scrape the URLs.\",\"name\":\"scrape_frequency_secs\",\"optional\":true,\"type\":\"int\",\"json\":\"scrape_frequency_secs\"},{\"description\":\"Basic auth password for scraping.\",\"name\":\"scrape_request_basic_auth_password\",\"optional\":true,\"sensitive\":true,\"type\":\"string\",\"json\":\"scrape_request_basic_auth_password\"},{\"description\":\"Basic auth username for scraping.\",\"name\":\"scrape_request_basic_auth_user\",\"optional\":true,\"type\":\"string\",\"json\":\"scrape_request_basic_auth_user\"},{\"description\":\"An array of request headers, each containing `name` and `value` fields.\",\"name\":\"scrape_request_headers\",\"optional\":true,\"type\":\"list(map(string))\",\"note\":\"each entry must carry exactly name+value\",\"json\":\"scrape_request_headers\"},{\"description\":\"For scrape platform types, the set of urls to scrape.\",\"name\":\"scrape_urls\",\"optional\":true,\"type\":\"list(string)\",\"json\":\"scrape_urls\"},{\"computed\":true,\"description\":\"Should the scraper skip SSL certificate verification? Enable for endpoints with self-signed or invalid certificates.\",\"name\":\"skip_ssl_verify\",\"optional\":true,\"type\":\"bool\",\"json\":\"skip_ssl_verify\"},{\"description\":\"The ID of the source group this source belongs to.\",\"diff_suppress_func\":\"provider.init.func15\",\"name\":\"source_group_id\",\"optional\":true,\"type\":\"int\",\"note\":\"0 = detach; null = leave unmanaged\",\"json\":\"source_group_id\"},{\"computed\":true,\"description\":\"The table name generated for this source.\",\"name\":\"table_name\",\"type\":\"string\",\"json\":\"table_name\"},{\"computed\":true,\"description\":\"The team ID for this resource. Can be used with table_name in [Query API](https://betterstack.com/docs/logs/query-api/connect-remotely/).\",\"name\":\"team_id\",\"type\":\"string\",\"json\":\"team_id\",\"go_type\":\"*StringOrInt\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.init.teamNameSchema.func57\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\",\"note\":\"diff-suppressed once id is set; CustomizeDiff forbids changing it\",\"json\":\"team_name\"},{\"computed\":true,\"description\":\"The token of this source. This token is used to identify and route the data you will send to Better Stack.\",\"name\":\"token\",\"type\":\"string\",\"json\":\"token\"},{\"computed\":true,\"description\":\"The time when this monitor group was updated.\",\"name\":\"updated_at\",\"type\":\"string\",\"note\":\"same wrong description\",\"json\":\"updated_at\"},{\"computed\":true,\"description\":\"VRL transformation applied to logs on Better Stack's servers during ingestion. Leave unset to keep the transformation unmanaged (reading back whatever is configured, including platform defaults); set to an empty string to remove it. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.suppressEquivalentVRL\",\"name\":\"vrl_transformation_logs\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"VRL transformation applied to traces (spans) on Better Stack's servers during ingestion. Leave unset to keep the transformation unmanaged; set to an empty string to remove it. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.suppressEquivalentVRL\",\"name\":\"vrl_transformation_spans\",\"optional\":true,\"type\":\"string\"},{\"conflicts_with\":[\"vrl_transformation_logs\"],\"deprecated\":\"Use vrl_transformation_logs instead.\",\"description\":\"Deprecated alias for `vrl_transformation_logs`. VRL transformation applied to logs on Better Stack's servers during ingestion. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.suppressUnmanagedVRL\",\"name\":\"vrl_transformation\",\"optional\":true,\"type\":\"string\"}],\"response_projections\":[]}"),
+		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"singleton\",\"path\":\"custom_bucket\"},{\"op\":\"sentinel_null\",\"path\":\"source_group_id\",\"value\":0},{\"op\":\"sentinel_null\",\"path\":\"vrl_transformation\",\"value\":\"\"},{\"op\":\"sentinel_null\",\"path\":\"vrl_transformation_logs\",\"value\":\"\"},{\"op\":\"rename\",\"path\":\"vrl_transformation\",\"to\":\"vrl_transformation_logs\"},{\"op\":\"string_id\",\"path\":\"source_group_id\"}],\"ignored_fields\":[\"team_id\",\"team_name\",\"code_mapping_stack_root\",\"code_mapping_source_root\"],\"instructions\":[\"Keep every attribute: the legacy provider wrote the same source fields to /api/v2/sources. Resolve the source with a read of /api/v4/sources/:id under the intended credential and verify its t-prefixed team_id before moving. Legacy numeric team_id and team_name are obsolete scope representations, not ids to prefix: put the verified team on the provider (using aliases for separate teams); computed team_id refreshes from the API.\",\"Convert custom_bucket from a one-element block to an object, retaining secret_access_key from the existing sensitive input. Keep the original source id. Convert the historical vrl_transformation alias to vrl_transformation_logs; conflicting nonempty values require operator resolution. Drop code_mapping_stack_root and code_mapping_source_root: a telemetry source refuses them, they belong to errors applications.\",\"A logtail_source_aws_account or logtail_source_gcp_project on this source folds into this block: its readable settings join it, its write-only linkage stays on the server; never import a second owner.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_source\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"description\":\"Metric names to mark as spam (one entry per metric). Listed metrics are rejected during ingestion and not billed.\",\"name\":\"blocked_metrics\",\"optional\":true,\"type\":\"list(string)\"},{\"description\":\"Source code root path that replaces the stack trace root prefix. Used to map container or build paths to the corresponding repository paths for git blame.\",\"name\":\"code_mapping_source_root\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Stack trace root path prefix to match. When a stack trace file starts with this prefix, it will be replaced with the source code root to map to the correct repository path.\",\"name\":\"code_mapping_stack_root\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this monitor group was created.\",\"name\":\"created_at\",\"type\":\"string\",\"note\":\"description string wrongly says 'this monitor group' (better-uptime leftover, published in docs)\",\"json\":\"created_at\"},{\"description\":\"Optional custom S3-compatible bucket configuration for the source. Can only be set when creating the source and cannot be added, changed, or removed afterwards - recreate the source to use a different bucket. Better Stack validates the credentials by writing and reading a test object in the bucket during creation.\",\"max_items\":1,\"name\":\"custom_bucket\",\"optional\":true,\"type\":\"list(object)\",\"note\":\"create-only, 422 on update\",\"json\":\"custom_bucket\"},{\"description\":\"Access key ID\",\"name\":\"custom_bucket.access_key_id\",\"required\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\"},{\"description\":\"Bucket endpoint including the bucket name, e.g. `https://s3.us-east-1.amazonaws.com/my-bucket` or `https://my-bucket.s3.us-east-1.amazonaws.com`.\",\"name\":\"custom_bucket.endpoint\",\"required\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\"},{\"default\":false,\"description\":\"Whether we should keep data in the bucket after the retention period.\",\"name\":\"custom_bucket.keep_data_after_retention\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"deprecated\":\"Do not set the bucket name - it is always derived from `endpoint`. This attribute will be removed in a future release.\",\"description\":\"Bucket name derived from `endpoint`. Deprecated - do not set this attribute.\",\"name\":\"custom_bucket.name\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Secret access key\",\"name\":\"custom_bucket.secret_access_key\",\"required\":true,\"sensitive\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\",\"note\":\"never returned; preserved from state\"},{\"computed\":true,\"description\":\"Data region or private cluster name to create the source in. Permitted values for most plans are: `us_west`, `germany`, `singapore`. This value can only be set at creation time and cannot be changed afterwards. The API returns the specific cluster name, which may differ from the value you provide (for example, `germany` may read back as `eu-nbg-2`).  \\nWhen importing an existing source, leave `data_region` unset in your configuration - Terraform reads it from the API. Pinning it to an identifier that differs from the stored cluster name produces a spurious `data_region cannot be changed after source is created` error.\",\"name\":\"data_region\",\"optional\":true,\"type\":\"string\",\"note\":\"create-only; never overwritten from the API once set\",\"json\":\"data_region\"},{\"computed\":true,\"description\":\"The ID of this source.\",\"name\":\"id\",\"type\":\"string\",\"json\":\"data.id\"},{\"computed\":true,\"description\":\"The host where the logs or metrics should be sent. See [documentation](https://betterstack.com/docs/logs/start/) for your specific source platform for details.\",\"name\":\"ingesting_host\",\"type\":\"string\",\"json\":\"ingesting_host\"},{\"computed\":true,\"description\":\"This property allows you to temporarily pause data ingesting for this source (e.g., when you are reaching your plan's usage quota and you want to prioritize some sources over others).\",\"name\":\"ingesting_paused\",\"optional\":true,\"type\":\"bool\",\"json\":\"ingesting_paused\"},{\"computed\":true,\"description\":\"Freeform text template for formatting Live tail output with columns wrapped in {column} brackets. Example: \\\"PID: {message_json.pid} {level} {message}\\\"\",\"name\":\"live_tail_pattern\",\"optional\":true,\"type\":\"string\",\"json\":\"live_tail_pattern\"},{\"computed\":true,\"description\":\"Data retention for logs in days. There might be additional charges for longer retention.\",\"name\":\"logs_retention\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntBetween.func58\",\"json\":\"logs_retention\"},{\"computed\":true,\"description\":\"Data retention for metrics in days. There might be additional charges for longer retention.\",\"name\":\"metrics_retention\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntBetween.func59\",\"json\":\"metrics_retention\"},{\"description\":\"The name of this source.\",\"name\":\"name\",\"required\":true,\"type\":\"string\",\"json\":\"name\"},{\"description\":\"The platform of this source. This value can be set only when you're creating a new source. You can't update this value later. Valid values are:\\n    - `apache2`\\n    - `aws`\\n    - `aws_cloudwatch`\\n    - `aws_ecs`\\n    - `aws_elb`\\n    - `aws_fargate`\\n    - `azure`\\n    - `azure_logs`\\n    - `cloudflare_logpush`\\n    - `cloudflare_prometheus_exporter`\\n    - `cloudflare_worker`\\n    - `datadog_agent`\\n    - `digitalocean`\\n    - `docker`\\n    - `dokku`\\n    - `dotnet`\\n    - `elasticsearch`\\n    - `erlang`\\n    - `fastly`\\n    - `filebeat`\\n    - `flights`\\n    - `fluentbit`\\n    - `fluentd`\\n    - `fly_io`\\n    - `gcp`\\n    - `go`\\n    - `google_cloud_pubsub`\\n    - `haproxy`\\n    - `heroku`\\n    - `http`\\n    - `java`\\n    - `javascript`\\n    - `kubernetes`\\n    - `logstash`\\n    - `minio`\\n    - `mongodb`\\n    - `mysql`\\n    - `nginx`\\n    - `open_telemetry`\\n    - `php`\\n    - `postgresql`\\n    - `prometheus`\\n    - `prometheus_scrape`\\n    - `python`\\n    - `rabbitmq`\\n    - `redis`\\n    - `render`\\n    - `rsyslog`\\n    - `ruby`\\n    - `syslog-ng`\\n    - `traefik`\\n    - `ubuntu`\\n    - `vector`\\n    - `vercel_integration`\\n    - `winlogbeat`\",\"force_new\":true,\"name\":\"platform\",\"required\":true,\"type\":\"string\",\"validate_diag_func\":\"provider.init.func14\",\"note\":\"54 allowed values (resource_source.go:17-73)\",\"json\":\"platform\"},{\"description\":\"For scrape platform types, how often to scrape the URLs.\",\"name\":\"scrape_frequency_secs\",\"optional\":true,\"type\":\"int\",\"json\":\"scrape_frequency_secs\"},{\"description\":\"Basic auth password for scraping.\",\"name\":\"scrape_request_basic_auth_password\",\"optional\":true,\"sensitive\":true,\"type\":\"string\",\"json\":\"scrape_request_basic_auth_password\"},{\"description\":\"Basic auth username for scraping.\",\"name\":\"scrape_request_basic_auth_user\",\"optional\":true,\"type\":\"string\",\"json\":\"scrape_request_basic_auth_user\"},{\"description\":\"An array of request headers, each containing `name` and `value` fields.\",\"name\":\"scrape_request_headers\",\"optional\":true,\"type\":\"list(map(string))\",\"note\":\"each entry must carry exactly name+value\",\"json\":\"scrape_request_headers\"},{\"description\":\"For scrape platform types, the set of urls to scrape.\",\"name\":\"scrape_urls\",\"optional\":true,\"type\":\"list(string)\",\"json\":\"scrape_urls\"},{\"computed\":true,\"description\":\"Should the scraper skip SSL certificate verification? Enable for endpoints with self-signed or invalid certificates.\",\"name\":\"skip_ssl_verify\",\"optional\":true,\"type\":\"bool\",\"json\":\"skip_ssl_verify\"},{\"description\":\"The ID of the source group this source belongs to.\",\"diff_suppress_func\":\"provider.init.func15\",\"name\":\"source_group_id\",\"optional\":true,\"type\":\"int\",\"note\":\"0 = detach; null = leave unmanaged\",\"json\":\"source_group_id\"},{\"computed\":true,\"description\":\"The table name generated for this source.\",\"name\":\"table_name\",\"type\":\"string\",\"json\":\"table_name\"},{\"computed\":true,\"description\":\"The team ID for this resource. Can be used with table_name in [Query API](https://betterstack.com/docs/logs/query-api/connect-remotely/).\",\"name\":\"team_id\",\"type\":\"string\",\"json\":\"team_id\",\"go_type\":\"*StringOrInt\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.init.teamNameSchema.func57\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\",\"note\":\"diff-suppressed once id is set; CustomizeDiff forbids changing it\",\"json\":\"team_name\"},{\"computed\":true,\"description\":\"The token of this source. This token is used to identify and route the data you will send to Better Stack.\",\"name\":\"token\",\"type\":\"string\",\"json\":\"token\"},{\"computed\":true,\"description\":\"The time when this monitor group was updated.\",\"name\":\"updated_at\",\"type\":\"string\",\"note\":\"same wrong description\",\"json\":\"updated_at\"},{\"computed\":true,\"description\":\"VRL transformation applied to logs on Better Stack's servers during ingestion. Leave unset to keep the transformation unmanaged (reading back whatever is configured, including platform defaults); set to an empty string to remove it. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.suppressEquivalentVRL\",\"name\":\"vrl_transformation_logs\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"VRL transformation applied to traces (spans) on Better Stack's servers during ingestion. Leave unset to keep the transformation unmanaged; set to an empty string to remove it. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.suppressEquivalentVRL\",\"name\":\"vrl_transformation_spans\",\"optional\":true,\"type\":\"string\"},{\"conflicts_with\":[\"vrl_transformation_logs\"],\"deprecated\":\"Use vrl_transformation_logs instead.\",\"description\":\"Deprecated alias for `vrl_transformation_logs`. VRL transformation applied to logs on Better Stack's servers during ingestion. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.suppressUnmanagedVRL\",\"name\":\"vrl_transformation\",\"optional\":true,\"type\":\"string\"}],\"response_projections\":[]}"),
 	}
 }

@@ -22,6 +22,7 @@ import (
 var _ resource.Resource = &CollectorTargetResource{}
 var _ resource.ResourceWithConfigure = &CollectorTargetResource{}
 var _ resource.ResourceWithImportState = &CollectorTargetResource{}
+var _ resource.ResourceWithModifyPlan = &CollectorTargetResource{}
 
 type CollectorTargetResource struct {
 	client *Client
@@ -62,7 +63,7 @@ func (r *CollectorTargetResource) Schema(ctx context.Context, req resource.Schem
 		Description: "A database or process a collector scrapes for metrics, for example Postgres, nginx, or a Prometheus endpoint.",
 		Attributes: map[string]schema.Attribute{
 			"id":           schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"api_key":      schema.StringAttribute{Optional: true, Computed: true, Description: "API key (elasticsearch). Never returned by any read.", Sensitive: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"api_key":      schema.StringAttribute{Optional: true, Description: "API key (elasticsearch). Never returned by any read.", Sensitive: true},
 			"collector_id": schema.StringAttribute{Required: true, Description: "Id of the parent this collector belongs to.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_collector_target"}}},
 			"container":    schema.StringAttribute{Computed: true, Description: "Detected container."},
 			"created_at":   schema.StringAttribute{Computed: true, Description: "When the target was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
@@ -70,8 +71,8 @@ func (r *CollectorTargetResource) Schema(ctx context.Context, req resource.Schem
 			"endpoint":     schema.StringAttribute{Optional: true, Computed: true, Description: "Scrape endpoint (prometheus).", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"host":         schema.StringAttribute{Required: true, Description: "Target host. For the process kinds this is the host the collector runs on."},
 			"kind":         schema.StringAttribute{Required: true, Description: "Target type. Can't be changed after the target is created.", Validators: []validator.String{stringvalidator.OneOf("postgres", "pgbouncer", "mysql", "redis", "mongodb", "memcached", "elasticsearch", "nginx", "apache", "kafka", "prometheus", "traefik")}, PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_collector_target"}}},
-			"listen_ip":    schema.StringAttribute{Optional: true, Computed: true, Description: "Listen IP (nginx, apache, kafka, traefik).", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"password":     schema.StringAttribute{Optional: true, Computed: true, Description: "Auth password (databases, elasticsearch). Never returned by any read.", Sensitive: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"listen_ip":    schema.StringAttribute{Optional: true, Description: "Listen IP (nginx, apache, kafka, traefik)."},
+			"password":     schema.StringAttribute{Optional: true, Description: "Auth password (databases, elasticsearch). Never returned by any read.", Sensitive: true},
 			"port":         schema.Int64Attribute{Optional: true, Computed: true, Description: "Target port (databases, nginx, apache, kafka, traefik).", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
 			"scheme":       schema.StringAttribute{Optional: true, Computed: true, Description: "Scheme (elasticsearch).", Validators: []validator.String{stringvalidator.OneOf("http", "https")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"service":      schema.StringAttribute{Optional: true, Computed: true, Description: "Service name (nginx, apache, kafka, traefik, prometheus).", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
@@ -79,7 +80,7 @@ func (r *CollectorTargetResource) Schema(ctx context.Context, req resource.Schem
 			"status":       schema.StringAttribute{Computed: true, Description: "Connection status. An update that sends `host`, `port`, `service`, `listen_ip`, `endpoint`, `scheme`, `username`, `password`, `api_key`, `ssl_mode` or `tls` sets it back to `pending`."},
 			"tls":          schema.StringAttribute{Optional: true, Computed: true, Description: "TLS mode (mysql).", Validators: []validator.String{stringvalidator.OneOf("false", "true", "skip-verify", "preferred")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"updated_at":   schema.StringAttribute{Computed: true, Description: "When the target was last updated."},
-			"username":     schema.StringAttribute{Optional: true, Computed: true, Description: "Auth username (databases, elasticsearch).", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"username":     schema.StringAttribute{Optional: true, Description: "Auth username (databases, elasticsearch)."},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -180,7 +181,26 @@ func (r *CollectorTargetResource) bodyForUpdate(ctx context.Context, m Collector
 	return body
 }
 
+// updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
+func (r *CollectorTargetResource) updateBody(ctx context.Context, config, plan, state CollectorTargetModel) map[string]interface{} {
+	body := r.bodyForUpdate(ctx, config)
+	if !state.ListenIp.IsNull() && !state.ListenIp.IsUnknown() && plan.ListenIp.IsNull() {
+		body["listen_ip"] = nil
+	}
+	if !state.Username.IsNull() && !state.Username.IsUnknown() && plan.Username.IsNull() {
+		body["username"] = nil
+	}
+	if !state.Password.IsNull() && !state.Password.IsUnknown() && plan.Password.IsNull() {
+		body["password"] = nil
+	}
+	if !state.ApiKey.IsNull() && !state.ApiKey.IsUnknown() && plan.ApiKey.IsNull() {
+		body["api_key"] = nil
+	}
+	return body
+}
+
 func (r *CollectorTargetResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, collectorTargetKeptOnRemoval, &resp.Diagnostics)
 	var plan CollectorTargetModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request CollectorTargetModel
@@ -253,8 +273,14 @@ func populateCollectorTarget(ctx context.Context, m *CollectorTargetModel, attrs
 	if v, ok := stringFromAPI(attrs["service"]); ok {
 		m.Service = types.StringValue(v)
 	}
-	if v, ok := stringFromAPI(attrs["listen_ip"]); ok {
-		m.ListenIp = types.StringValue(v)
+	if rawValue, exists := attrs["listen_ip"]; exists {
+		if rawValue == nil {
+			m.ListenIp = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["listen_ip"]); ok {
+				m.ListenIp = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := stringFromAPI(attrs["endpoint"]); ok {
 		m.Endpoint = types.StringValue(v)
@@ -262,8 +288,14 @@ func populateCollectorTarget(ctx context.Context, m *CollectorTargetModel, attrs
 	if v, ok := stringFromAPI(attrs["scheme"]); ok {
 		m.Scheme = types.StringValue(v)
 	}
-	if v, ok := stringFromAPI(attrs["username"]); ok {
-		m.Username = types.StringValue(v)
+	if rawValue, exists := attrs["username"]; exists {
+		if rawValue == nil {
+			m.Username = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["username"]); ok {
+				m.Username = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := stringFromAPI(attrs["ssl_mode"]); ok {
 		m.SslMode = types.StringValue(v)
@@ -309,6 +341,7 @@ func (r *CollectorTargetResource) mergeResponse(ctx context.Context, m Collector
 }
 
 func (r *CollectorTargetResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, collectorTargetKeptOnRemoval, &resp.Diagnostics)
 	var plan CollectorTargetModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request CollectorTargetModel
@@ -326,7 +359,7 @@ func (r *CollectorTargetResource) Update(ctx context.Context, req resource.Updat
 	vars := map[string]string{}
 	vars["collector_id"] = plan.CollectorId.ValueString()
 	vars["id"] = plan.Id.ValueString()
-	out, err := r.client.Update(ctx, collectorTargetBinding, vars, r.bodyForUpdate(ctx, request))
+	out, err := r.client.Update(ctx, collectorTargetBinding, vars, r.updateBody(ctx, request, plan, state))
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "updating collector_target", err, req.Plan.Raw.Type())
 		return
@@ -350,6 +383,13 @@ func (r *CollectorTargetResource) Delete(ctx context.Context, req resource.Delet
 	if err := r.client.Delete(ctx, collectorTargetBinding, vars); err != nil {
 		addAPIError(&resp.Diagnostics, "deleting collector_target", err, req.State.Raw.Type())
 	}
+}
+
+// Attributes whose removal from the configuration keeps the server's value (no default, no null).
+var collectorTargetKeptOnRemoval = []string{"endpoint", "port", "scheme", "service", "ssl_mode", "tls"}
+
+func (r *CollectorTargetResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	warnKeptOnRemoval(ctx, "betterstack_collector_target", req, resp, collectorTargetKeptOnRemoval)
 }
 
 // The object hangs off a parent collection, so its address is composite:

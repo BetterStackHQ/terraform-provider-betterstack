@@ -25,7 +25,7 @@ data "betterstack_status_page_group" "example" {
 
 ### Read-Only
 
-- `organization_id` (Number) Organization the group belongs to, as its Better Stack organization id. Defaults to the first organization the token can access. An organization the token can't access returns a 422 error that lists the ones it can. Not returned in responses.
+- `organization_id` (String) Organization the group belongs to, as its Better Stack organization id. Defaults to the first organization the token can access. An organization the token can't access returns a 422 error that lists the ones it can. Not returned in responses.
 - `name` (String) Group name.
 - `sort_index` (Number) Display order among the organization's status page groups. Writes also accept it as position.
 - `created_at` (String (RFC 3339))

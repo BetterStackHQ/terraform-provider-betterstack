@@ -31,7 +31,7 @@ func (d *StatusPageGroupDataSource) Schema(ctx context.Context, req datasource.S
 			"id":              schema.StringAttribute{Required: true, Description: "Id of the status_page_group to look up."},
 			"created_at":      schema.StringAttribute{Computed: true},
 			"name":            schema.StringAttribute{Computed: true, Description: "Group name."},
-			"organization_id": schema.Int64Attribute{Computed: true, Description: "Organization the group belongs to, as its Better Stack organization id. Defaults to the first organization the token can access. An organization the token can't access returns a 422 error that lists the ones it can. Not returned in responses."},
+			"organization_id": schema.StringAttribute{Computed: true, Description: "Organization the group belongs to, as its Better Stack organization id. Defaults to the first organization the token can access. An organization the token can't access returns a 422 error that lists the ones it can. Not returned in responses."},
 			"sort_index":      schema.Int64Attribute{Computed: true, Description: "Display order among the organization's status page groups. Writes also accept it as position."},
 			"updated_at":      schema.StringAttribute{Computed: true},
 		},

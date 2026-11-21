@@ -35,16 +35,16 @@ Set `id`, or filter attributes matching exactly one record.
 - `metrics_retention` (Number) Days to keep metrics. Refused with 422 on a plan with fixed retention, or for a number of days the plan doesn't offer.
 - `ingesting_paused` (Boolean) Pause ingestion for this collector.
 - `source_vrl_transformation` (String) VRL program Better Stack runs on each log line of the collector's source as it's ingested.
-- `source_group_id` (Number) Source group the collector's source belongs to. Send `null` or `"0"` to remove it from its group.
+- `source_group_id` (String) Source group the collector's source belongs to. Send `null` or `"0"` to remove it from its group.
 - `live_tail_pattern` (String) The pattern Live tail shows each log line with.
 - `user_vector_config` (String) Your own Vector configuration in YAML, merged into the configuration the collector runs with.
 - `configuration` (Attributes, see [nested schema](#nestedatt--configuration)) Collector configuration: which components are on, as `true` or `false` flags such as `logs_host`, `logs_docker`, `logs_kubernetes`, `metrics_cluster`, `ebpf_metrics` and `traces_opentelemetry`, plus sampling rates, batching and buffering. `when_full` is `drop_newest` or `block`. The per-namespace and per-service options each hold `log_sampling` and `ingest_traces`. An update merges the components you send into the stored ones and keeps the previous configuration in history.
 - `custom_bucket` (Attributes, see [nested schema](#nestedatt--custom_bucket)) Your own S3-compatible bucket to archive data in. Set it on create. `secret_access_key` is never returned.
-- `connected_source_ids` (List of Number) IDs of the sources connected to this collector's source, for example to link spans and logs. An update replaces all connected sources. A connection goes both ways.
+- `connected_source_ids` (List of String) IDs of the sources connected to this collector's source, for example to link spans and logs. An update replaces all connected sources. A connection goes both ways.
 - `service_fields` (Attributes List, see [nested schema](#nestedatt--service_fields)) Log fields that break data down by service, each with a `name_key` and a `type_key`. An update replaces all of them. `type_key` can be `null`.
 - `secret` (String, Sensitive) Secret the deployed collector authenticates with. Returned on every read.
 - `status` (String) Collector status.
-- `source_id` (Number) ID of the source the collector sends data to.
+- `source_id` (String) ID of the source the collector sends data to.
 - `team_id` (String) Team that owns the collector, as its `t`-prefixed Better Stack team ID, such as `t123`.
 - `team_name` (String) Name of the team that owns the collector.
 - `pinged_at` (String (RFC 3339)) When the collector last checked in.

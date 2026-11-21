@@ -29,12 +29,12 @@ resource "betterstack_severity" "example" {
 
 Optional attributes are also computed: left unset, they take the server-side default.
 
-- `call` (Boolean) Trigger phone-call alerts at this severity.
-- `sms` (Boolean) Trigger SMS alerts at this severity.
-- `email` (Boolean) Trigger e-mail alerts at this severity.
-- `push` (Boolean) Trigger mobile push alerts at this severity.
-- `critical_alert` (Boolean) Trigger critical push alerts that bypass silent mode.
-- `urgency_group_id` (Number) Severity group this severity belongs to. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `call` (Boolean) Trigger phone-call alerts at this severity. Defaults to `false`.
+- `sms` (Boolean) Trigger SMS alerts at this severity. Defaults to `false`.
+- `email` (Boolean) Trigger e-mail alerts at this severity. Defaults to `true`.
+- `push` (Boolean) Trigger mobile push alerts at this severity. Defaults to `true`.
+- `critical_alert` (Boolean) Trigger critical push alerts that bypass silent mode. Defaults to `false`.
+- `severity_group_id` (String) Severity group this severity belongs to. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 
 ### Read-Only
 
@@ -43,11 +43,11 @@ Optional attributes are also computed: left unset, they take the server-side def
 
 ## Endpoints
 
-- `GET /api/v2/urgencies`
-- `GET /api/v2/urgencies/:id`
-- `POST /api/v2/urgencies`
-- `PATCH /api/v2/urgencies/:id`
-- `DELETE /api/v2/urgencies/:id`
+- `GET /api/v3/severities`
+- `GET /api/v3/severities/:id`
+- `POST /api/v3/severities`
+- `PATCH /api/v3/severities/:id`
+- `DELETE /api/v3/severities/:id`
 
 ## Import
 

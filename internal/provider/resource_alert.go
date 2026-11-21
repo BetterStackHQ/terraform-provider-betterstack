@@ -4,7 +4,6 @@ package provider
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -16,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
@@ -30,6 +30,7 @@ import (
 var _ resource.Resource = &AlertResource{}
 var _ resource.ResourceWithConfigure = &AlertResource{}
 var _ resource.ResourceWithImportState = &AlertResource{}
+var _ resource.ResourceWithModifyPlan = &AlertResource{}
 
 type AlertResource struct {
 	client *Client
@@ -48,15 +49,15 @@ type AlertModel struct {
 	AnomalyTrainingRangeDays types.Int64   `tfsdk:"anomaly_training_range_days"`
 	AnomalyTrigger           types.String  `tfsdk:"anomaly_trigger"`
 	Call                     types.Bool    `tfsdk:"call"`
-	ChartId                  types.Int64   `tfsdk:"chart_id"`
+	ChartId                  types.String  `tfsdk:"chart_id"`
 	CheckPeriod              types.Int64   `tfsdk:"check_period"`
 	ConfirmationPeriod       types.Int64   `tfsdk:"confirmation_period"`
 	CreatedAt                types.String  `tfsdk:"created_at"`
 	CriticalAlert            types.Bool    `tfsdk:"critical_alert"`
-	DashboardId              types.Int64   `tfsdk:"dashboard_id"`
+	DashboardId              types.String  `tfsdk:"dashboard_id"`
 	Email                    types.Bool    `tfsdk:"email"`
 	EscalationTarget         types.Dynamic `tfsdk:"escalation_target"`
-	ExplorationId            types.Int64   `tfsdk:"exploration_id"`
+	ExplorationId            types.String  `tfsdk:"exploration_id"`
 	IncidentCause            types.String  `tfsdk:"incident_cause"`
 	IncidentName             types.String  `tfsdk:"incident_name"`
 	IncidentPerSeries        types.Bool    `tfsdk:"incident_per_series"`
@@ -263,15 +264,15 @@ func (r *AlertResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 			"anomaly_training_range_days": schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(7), Description: "Days of history the anomaly model is first trained on, from 1 to 30. For `anomaly_rrcf` alerts only. `null` on threshold and relative alerts."},
 			"anomaly_trigger":             schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("any"), Description: "Which direction of anomaly fires the alert, for `anomaly_rrcf` alerts only. `null` on threshold and relative alerts.", Validators: []validator.String{stringvalidator.OneOf("any", "higher", "lower")}},
 			"call":                        schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Trigger phone-call alerts."},
-			"chart_id":                    schema.Int64Attribute{Required: true, Description: "Chart this alert watches. It can't be changed after the alert is created. The alert belongs to the chart's dashboard or exploration.", PlanModifiers: []planmodifier.Int64{replaceWarningInt64{int64planmodifier.RequiresReplace(), "betterstack_alert"}}},
+			"chart_id":                    schema.StringAttribute{Required: true, Description: "Chart this alert watches. It can't be changed after the alert is created. The alert belongs to the chart's dashboard or exploration.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_alert"}}},
 			"check_period":                schema.Int64Attribute{Optional: true, Description: "How often the alert is evaluated, in seconds. Required when creating a threshold or relative alert. Not returned for anomaly alerts. An update that sends `check_period` without `query_period` or `aggregation_interval` sets both to it."},
 			"confirmation_period":         schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(60), Description: "Seconds the condition must hold before the incident opens."},
 			"created_at":                  schema.StringAttribute{Computed: true, Description: "When the alert was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"critical_alert":              schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Trigger critical push alerts that bypass silent mode."},
-			"dashboard_id":                schema.Int64Attribute{Required: true, Description: "Dashboard of the chart this alert watches. `null` for an alert on an exploration.", PlanModifiers: []planmodifier.Int64{replaceWarningInt64{int64planmodifier.RequiresReplace(), "betterstack_alert"}}},
+			"dashboard_id":                schema.StringAttribute{Required: true, Description: "Dashboard of the chart this alert watches. `null` for an alert on an exploration.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_alert"}}},
 			"email":                       schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Trigger e-mail alerts."},
 			"escalation_target":           schema.DynamicAttribute{Optional: true, Computed: true, Description: "Where the incident is routed: the string `current_team`, which is the default, an object with a numeric `policy_id` and `policy_name`, or an object with `team_id` and `team_name`. Reads return the string `unknown` when the target can't be looked up or no longer exists. When writing, name the policy or team by ID, by name or both. Naming both a policy and a team, an unknown one, or a name several match without an ID returns 422.", PlanModifiers: []planmodifier.Dynamic{dynamicplanmodifier.UseStateForUnknown()}},
-			"exploration_id":              schema.Int64Attribute{Computed: true, Description: "Exploration this alert watches. `null` for an alert on a dashboard chart.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
+			"exploration_id":              schema.StringAttribute{Computed: true, Description: "Exploration this alert watches. `null` for an alert on a dashboard chart.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"incident_cause":              schema.StringAttribute{Optional: true, Description: "Incident cause text."},
 			"incident_name":               schema.StringAttribute{Optional: true, Description: "Incident name text."},
 			"incident_per_series":         schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Open one incident per series rather than one for the whole alert."},
@@ -288,7 +289,7 @@ func (r *AlertResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 			"series_names_except":         schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Evaluate every series except these. Can't be combined with `series_names`. Sending either one replaces both.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
 			"sms":                         schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Trigger SMS alerts."},
 			"source_mode":                 schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("source_variable"), Description: "How the sources under evaluation are selected.", Validators: []validator.String{stringvalidator.OneOf("source_variable", "platforms_single_source", "platforms_all_sources")}},
-			"source_platforms":            schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Platforms to evaluate, for the `platforms_single_source` and `platforms_all_sources` source modes.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"source_platforms":            schema.ListAttribute{Optional: true, Computed: true, Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})), ElementType: types.StringType, Description: "Platforms to evaluate, for the `platforms_single_source` and `platforms_all_sources` source modes."},
 			"source_variable":             schema.StringAttribute{Optional: true, Computed: true, Description: "Source variable to evaluate, for example `source:table_name`. Defaults to the chart's own source.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"string_value":                schema.StringAttribute{Optional: true, Description: "Threshold value for a string series, for threshold alerts only."},
 			"updated_at":                  schema.StringAttribute{Computed: true, Description: "When the alert was last updated."},
@@ -464,6 +465,7 @@ func (r *AlertResource) updateBody(ctx context.Context, config, plan, state Aler
 }
 
 func (r *AlertResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, alertKeptOnRemoval, &resp.Diagnostics)
 	var plan AlertModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request AlertModel
@@ -482,12 +484,13 @@ func (r *AlertResource) Create(ctx context.Context, req resource.CreateRequest, 
 	request.RecoveryPeriod = plan.RecoveryPeriod                     // its schema default travels when unset, so removing the line resets it
 	request.Sms = plan.Sms                                           // its schema default travels when unset, so removing the line resets it
 	request.SourceMode = plan.SourceMode                             // its schema default travels when unset, so removing the line resets it
+	request.SourcePlatforms = plan.SourcePlatforms                   // its schema default travels when unset, so removing the line resets it
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	vars := map[string]string{}
-	vars["dashboard_id"] = strconv.FormatInt(plan.DashboardId.ValueInt64(), 10)
-	vars["chart_id"] = strconv.FormatInt(plan.ChartId.ValueInt64(), 10)
+	vars["dashboard_id"] = plan.DashboardId.ValueString()
+	vars["chart_id"] = plan.ChartId.ValueString()
 	out, err := r.client.Create(ctx, alertBinding, vars, r.body(ctx, request))
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating alert", err, req.Plan.Raw.Type())
@@ -514,8 +517,8 @@ func (r *AlertResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		return
 	}
 	vars := map[string]string{}
-	vars["dashboard_id"] = strconv.FormatInt(state.DashboardId.ValueInt64(), 10)
-	vars["chart_id"] = strconv.FormatInt(state.ChartId.ValueInt64(), 10)
+	vars["dashboard_id"] = state.DashboardId.ValueString()
+	vars["chart_id"] = state.ChartId.ValueString()
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, alertBinding, vars)
 	if err != nil {
@@ -538,28 +541,28 @@ func populateAlert(ctx context.Context, m *AlertModel, attrs map[string]interfac
 	}
 	if rawValue, exists := attrs["dashboard_id"]; exists {
 		if rawValue == nil {
-			m.DashboardId = types.Int64Null()
+			m.DashboardId = types.StringNull()
 		} else {
-			if v, ok := int64FromAPI(attrs["dashboard_id"]); ok {
-				m.DashboardId = types.Int64Value(v)
+			if v, ok := stringFromAPI(attrs["dashboard_id"]); ok {
+				m.DashboardId = types.StringValue(v)
 			}
 		}
 	}
 	if rawValue, exists := attrs["chart_id"]; exists {
 		if rawValue == nil {
-			m.ChartId = types.Int64Null()
+			m.ChartId = types.StringNull()
 		} else {
-			if v, ok := int64FromAPI(attrs["chart_id"]); ok {
-				m.ChartId = types.Int64Value(v)
+			if v, ok := stringFromAPI(attrs["chart_id"]); ok {
+				m.ChartId = types.StringValue(v)
 			}
 		}
 	}
 	if rawValue, exists := attrs["exploration_id"]; exists {
 		if rawValue == nil {
-			m.ExplorationId = types.Int64Null()
+			m.ExplorationId = types.StringNull()
 		} else {
-			if v, ok := int64FromAPI(attrs["exploration_id"]); ok {
-				m.ExplorationId = types.Int64Value(v)
+			if v, ok := stringFromAPI(attrs["exploration_id"]); ok {
+				m.ExplorationId = types.StringValue(v)
 			}
 		}
 	}
@@ -774,6 +777,7 @@ func populateAlert(ctx context.Context, m *AlertModel, attrs map[string]interfac
 }
 
 func (r *AlertResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, alertKeptOnRemoval, &resp.Diagnostics)
 	var plan AlertModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request AlertModel
@@ -827,9 +831,12 @@ func (r *AlertResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	if !plan.SourceMode.Equal(state.SourceMode) {
 		request.SourceMode = plan.SourceMode
 	}
+	if !plan.SourcePlatforms.Equal(state.SourcePlatforms) {
+		request.SourcePlatforms = plan.SourcePlatforms
+	}
 	vars := map[string]string{}
-	vars["dashboard_id"] = strconv.FormatInt(plan.DashboardId.ValueInt64(), 10)
-	vars["chart_id"] = strconv.FormatInt(plan.ChartId.ValueInt64(), 10)
+	vars["dashboard_id"] = plan.DashboardId.ValueString()
+	vars["chart_id"] = plan.ChartId.ValueString()
 	vars["id"] = plan.Id.ValueString()
 	out, err := r.client.Update(ctx, alertBinding, vars, r.updateBody(ctx, request, plan, state))
 	if err != nil {
@@ -849,12 +856,19 @@ func (r *AlertResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 		return
 	}
 	vars := map[string]string{}
-	vars["dashboard_id"] = strconv.FormatInt(state.DashboardId.ValueInt64(), 10)
-	vars["chart_id"] = strconv.FormatInt(state.ChartId.ValueInt64(), 10)
+	vars["dashboard_id"] = state.DashboardId.ValueString()
+	vars["chart_id"] = state.ChartId.ValueString()
 	vars["id"] = state.Id.ValueString()
 	if err := r.client.Delete(ctx, alertBinding, vars); err != nil {
 		addAPIError(&resp.Diagnostics, "deleting alert", err, req.State.Raw.Type())
 	}
+}
+
+// Attributes whose removal from the configuration keeps the server's value (no default, no null).
+var alertKeptOnRemoval = []string{"additional_conditions", "aggregation_interval", "escalation_target", "operator", "query_period", "series_names", "series_names_except", "source_variable", "variable_values"}
+
+func (r *AlertResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	warnKeptOnRemoval(ctx, "betterstack_alert", req, resp, alertKeptOnRemoval)
 }
 
 // The object hangs off a parent collection, so its address is composite:
@@ -866,17 +880,7 @@ func (r *AlertResource) ImportState(ctx context.Context, req resource.ImportStat
 			fmt.Sprintf("expected an id of the form dashboard_id/chart_id/id, got %q", req.ID))
 		return
 	}
-	dashboard_idValue, err := strconv.ParseInt(parts[0], 10, 64)
-	if err != nil {
-		resp.Diagnostics.AddError("importing alert", fmt.Sprintf("%q is not a valid dashboard_id", parts[0]))
-		return
-	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dashboard_id"), dashboard_idValue)...)
-	chart_idValue, err := strconv.ParseInt(parts[1], 10, 64)
-	if err != nil {
-		resp.Diagnostics.AddError("importing alert", fmt.Sprintf("%q is not a valid chart_id", parts[1]))
-		return
-	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("chart_id"), chart_idValue)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dashboard_id"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("chart_id"), parts[1])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[2])...)
 }

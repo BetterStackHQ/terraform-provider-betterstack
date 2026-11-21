@@ -40,7 +40,7 @@ func (d *TeamDataSource) Schema(ctx context.Context, req datasource.SchemaReques
 			"on_call_reminder_push":                 schema.BoolAttribute{Computed: true, Description: "Send on-call reminders as push notifications. Turning it on needs a plan with on-call scheduling and push alerts. New teams start at true."},
 			"on_call_reminder_sms":                  schema.BoolAttribute{Computed: true, Description: "Send on-call reminders by SMS. Turning it on needs a plan with on-call scheduling and SMS alerts. New teams start at false."},
 			"opened_emails_tracking_enabled":        schema.BoolAttribute{Computed: true, Description: "Whether the incident timeline records opened alert e-mails. New teams start at true."},
-			"organization_id":                       schema.Int64Attribute{Computed: true, Description: "ID of the organization the team belongs to."},
+			"organization_id":                       schema.StringAttribute{Computed: true, Description: "ID of the organization the team belongs to."},
 			"reporting_enabled":                     schema.BoolAttribute{Computed: true, Description: "Whether reporting is on. New teams start at false."},
 			"updated_at":                            schema.StringAttribute{Computed: true, Description: "When the team was last updated."},
 		},

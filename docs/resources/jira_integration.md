@@ -34,11 +34,11 @@ resource "betterstack_jira_integration" "example" {
 
 Optional attributes are also computed: left unset, they take the server-side default.
 
-- `name` (String) Integration name.
+- `name` (String) Integration name. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
 - `automatic_issue_creation` (Boolean) Whether to create a Jira issue for every incident automatically. Defaults to `false`.
-- `jira_project_key` (String) Key of the Jira project that issues are created in.
-- `jira_issue_type_id` (String) ID of the Jira issue type for created issues.
-- `jira_fields` (Dynamic) Extra Jira fields to set on created issues, keyed by Jira field id. Defaults to `{}`.
+- `jira_project_key` (String) Key of the Jira project that issues are created in. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `jira_issue_type_id` (String) ID of the Jira issue type for created issues. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `jira_fields` (Dynamic) Extra Jira fields to set on created issues, keyed by Jira field id. Defaults to `{}`. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
 
 ### Read-Only
 

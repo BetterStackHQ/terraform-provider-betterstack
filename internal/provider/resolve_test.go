@@ -60,7 +60,7 @@ func TestStateFromPlanResolvesTopLevelUnknowns(t *testing.T) {
 func TestStateFromPlanResolvesNestedUnknowns(t *testing.T) {
 	stepType := tftypes.Object{AttributeTypes: map[string]tftypes.Type{
 		"type":        tftypes.String,
-		"urgency_id":  tftypes.Number,
+		"severity_id": tftypes.Number,
 		"wait_before": tftypes.Number,
 	}}
 	objType := tftypes.Object{AttributeTypes: map[string]tftypes.Type{
@@ -70,13 +70,13 @@ func TestStateFromPlanResolvesNestedUnknowns(t *testing.T) {
 		"steps": tftypes.NewValue(tftypes.List{ElementType: stepType}, []tftypes.Value{
 			tftypes.NewValue(stepType, map[string]tftypes.Value{
 				"type":        tftypes.NewValue(tftypes.String, "escalation"),
-				"urgency_id":  tftypes.NewValue(tftypes.Number, tftypes.UnknownValue),
+				"severity_id": tftypes.NewValue(tftypes.Number, tftypes.UnknownValue),
 				"wait_before": tftypes.NewValue(tftypes.Number, big.NewFloat(180)),
 			}),
 		}),
 	})
 	got := stateFromPlan(plan, nullValue(objType), map[string]interface{}{
-		"steps": []interface{}{map[string]interface{}{"type": "escalation", "urgency_id": json.Number("3")}},
+		"steps": []interface{}{map[string]interface{}{"type": "escalation", "severity_id": json.Number("3")}},
 	})
 	if !got.IsFullyKnown() {
 		t.Fatalf("nested unknown not resolved: %v", got)
@@ -87,10 +87,10 @@ func TestStateFromPlanResolvesNestedUnknowns(t *testing.T) {
 	_ = attrs["steps"].As(&steps)
 	var step map[string]tftypes.Value
 	_ = steps[0].As(&step)
-	var urgency big.Float
-	_ = step["urgency_id"].As(&urgency)
-	if v, _ := urgency.Int64(); v != 3 {
-		t.Errorf("urgency_id = %s, want 3", urgency.String())
+	var severity big.Float
+	_ = step["severity_id"].As(&severity)
+	if v, _ := severity.Int64(); v != 3 {
+		t.Errorf("severity_id = %s, want 3", severity.String())
 	}
 	var wait big.Float
 	_ = step["wait_before"].As(&wait)

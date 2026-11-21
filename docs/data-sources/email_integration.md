@@ -28,7 +28,7 @@ data "betterstack_email_integration" "example" {
 - `name` (String) Integration name.
 - `team_name` (String) Name of the team that owns this integration.
 - `metadata` (Attributes Map, see [nested schema](#nestedatt--metadata)) Custom metadata. Each key holds a list of values. A value is a string, written as `{type: "String", value}`, or a catalog reference, written as `{type, item_id, name, email}`. Team references are returned as team IDs such as `t123`. Each key holds its list under `values`, for example `{ owner = { values = [ ... ] } }`.
-- `policy_id` (String) ID of the escalation policy used for alerts. Returned as a string. You can send it as a number or a string.
+- `escalation_policy_id` (String) ID of the escalation policy used for alerts. Returned as a string. You can send it as a number or a string.
 - `email_address` (String) Inbound address that turns received e-mails into incidents.
 - `paused` (Boolean) Whether the integration is paused. A paused integration opens no incidents.
 - `call` (Boolean) Alert by phone call.
@@ -37,7 +37,7 @@ data "betterstack_email_integration" "example" {
 - `push` (Boolean) Alert by push notification.
 - `critical_alert` (Boolean) Alert by a critical push notification that bypasses silent mode.
 - `team_wait` (Number) Seconds before escalating to the whole team.
-- `recovery_period` (Number) Seconds a matching resolved e-mail must hold before the incident resolves. One of 0, 60, 180, 300, 900, 1800, 3600, 7200.
+- `recovery_period` (Number) Seconds a matching resolved e-mail must hold before the incident resolves. One of 0, 60, 180, 300, 900, 1800, 3600, 7200. Has no effect while `resolved_rule_type` is `unused`.
 - `started_rule_type` (String) How the started rules open an incident: `any` when one rule matches, `all` when every rule matches. `unused` turns off opening incidents by rules. Valid values: `unused`, `any`, `all`.
 - `acknowledged_rule_type` (String) How the acknowledged rules acknowledge the incident: `any` when one rule matches, `all` when every rule matches. `unused` turns off acknowledging by rules. Valid values: `unused`, `any`, `all`.
 - `resolved_rule_type` (String) How the resolved rules resolve the incident: `any` when one rule matches, `all` when every rule matches. `unused` turns off resolving by rules. Valid values: `unused`, `any`, `all`.
@@ -180,8 +180,8 @@ data "betterstack_email_integration" "example" {
 
 ## Endpoints
 
-- `GET /api/v2/email-integrations`
-- `GET /api/v2/email-integrations/:id`
-- `POST /api/v2/email-integrations`
-- `PATCH /api/v2/email-integrations/:id`
-- `DELETE /api/v2/email-integrations/:id`
+- `GET /api/v3/email-integrations`
+- `GET /api/v3/email-integrations/:id`
+- `POST /api/v3/email-integrations`
+- `PATCH /api/v3/email-integrations/:id`
+- `DELETE /api/v3/email-integrations/:id`

@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -39,15 +38,15 @@ func (d *AlertDataSource) Schema(ctx context.Context, req datasource.SchemaReque
 			"anomaly_training_range_days": schema.Int64Attribute{Computed: true, Description: "Days of history the anomaly model is first trained on, from 1 to 30. For `anomaly_rrcf` alerts only. `null` on threshold and relative alerts."},
 			"anomaly_trigger":             schema.StringAttribute{Computed: true, Description: "Which direction of anomaly fires the alert, for `anomaly_rrcf` alerts only. `null` on threshold and relative alerts."},
 			"call":                        schema.BoolAttribute{Computed: true, Description: "Trigger phone-call alerts."},
-			"chart_id":                    schema.Int64Attribute{Required: true, Description: "Chart this alert watches. It can't be changed after the alert is created. The alert belongs to the chart's dashboard or exploration."},
+			"chart_id":                    schema.StringAttribute{Required: true, Description: "Chart this alert watches. It can't be changed after the alert is created. The alert belongs to the chart's dashboard or exploration."},
 			"check_period":                schema.Int64Attribute{Computed: true, Description: "How often the alert is evaluated, in seconds. Required when creating a threshold or relative alert. Not returned for anomaly alerts. An update that sends `check_period` without `query_period` or `aggregation_interval` sets both to it."},
 			"confirmation_period":         schema.Int64Attribute{Computed: true, Description: "Seconds the condition must hold before the incident opens."},
 			"created_at":                  schema.StringAttribute{Computed: true, Description: "When the alert was created."},
 			"critical_alert":              schema.BoolAttribute{Computed: true, Description: "Trigger critical push alerts that bypass silent mode."},
-			"dashboard_id":                schema.Int64Attribute{Required: true, Description: "Dashboard of the chart this alert watches. `null` for an alert on an exploration."},
+			"dashboard_id":                schema.StringAttribute{Required: true, Description: "Dashboard of the chart this alert watches. `null` for an alert on an exploration."},
 			"email":                       schema.BoolAttribute{Computed: true, Description: "Trigger e-mail alerts."},
 			"escalation_target":           schema.DynamicAttribute{Computed: true, Description: "Where the incident is routed: the string `current_team`, which is the default, an object with a numeric `policy_id` and `policy_name`, or an object with `team_id` and `team_name`. Reads return the string `unknown` when the target can't be looked up or no longer exists. When writing, name the policy or team by ID, by name or both. Naming both a policy and a team, an unknown one, or a name several match without an ID returns 422."},
-			"exploration_id":              schema.Int64Attribute{Computed: true, Description: "Exploration this alert watches. `null` for an alert on a dashboard chart."},
+			"exploration_id":              schema.StringAttribute{Computed: true, Description: "Exploration this alert watches. `null` for an alert on a dashboard chart."},
 			"incident_cause":              schema.StringAttribute{Computed: true, Description: "Incident cause text."},
 			"incident_name":               schema.StringAttribute{Computed: true, Description: "Incident name text."},
 			"incident_per_series":         schema.BoolAttribute{Computed: true, Description: "Open one incident per series rather than one for the whole alert."},
@@ -91,8 +90,8 @@ func (d *AlertDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	var out map[string]interface{}
 	if !data.Id.IsNull() && !data.Id.IsUnknown() && data.Id.ValueString() != "" {
 		vars := map[string]string{}
-		vars["dashboard_id"] = strconv.FormatInt(data.DashboardId.ValueInt64(), 10)
-		vars["chart_id"] = strconv.FormatInt(data.ChartId.ValueInt64(), 10)
+		vars["dashboard_id"] = data.DashboardId.ValueString()
+		vars["chart_id"] = data.ChartId.ValueString()
 		vars["id"] = data.Id.ValueString()
 		got, found, err := d.client.GetDataSource(ctx, alertBinding, vars)
 		if err != nil {
@@ -121,8 +120,8 @@ func (d *AlertDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		// Lookup by filter: narrow server-side with the filters the list endpoint declares, then
 		// require an exact, unambiguous client-side match.
 		vars := map[string]string{}
-		vars["dashboard_id"] = strconv.FormatInt(data.DashboardId.ValueInt64(), 10)
-		vars["chart_id"] = strconv.FormatInt(data.ChartId.ValueInt64(), 10)
+		vars["dashboard_id"] = data.DashboardId.ValueString()
+		vars["chart_id"] = data.ChartId.ValueString()
 		q := url.Values{}
 		want := map[string]string{}
 		alternatives := map[string][]string{
@@ -173,8 +172,8 @@ func (d *AlertDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		// List endpoints may return summaries. Resolve the selected identity through the real
 		// member endpoint so computed outputs and data-source-only reads are complete.
 		memberVars := map[string]string{}
-		memberVars["dashboard_id"] = strconv.FormatInt(data.DashboardId.ValueInt64(), 10)
-		memberVars["chart_id"] = strconv.FormatInt(data.ChartId.ValueInt64(), 10)
+		memberVars["dashboard_id"] = data.DashboardId.ValueString()
+		memberVars["chart_id"] = data.ChartId.ValueString()
 		memberVars["id"] = data.Id.ValueString()
 		detail, found, err := d.client.GetDataSource(ctx, alertBinding, memberVars)
 		if err != nil {

@@ -31,8 +31,8 @@ Set `id`, or filter attributes matching exactly one record.
 - `team_name` (String) Name of the team that owns this policy.
 - `repeat_count` (Number) How many times to repeat the steps if the incident stays unacknowledged.
 - `repeat_delay` (Number) Seconds to wait before repeating the steps.
-- `policy_group_id` (Number) Escalation policy group this policy belongs to.
-- `fallback_policy_id` (Number) Escalation policy to escalate to after these steps and repeats run out. Must belong to the same organization.
+- `escalation_policy_group_id` (String) Escalation policy group this policy belongs to.
+- `fallback_policy_id` (String) Escalation policy to escalate to after these steps and repeats run out. Must belong to the same organization.
 - `incident_token` (String, Sensitive) Token used to open incidents against this policy.
 - `steps` (Attributes List, see [nested schema](#nestedatt--steps)) Ordered escalation steps. Sending steps replaces the whole list. An empty list makes a silent policy that only collects incidents. Every step has a type, a wait set by wait_before or by wait_until_time and wait_until_timezone, and the keys its type uses.
 
@@ -44,7 +44,7 @@ Set `id`, or filter attributes matching exactly one record.
 - `wait_until_time` (String) Time of day to wait until, as `HH:MM`, instead of wait_before.
 - `wait_until_timezone` (String) Timezone for wait_until_time.
 - `wait_until_days` (List of String) Weekdays wait_until_time applies to.
-- `urgency_id` (Number) Severity to alert with. Used by escalation steps.
+- `severity_id` (String) Severity to alert with. Used by escalation steps.
 - `step_members` (Attributes List, see [nested schema](#nestedatt--steps--step_members)) Who to notify. Each member has a type, plus an id, email or metadata_key depending on the type. The notes below list every member type.
 - `timezone` (String) Timezone the time branch condition is evaluated in.
 - `days` (List of String) Weekdays the time branch applies to, from `mon` to `sun`.
@@ -52,9 +52,9 @@ Set `id`, or filter attributes matching exactly one record.
 - `time_to` (String) End of the time branch window, as `HH:MM`.
 - `metadata_key` (String) Incident metadata key that a metadata branching step checks.
 - `metadata_values` (Attributes List, see [nested schema](#nestedatt--steps--metadata_values)) Metadata values to match. Each is `{type: "String", value}`, `{type: "no_value"}` or a catalog item reference. You can also send a value as a plain string. See the notes below.
-- `action_type` (String) The action of a time_branching or metadata_branching step, or of a resolve_remove step. A branch without policy_id or policy_metadata_key is saved as `do_not_escalate`. Valid values: `escalate_to_policy`, `resolve_incident`, `remove_incident`, `do_not_escalate`.
-- `policy_id` (Number) Escalation policy the branch escalates to when action_type is `escalate_to_policy`.
-- `policy_metadata_key` (String) Incident metadata key whose value names the escalation policy to escalate to, instead of a fixed policy_id.
+- `action_type` (String) The action of a time_branching or metadata_branching step, or of a resolve_remove step. A branch without escalation_policy_id or policy_metadata_key is saved as `do_not_escalate`. Valid values: `escalate_to_policy`, `resolve_incident`, `remove_incident`, `do_not_escalate`.
+- `escalation_policy_id` (String) Escalation policy the branch escalates to when action_type is `escalate_to_policy`.
+- `policy_metadata_key` (String) Incident metadata key whose value names the escalation policy to escalate to, instead of a fixed escalation_policy_id.
 - `instructions_comment` (String) Text of an instructions step.
 - `instructions_reminder_enabled` (Boolean) Whether to remind about unacknowledged instructions.
 - `instructions_reminder_interval_hours` (Number) Reminder interval in hours.
@@ -79,8 +79,8 @@ Set `id`, or filter attributes matching exactly one record.
 
 ## Endpoints
 
-- `GET /api/v4/policies`
-- `GET /api/v4/policies/:id`
-- `POST /api/v4/policies`
-- `PATCH /api/v4/policies/:id`
-- `DELETE /api/v4/policies/:id`
+- `GET /api/v5/escalation-policies`
+- `GET /api/v5/escalation-policies/:id`
+- `POST /api/v5/escalation-policies`
+- `PATCH /api/v5/escalation-policies/:id`
+- `DELETE /api/v5/escalation-policies/:id`

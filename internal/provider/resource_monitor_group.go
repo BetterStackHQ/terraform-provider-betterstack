@@ -16,6 +16,7 @@ import (
 var _ resource.Resource = &MonitorGroupResource{}
 var _ resource.ResourceWithConfigure = &MonitorGroupResource{}
 var _ resource.ResourceWithImportState = &MonitorGroupResource{}
+var _ resource.ResourceWithModifyPlan = &MonitorGroupResource{}
 
 type MonitorGroupResource struct {
 	client *Client
@@ -109,6 +110,7 @@ func (r *MonitorGroupResource) updateBody(ctx context.Context, config, plan, sta
 }
 
 func (r *MonitorGroupResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, monitorGroupKeptOnRemoval, &resp.Diagnostics)
 	var plan MonitorGroupModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request MonitorGroupModel
@@ -209,6 +211,7 @@ func populateMonitorGroup(ctx context.Context, m *MonitorGroupModel, attrs map[s
 }
 
 func (r *MonitorGroupResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, monitorGroupKeptOnRemoval, &resp.Diagnostics)
 	var plan MonitorGroupModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request MonitorGroupModel
@@ -242,6 +245,13 @@ func (r *MonitorGroupResource) Delete(ctx context.Context, req resource.DeleteRe
 	if err := r.client.Delete(ctx, monitorGroupBinding, vars); err != nil {
 		addAPIError(&resp.Diagnostics, "deleting monitor_group", err, req.State.Raw.Type())
 	}
+}
+
+// Attributes whose removal from the configuration keeps the server's value (no default, no null).
+var monitorGroupKeptOnRemoval = []string{"paused"}
+
+func (r *MonitorGroupResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	warnKeptOnRemoval(ctx, "betterstack_monitor_group", req, resp, monitorGroupKeptOnRemoval)
 }
 
 func (r *MonitorGroupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

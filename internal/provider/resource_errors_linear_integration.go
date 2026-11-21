@@ -8,11 +8,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -24,6 +26,7 @@ import (
 var _ resource.Resource = &ErrorsLinearIntegrationResource{}
 var _ resource.ResourceWithConfigure = &ErrorsLinearIntegrationResource{}
 var _ resource.ResourceWithImportState = &ErrorsLinearIntegrationResource{}
+var _ resource.ResourceWithModifyPlan = &ErrorsLinearIntegrationResource{}
 
 type ErrorsLinearIntegrationResource struct {
 	client *Client
@@ -57,13 +60,13 @@ type ErrorsLinearIntegrationModel struct {
 }
 
 type ErrorsLinearIntegrationApplicationsModel struct {
-	ApplicationId types.Int64 `tfsdk:"application_id"`
-	Environments  types.List  `tfsdk:"environments"`
+	ApplicationId types.String `tfsdk:"application_id"`
+	Environments  types.List   `tfsdk:"environments"`
 }
 
 func errorsLinearIntegrationApplicationsAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"application_id": types.Int64Type,
+		"application_id": types.StringType,
 		"environments":   types.ListType{ElemType: types.StringType},
 	}
 }
@@ -77,7 +80,7 @@ func expandErrorsLinearIntegrationApplications(ctx context.Context, o types.Obje
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
 	if !m.ApplicationId.IsNull() && !m.ApplicationId.IsUnknown() {
-		out["application_id"] = m.ApplicationId.ValueInt64()
+		out["application_id"] = idToAPI(m.ApplicationId.ValueString())
 	}
 	if !m.Environments.IsNull() && !m.Environments.IsUnknown() {
 		var vals []string
@@ -97,8 +100,8 @@ func flattenErrorsLinearIntegrationApplications(ctx context.Context, prior types
 	if !prior.IsNull() && !prior.IsUnknown() {
 		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
 	}
-	if v, ok := int64FromAPI(raw["application_id"]); ok {
-		m.ApplicationId = types.Int64Value(v)
+	if v, ok := stringFromAPI(raw["application_id"]); ok {
+		m.ApplicationId = types.StringValue(v)
 	}
 	if raw, ok := raw["environments"].([]interface{}); ok {
 		vals := make([]string, 0, len(raw))
@@ -260,12 +263,12 @@ func (r *ErrorsLinearIntegrationResource) Schema(ctx context.Context, req resour
 		Attributes: map[string]schema.Attribute{
 			// The declared lifecycle addresses an existing object, so identity is configured.
 			"id":                             schema.StringAttribute{Required: true, Description: "Existing remote object ID to adopt; no remote object is created.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_errors_linear_integration"}}},
-			"affected_users_threshold_count": schema.Int64Attribute{Optional: true, Computed: true, Description: "Total number of affected users for `notifications.affected_users_threshold`.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
-			"applications":                   schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"application_id": schema.Int64Attribute{Optional: true, Computed: true, Description: "ID of an Error tracking application in the token's team."}, "environments": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Environments to act on errors from. Empty means every environment."}}}, Description: "Applications this integration acts on, each with its environments. Empty means any application. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"auto_reopen":                    schema.BoolAttribute{Optional: true, Computed: true, Description: "Reopen the Linear issue when its error is automatically re-opened.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
-			"auto_resolve":                   schema.BoolAttribute{Optional: true, Computed: true, Description: "Resolve the error when its Linear issue is done, and move the issue to `linear_resolved_status_id` when the error is resolved.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
+			"affected_users_threshold_count": schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Total number of affected users for `notifications.affected_users_threshold`."},
+			"applications":                   schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"application_id": schema.StringAttribute{Optional: true, Computed: true, Description: "ID of an Error tracking application in the token's team."}, "environments": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Environments to act on errors from. Empty means every environment."}}}, Description: "Applications this integration acts on, each with its environments. Empty means any application. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"auto_reopen":                    schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Reopen the Linear issue when its error is automatically re-opened."},
+			"auto_resolve":                   schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Resolve the error when its Linear issue is done, and move the issue to `linear_resolved_status_id` when the error is resolved."},
 			"linear_assignee_id":             schema.StringAttribute{Optional: true, Computed: true, Description: "Linear user new issues are assigned to. `null` clears it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"linear_label_ids":               schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Linear labels put on new issues. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"linear_label_ids":               schema.ListAttribute{Optional: true, Computed: true, Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})), ElementType: types.StringType, Description: "Linear labels put on new issues. An update replaces the whole list."},
 			"linear_priority":                schema.StringAttribute{Optional: true, Computed: true, Description: "Priority of new issues.", Validators: []validator.String{stringvalidator.OneOf("no_priority", "urgent", "high", "medium", "low")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"linear_project_id":              schema.StringAttribute{Optional: true, Computed: true, Description: "Linear project new issues are added to. `null` clears it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"linear_resolved_status_id":      schema.StringAttribute{Optional: true, Computed: true, Description: "Status a resolved error moves its issue to. `null` clears it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
@@ -273,9 +276,9 @@ func (r *ErrorsLinearIntegrationResource) Schema(ctx context.Context, req resour
 			"linear_team_id":                 schema.StringAttribute{Optional: true, Computed: true, Description: "Linear team issues are created in. A new team clears `linear_status_id`, `linear_resolved_status_id`, `linear_project_id` and `linear_label_ids` unless the same request sets them. `null` clears it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"name":                           schema.StringAttribute{Optional: true, Computed: true, Description: "Integration name.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"notifications":                  schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"spikes": schema.BoolAttribute{Optional: true, Computed: true, Description: "Application has a spike in errors."}, "new_errors": schema.BoolAttribute{Optional: true, Computed: true, Description: "New error occurs."}, "automatically_reopened": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error is automatically re-opened."}, "occurrence_milestones": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches an occurrence milestone (10, 100, 200, 500...)."}, "occurrence_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error occurs `occurrence_threshold_count` times within `occurrence_threshold_interval`."}, "affected_users_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches `affected_users_threshold_count` affected users."}}, Description: "\"Create issues when\": which events file a Linear issue. An update changes only the toggles sent.", PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()}},
-			"occurrence_threshold_count":     schema.Int64Attribute{Optional: true, Computed: true, Description: "Number of occurrences for `notifications.occurrence_threshold`.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
-			"occurrence_threshold_interval":  schema.StringAttribute{Optional: true, Computed: true, Description: "Time window for `notifications.occurrence_threshold`.", Validators: []validator.String{stringvalidator.OneOf("minute", "hour", "day", "week")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"sync_comments":                  schema.BoolAttribute{Optional: true, Computed: true, Description: "Share comments between errors and their linked Linear issues.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
+			"occurrence_threshold_count":     schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Number of occurrences for `notifications.occurrence_threshold`."},
+			"occurrence_threshold_interval":  schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("minute"), Description: "Time window for `notifications.occurrence_threshold`.", Validators: []validator.String{stringvalidator.OneOf("minute", "hour", "day", "week")}},
+			"sync_comments":                  schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Share comments between errors and their linked Linear issues."},
 			"tag_filter":                     schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"tag": schema.StringAttribute{Optional: true, Computed: true, Description: "Exception tag, such as environment or level."}, "values": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Matches any of these values."}}}, Description: "Acts on an error only when one of its exceptions has every tag listed, each with one of its values. Empty means every error. At most 10 tags with 50 values each, 200 characters per tag or value, each tag once. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
 			"team_id":                        schema.StringAttribute{Computed: true, Description: "ID of the team that owns the integration, as the web app shows it (t123).", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"team_name":                      schema.StringAttribute{Computed: true, Description: "Name of the team that owns the integration."},
@@ -364,10 +367,18 @@ func (r *ErrorsLinearIntegrationResource) body(ctx context.Context, m ErrorsLine
 }
 
 func (r *ErrorsLinearIntegrationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, errorsLinearIntegrationKeptOnRemoval, &resp.Diagnostics)
 	var plan ErrorsLinearIntegrationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request ErrorsLinearIntegrationModel
 	resp.Diagnostics.Append(configWithPlannedUnknowns(ctx, req.Config, req.Plan, nullValue(req.Plan.Raw.Type()), &request)...)
+	request.AffectedUsersThresholdCount = plan.AffectedUsersThresholdCount // its schema default travels when unset, so removing the line resets it
+	request.AutoReopen = plan.AutoReopen                                   // its schema default travels when unset, so removing the line resets it
+	request.AutoResolve = plan.AutoResolve                                 // its schema default travels when unset, so removing the line resets it
+	request.LinearLabelIds = plan.LinearLabelIds                           // its schema default travels when unset, so removing the line resets it
+	request.OccurrenceThresholdCount = plan.OccurrenceThresholdCount       // its schema default travels when unset, so removing the line resets it
+	request.OccurrenceThresholdInterval = plan.OccurrenceThresholdInterval // its schema default travels when unset, so removing the line resets it
+	request.SyncComments = plan.SyncComments                               // its schema default travels when unset, so removing the line resets it
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -549,6 +560,7 @@ func populateErrorsLinearIntegration(ctx context.Context, m *ErrorsLinearIntegra
 }
 
 func (r *ErrorsLinearIntegrationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, errorsLinearIntegrationKeptOnRemoval, &resp.Diagnostics)
 	var plan ErrorsLinearIntegrationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request ErrorsLinearIntegrationModel
@@ -557,6 +569,29 @@ func (r *ErrorsLinearIntegrationResource) Update(ctx context.Context, req resour
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+	// An unset line's default travels only when it changes the stored value (the line was just
+	// removed): resending an unchanged default can act on its own, e.g. unpause a group's members.
+	if !plan.AffectedUsersThresholdCount.Equal(state.AffectedUsersThresholdCount) {
+		request.AffectedUsersThresholdCount = plan.AffectedUsersThresholdCount
+	}
+	if !plan.AutoReopen.Equal(state.AutoReopen) {
+		request.AutoReopen = plan.AutoReopen
+	}
+	if !plan.AutoResolve.Equal(state.AutoResolve) {
+		request.AutoResolve = plan.AutoResolve
+	}
+	if !plan.LinearLabelIds.Equal(state.LinearLabelIds) {
+		request.LinearLabelIds = plan.LinearLabelIds
+	}
+	if !plan.OccurrenceThresholdCount.Equal(state.OccurrenceThresholdCount) {
+		request.OccurrenceThresholdCount = plan.OccurrenceThresholdCount
+	}
+	if !plan.OccurrenceThresholdInterval.Equal(state.OccurrenceThresholdInterval) {
+		request.OccurrenceThresholdInterval = plan.OccurrenceThresholdInterval
+	}
+	if !plan.SyncComments.Equal(state.SyncComments) {
+		request.SyncComments = plan.SyncComments
 	}
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
@@ -574,6 +609,13 @@ func (r *ErrorsLinearIntegrationResource) Update(ctx context.Context, req resour
 func (r *ErrorsLinearIntegrationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retention is explicit IaC policy: removal forgets state and never deletes remote history.
 	return
+}
+
+// Attributes whose removal from the configuration keeps the server's value (no default, no null).
+var errorsLinearIntegrationKeptOnRemoval = []string{"applications", "linear_assignee_id", "linear_priority", "linear_project_id", "linear_resolved_status_id", "linear_status_id", "linear_team_id", "name", "notifications", "tag_filter"}
+
+func (r *ErrorsLinearIntegrationResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	warnKeptOnRemoval(ctx, "betterstack_errors_linear_integration", req, resp, errorsLinearIntegrationKeptOnRemoval)
 }
 
 func (r *ErrorsLinearIntegrationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

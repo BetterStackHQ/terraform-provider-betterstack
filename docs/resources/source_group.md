@@ -29,7 +29,7 @@ resource "betterstack_source_group" "example" {
 
 Optional attributes are also computed: left unset, they take the server-side default.
 
-- `sort_index` (Number) Display order among the team's source groups.
+- `sort_index` (Number) Display order among the team's source groups. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 
 ### Read-Only
 

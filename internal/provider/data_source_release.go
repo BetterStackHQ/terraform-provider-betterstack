@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -32,7 +31,7 @@ func (d *ReleaseDataSource) Schema(ctx context.Context, req datasource.SchemaReq
 		Description: "A release of an error-tracking application, detected automatically or registered through the API so it appears the moment it deploys.",
 		Attributes: map[string]schema.Attribute{
 			"id":             schema.StringAttribute{Optional: true, Computed: true, Description: "Look up by id, or by application_id / version."},
-			"application_id": schema.Int64Attribute{Optional: true, Computed: true, Description: "IDs of the applications to register this release on. The ID of a connected application registers the release on the application it's connected to. Without it, the release is registered on every application already reporting this version. If none do, nothing is registered and the response is still 201."},
+			"application_id": schema.StringAttribute{Optional: true, Computed: true, Description: "IDs of the applications to register this release on. The ID of a connected application registers the release on the application it's connected to. Without it, the release is registered on every application already reporting this version. If none do, nothing is registered and the response is still 201."},
 			"created_at":     schema.StringAttribute{Computed: true, Description: "When the release was created."},
 			"environment":    schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "Environments this release was deployed to. A single string is accepted too. Added to any environments the release already has."},
 			"environments":   schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "Environments this release was deployed to. On create, the given environments are added to any the release already has. A registration with only a version and no applications adds its environment to every application's existing release of that version."},
@@ -74,10 +73,10 @@ func (d *ReleaseDataSource) Read(ctx context.Context, req datasource.ReadRequest
 			return
 		}
 		out = got
-		if !data.ApplicationId.IsNull() && !data.ApplicationId.IsUnknown() && strconv.FormatInt(data.ApplicationId.ValueInt64(), 10) != "" {
+		if !data.ApplicationId.IsNull() && !data.ApplicationId.IsUnknown() && data.ApplicationId.ValueString() != "" {
 			matched := false
 			for _, field := range []string{"application_id"} {
-				if stringifyScalar(out[field]) == strconv.FormatInt(data.ApplicationId.ValueInt64(), 10) {
+				if stringifyScalar(out[field]) == data.ApplicationId.ValueString() {
 					matched = true
 					break
 				}
@@ -110,9 +109,9 @@ func (d *ReleaseDataSource) Read(ctx context.Context, req datasource.ReadRequest
 			"application_id": {"application_id"},
 			"version":        {"version"},
 		}
-		if !data.ApplicationId.IsNull() && !data.ApplicationId.IsUnknown() && strconv.FormatInt(data.ApplicationId.ValueInt64(), 10) != "" {
-			q.Set("application_id", strconv.FormatInt(data.ApplicationId.ValueInt64(), 10))
-			want["application_id"] = strconv.FormatInt(data.ApplicationId.ValueInt64(), 10)
+		if !data.ApplicationId.IsNull() && !data.ApplicationId.IsUnknown() && data.ApplicationId.ValueString() != "" {
+			q.Set("application_id", data.ApplicationId.ValueString())
+			want["application_id"] = data.ApplicationId.ValueString()
 		}
 		if !data.Version.IsNull() && !data.Version.IsUnknown() && data.Version.ValueString() != "" {
 			q.Set("version", data.Version.ValueString())

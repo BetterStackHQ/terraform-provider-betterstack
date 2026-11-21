@@ -7,7 +7,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -45,7 +44,7 @@ func (r *SourceGroupResource) Schema(ctx context.Context, req resource.SchemaReq
 			"id":         schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"created_at": schema.StringAttribute{Computed: true, Description: "When the group was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"name":       schema.StringAttribute{Required: true, Description: "Group name."},
-			"sort_index": schema.Int64Attribute{Optional: true, Computed: true, Description: "Display order among the team's source groups.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
+			"sort_index": schema.Int64Attribute{Optional: true, Description: "Display order among the team's source groups."},
 			"team_name":  schema.StringAttribute{Computed: true, Description: "Name of the team that owns the group."},
 			"updated_at": schema.StringAttribute{Computed: true, Description: "When the group was last updated."},
 		},
@@ -69,6 +68,15 @@ func (r *SourceGroupResource) body(ctx context.Context, m SourceGroupModel) map[
 	}
 	if !m.SortIndex.IsNull() && !m.SortIndex.IsUnknown() {
 		body["sort_index"] = m.SortIndex.ValueInt64()
+	}
+	return body
+}
+
+// updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
+func (r *SourceGroupResource) updateBody(ctx context.Context, config, plan, state SourceGroupModel) map[string]interface{} {
+	body := r.body(ctx, config)
+	if !state.SortIndex.IsNull() && !state.SortIndex.IsUnknown() && plan.SortIndex.IsNull() {
+		body["sort_index"] = nil
 	}
 	return body
 }
@@ -131,8 +139,14 @@ func populateSourceGroup(ctx context.Context, m *SourceGroupModel, attrs map[str
 	if v, ok := stringFromAPI(attrs["name"]); ok {
 		m.Name = types.StringValue(v)
 	}
-	if v, ok := int64FromAPI(attrs["sort_index"]); ok {
-		m.SortIndex = types.Int64Value(v)
+	if rawValue, exists := attrs["sort_index"]; exists {
+		if rawValue == nil {
+			m.SortIndex = types.Int64Null()
+		} else {
+			if v, ok := int64FromAPI(attrs["sort_index"]); ok {
+				m.SortIndex = types.Int64Value(v)
+			}
+		}
 	}
 	if v, ok := stringFromAPI(attrs["team_name"]); ok {
 		m.TeamName = types.StringValue(v)
@@ -157,7 +171,7 @@ func (r *SourceGroupResource) Update(ctx context.Context, req resource.UpdateReq
 	}
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
-	out, err := r.client.Update(ctx, sourceGroupBinding, vars, r.body(ctx, request))
+	out, err := r.client.Update(ctx, sourceGroupBinding, vars, r.updateBody(ctx, request, plan, state))
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "updating source_group", err, req.Plan.Raw.Type())
 		return

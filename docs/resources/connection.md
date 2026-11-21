@@ -56,13 +56,13 @@ Optional attributes are also computed: left unset, they take the server-side def
 <a id="nestedatt--created_by"></a>
 ### Nested Schema for `created_by`
 
-- `id` (Number)
+- `id` (String)
 - `email` (String)
 
 <a id="nestedatt--data_sources"></a>
 ### Nested Schema for `data_sources`
 
-- `source_id` (Number)
+- `source_id` (String)
 - `source_name` (String)
 - `team_name` (String)
 - `connection_url` (String)

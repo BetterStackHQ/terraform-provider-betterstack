@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
@@ -62,13 +61,13 @@ type StatusPageModel struct {
 	LogoUrl                  types.String `tfsdk:"logo_url"`
 	MinIncidentLength        types.Int64  `tfsdk:"min_incident_length"`
 	NavigationLinks          types.List   `tfsdk:"navigation_links"`
-	OrganizationId           types.Int64  `tfsdk:"organization_id"`
+	OrganizationId           types.String `tfsdk:"organization_id"`
 	Password                 types.String `tfsdk:"password"`
 	PasswordEnabled          types.Bool   `tfsdk:"password_enabled"`
 	Published                types.Bool   `tfsdk:"published"`
 	RequireSso               types.Bool   `tfsdk:"require_sso"`
 	Sections                 types.List   `tfsdk:"sections"`
-	StatusPageGroupId        types.Int64  `tfsdk:"status_page_group_id"`
+	StatusPageGroupId        types.String `tfsdk:"status_page_group_id"`
 	Subdomain                types.String `tfsdk:"subdomain"`
 	Subscribable             types.Bool   `tfsdk:"subscribable"`
 	Theme                    types.String `tfsdk:"theme"`
@@ -220,7 +219,7 @@ func flattenStatusPageSections(ctx context.Context, prior types.Object, raw map[
 type StatusPageSectionsResourcesModel struct {
 	Id                         types.String `tfsdk:"id"`
 	ResourceType               types.String `tfsdk:"resource_type"`
-	ResourceId                 types.Int64  `tfsdk:"resource_id"`
+	ResourceId                 types.String `tfsdk:"resource_id"`
 	PublicName                 types.String `tfsdk:"public_name"`
 	Explanation                types.String `tfsdk:"explanation"`
 	WidgetType                 types.String `tfsdk:"widget_type"`
@@ -234,7 +233,7 @@ func statusPageSectionsResourcesAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"id":                             types.StringType,
 		"resource_type":                  types.StringType,
-		"resource_id":                    types.Int64Type,
+		"resource_id":                    types.StringType,
 		"public_name":                    types.StringType,
 		"explanation":                    types.StringType,
 		"widget_type":                    types.StringType,
@@ -260,7 +259,7 @@ func expandStatusPageSectionsResources(ctx context.Context, o types.Object) map[
 		out["resource_type"] = m.ResourceType.ValueString()
 	}
 	if !m.ResourceId.IsNull() && !m.ResourceId.IsUnknown() {
-		out["resource_id"] = m.ResourceId.ValueInt64()
+		out["resource_id"] = idToAPI(m.ResourceId.ValueString())
 	}
 	if !m.PublicName.IsNull() && !m.PublicName.IsUnknown() {
 		out["public_name"] = m.PublicName.ValueString()
@@ -303,8 +302,8 @@ func flattenStatusPageSectionsResources(ctx context.Context, prior types.Object,
 	if v, ok := stringFromAPI(raw["resource_type"]); ok {
 		m.ResourceType = types.StringValue(v)
 	}
-	if v, ok := int64FromAPI(raw["resource_id"]); ok {
-		m.ResourceId = types.Int64Value(v)
+	if v, ok := stringFromAPI(raw["resource_id"]); ok {
+		m.ResourceId = types.StringValue(v)
 	}
 	if v, ok := stringFromAPI(raw["public_name"]); ok {
 		m.PublicName = types.StringValue(v)
@@ -619,7 +618,7 @@ func (r *StatusPageResource) Schema(ctx context.Context, req resource.SchemaRequ
 			"announcement_embed_visible": schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether the embeddable widget shows the announcement."},
 			"automatic_reports":          schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether maintenance reports are created automatically."},
 			"company_name":               schema.StringAttribute{Required: true, Description: "Company name shown on the page."},
-			"company_url":                schema.StringAttribute{Optional: true, Computed: true, Description: "Company website URL.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"company_url":                schema.StringAttribute{Optional: true, Description: "Company website URL."},
 			"contact_url":                schema.StringAttribute{Optional: true, Description: "Contact URL shown on the page."},
 			"created_at":                 schema.StringAttribute{Computed: true, Description: "When the status page was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"custom_css":                 schema.StringAttribute{Optional: true, Description: "Custom CSS added to the page."},
@@ -637,13 +636,13 @@ func (r *StatusPageResource) Schema(ctx context.Context, req resource.SchemaRequ
 			"logo_url":                   schema.StringAttribute{Optional: true, Description: "The logo shown in light mode. Send an image URL and the logo is fetched from it. Responses return the URL of the stored logo. Send `null` to remove the logo."},
 			"min_incident_length":        schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(0), Description: "Shortest incident the page shows, in seconds. Must be less than a year."},
 			"navigation_links":           schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"text": schema.StringAttribute{Optional: true, Computed: true}, "href": schema.StringAttribute{Optional: true, Computed: true}}}, Description: "Up to four links in the page's navigation, each with `text` and `href`. Only the `v2` design shows them. Send `[]` to remove them all.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"organization_id":            schema.Int64Attribute{Optional: true, Computed: true, Description: "Organization the page belongs to, as its Better Stack organization id. Defaults to the first organization the token can access. An organization the token can't access returns a 422 error that lists the ones it can. Ignored on update.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown(), replaceWarningInt64{int64planmodifier.RequiresReplaceIfConfigured(), "betterstack_status_page"}}},
-			"password":                   schema.StringAttribute{Optional: true, Computed: true, Description: "Password visitors enter to view the page. Never returned. Setting a password also turns on `password_enabled`, unless you send `password_enabled` too. An empty password removes the password and turns protection off.", Sensitive: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"organization_id":            schema.StringAttribute{Optional: true, Computed: true, Description: "Organization the page belongs to, as its Better Stack organization id. Defaults to the first organization the token can access. An organization the token can't access returns a 422 error that lists the ones it can. Ignored on update.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_status_page"}}},
+			"password":                   schema.StringAttribute{Optional: true, Description: "Password visitors enter to view the page. Never returned. Setting a password also turns on `password_enabled`, unless you send `password_enabled` too. An empty password removes the password and turns protection off.", Sensitive: true},
 			"password_enabled":           schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether visitors need a password to view the page."},
 			"published":                  schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether the page is published and publicly visible. An unpublished page is a draft. Publishing a draft fails when the organization already has as many published status pages as its plan allows."},
 			"require_sso":                schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether visitors must sign in with SSO to view the page."},
-			"sections":                   schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Optional: true, Computed: true, Description: "Section id. Leave it out for a new section. An id keeps the section, even when it moves."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "Section name."}, "resources": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Optional: true, Computed: true, Description: "Resource id. Leave it out for a new resource. An id keeps the resource and its subscribers, even when it moves to another section."}, "resource_type": schema.StringAttribute{Optional: true, Computed: true, Description: "Type of the underlying resource. Required for a new resource. ThirdPartyService is added in the web app only: an item read back keeps its type and services when listed by id.", Validators: []validator.String{stringvalidator.OneOf("Monitor", "MonitorGroup", "Heartbeat", "HeartbeatGroup", "WebhookIntegration", "EmailIntegration", "IncomingWebhook", "AmazonSnsIntegration", "ManuallyTrackedItem", "LogsChart", "CatalogReference", "ThirdPartyService")}}, "resource_id": schema.Int64Attribute{Optional: true, Computed: true, Description: "Id of the underlying monitor, heartbeat, group or other record. Required for a new resource, unless resource_type is ManuallyTrackedItem, which creates its backing record."}, "public_name": schema.StringAttribute{Optional: true, Computed: true, Description: "Name shown publicly. Required for a new resource."}, "explanation": schema.StringAttribute{Optional: true, Computed: true, Description: "Tooltip explanation shown to visitors."}, "widget_type": schema.StringAttribute{Optional: true, Computed: true, Description: "How this resource is rendered.", Validators: []validator.String{stringvalidator.OneOf("plain", "history", "intraday_history", "response_times", "intraday_response_times", "chart_only")}}, "mark_as_down_for": schema.StringAttribute{Optional: true, Computed: true, Description: "When an incident marks this resource as down.", Validators: []validator.String{stringvalidator.OneOf("no_incident", "any_incident", "incident_matching_metadata")}}, "mark_as_down_metadata_rule": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"key": schema.StringAttribute{Optional: true, Computed: true}, "values": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true}, "value": schema.StringAttribute{Optional: true, Computed: true}, "item_id": schema.StringAttribute{Optional: true, Computed: true}, "name": schema.StringAttribute{Optional: true, Computed: true}, "email": schema.StringAttribute{Optional: true, Computed: true}}}}}, Description: "Metadata rule used when mark_as_down_for is incident_matching_metadata, as on a status page resource."}, "mark_as_degraded_for": schema.StringAttribute{Optional: true, Computed: true, Description: "When an incident marks this resource as degraded.", Validators: []validator.String{stringvalidator.OneOf("no_incident", "any_incident", "incident_matching_metadata")}}, "mark_as_degraded_metadata_rule": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"key": schema.StringAttribute{Optional: true, Computed: true}, "values": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true}, "value": schema.StringAttribute{Optional: true, Computed: true}, "item_id": schema.StringAttribute{Optional: true, Computed: true}, "name": schema.StringAttribute{Optional: true, Computed: true}, "email": schema.StringAttribute{Optional: true, Computed: true}}}}}, Description: "Metadata rule used when mark_as_degraded_for is incident_matching_metadata, in the shape of mark_as_down_metadata_rule."}}}, Description: "The section's resources, in display order. Left out, the section keeps its resources as they are, and a new section starts empty. In Terraform, an item without an id keeps the id of the existing item with the same `resource_type` and `resource_id`, or else the same `resource_type` and `public_name`, so a reorder or a move updates it in place."}}}, Description: "The page's sections in display order, each with its resources in display order. Sent, the list replaces the page's whole structure: sections and resources are matched by id, ones without an id are created, and ones left out are removed from the page. The monitors and other records behind them aren't affected. An attribute a resource leaves out keeps its value. Left out, the structure stays as it is. Writable on update only, so a new page gets its sections in a follow-up update. In Terraform, an item without an id keeps the id of the existing item with the same `name`, so a reorder or a move updates it in place.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"status_page_group_id":       schema.Int64Attribute{Optional: true, Description: "Status page group the page belongs to."},
+			"sections":                   schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Optional: true, Computed: true, Description: "Section id. Leave it out for a new section. An id keeps the section, even when it moves."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "Section name."}, "resources": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Optional: true, Computed: true, Description: "Resource id. Leave it out for a new resource. An id keeps the resource and its subscribers, even when it moves to another section."}, "resource_type": schema.StringAttribute{Optional: true, Computed: true, Description: "Type of the underlying resource. Required for a new resource. ThirdPartyService is added in the web app only: an item read back keeps its type and services when listed by id.", Validators: []validator.String{stringvalidator.OneOf("Monitor", "MonitorGroup", "Heartbeat", "HeartbeatGroup", "WebhookIntegration", "EmailIntegration", "IncomingWebhook", "AmazonSnsIntegration", "ManuallyTrackedItem", "LogsChart", "CatalogReference", "ThirdPartyService")}}, "resource_id": schema.StringAttribute{Optional: true, Computed: true, Description: "Id of the underlying monitor, heartbeat, group or other record. Required for a new resource, unless resource_type is ManuallyTrackedItem, which creates its backing record."}, "public_name": schema.StringAttribute{Optional: true, Computed: true, Description: "Name shown publicly. Required for a new resource."}, "explanation": schema.StringAttribute{Optional: true, Computed: true, Description: "Tooltip explanation shown to visitors."}, "widget_type": schema.StringAttribute{Optional: true, Computed: true, Description: "How this resource is rendered.", Validators: []validator.String{stringvalidator.OneOf("plain", "history", "intraday_history", "response_times", "intraday_response_times", "chart_only")}}, "mark_as_down_for": schema.StringAttribute{Optional: true, Computed: true, Description: "When an incident marks this resource as down.", Validators: []validator.String{stringvalidator.OneOf("no_incident", "any_incident", "incident_matching_metadata")}}, "mark_as_down_metadata_rule": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"key": schema.StringAttribute{Optional: true, Computed: true}, "values": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true}, "value": schema.StringAttribute{Optional: true, Computed: true}, "item_id": schema.StringAttribute{Optional: true, Computed: true}, "name": schema.StringAttribute{Optional: true, Computed: true}, "email": schema.StringAttribute{Optional: true, Computed: true}}}}}, Description: "Metadata rule used when mark_as_down_for is incident_matching_metadata, as on a status page resource."}, "mark_as_degraded_for": schema.StringAttribute{Optional: true, Computed: true, Description: "When an incident marks this resource as degraded.", Validators: []validator.String{stringvalidator.OneOf("no_incident", "any_incident", "incident_matching_metadata")}}, "mark_as_degraded_metadata_rule": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"key": schema.StringAttribute{Optional: true, Computed: true}, "values": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true}, "value": schema.StringAttribute{Optional: true, Computed: true}, "item_id": schema.StringAttribute{Optional: true, Computed: true}, "name": schema.StringAttribute{Optional: true, Computed: true}, "email": schema.StringAttribute{Optional: true, Computed: true}}}}}, Description: "Metadata rule used when mark_as_degraded_for is incident_matching_metadata, in the shape of mark_as_down_metadata_rule."}}}, Description: "The section's resources, in display order. Left out, the section keeps its resources as they are, and a new section starts empty. In Terraform, an item without an id keeps the id of the existing item with the same `resource_type` and `resource_id`, or else the same `resource_type` and `public_name`, so a reorder or a move updates it in place."}}}, Description: "The page's sections in display order, each with its resources in display order. Sent, the list replaces the page's whole structure: sections and resources are matched by id, ones without an id are created, and ones left out are removed from the page. The monitors and other records behind them aren't affected. An attribute a resource leaves out keeps its value. Left out, the structure stays as it is. Writable on update only, so a new page gets its sections in a follow-up update. In Terraform, an item without an id keeps the id of the existing item with the same `name`, so a reorder or a move updates it in place.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"status_page_group_id":       schema.StringAttribute{Optional: true, Description: "Status page group the page belongs to."},
 			"subdomain":                  schema.StringAttribute{Required: true, Description: "betterstack.com subdomain for the page."},
 			"subscribable":               schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether visitors can subscribe to updates."},
 			"theme":                      schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("light"), Description: "Color theme.", Validators: []validator.String{stringvalidator.OneOf("light", "dark", "system")}},
@@ -667,7 +666,7 @@ func (r *StatusPageResource) Configure(ctx context.Context, req resource.Configu
 func (r *StatusPageResource) body(ctx context.Context, m StatusPageModel) map[string]interface{} {
 	body := map[string]interface{}{}
 	if !m.OrganizationId.IsNull() && !m.OrganizationId.IsUnknown() {
-		body["organization_id"] = m.OrganizationId.ValueInt64()
+		body["organization_id"] = idToAPI(m.OrganizationId.ValueString())
 	}
 	if !m.CompanyName.IsNull() && !m.CompanyName.IsUnknown() {
 		body["company_name"] = m.CompanyName.ValueString()
@@ -745,7 +744,7 @@ func (r *StatusPageResource) body(ctx context.Context, m StatusPageModel) map[st
 		body["automatic_reports"] = m.AutomaticReports.ValueBool()
 	}
 	if !m.StatusPageGroupId.IsNull() && !m.StatusPageGroupId.IsUnknown() {
-		body["status_page_group_id"] = m.StatusPageGroupId.ValueInt64()
+		body["status_page_group_id"] = idToAPI(m.StatusPageGroupId.ValueString())
 	}
 	if !m.Whitelabeled.IsNull() && !m.Whitelabeled.IsUnknown() {
 		body["whitelabeled"] = m.Whitelabeled.ValueBool()
@@ -858,7 +857,7 @@ func (r *StatusPageResource) bodyForUpdate(ctx context.Context, m StatusPageMode
 		body["automatic_reports"] = m.AutomaticReports.ValueBool()
 	}
 	if !m.StatusPageGroupId.IsNull() && !m.StatusPageGroupId.IsUnknown() {
-		body["status_page_group_id"] = m.StatusPageGroupId.ValueInt64()
+		body["status_page_group_id"] = idToAPI(m.StatusPageGroupId.ValueString())
 	}
 	if !m.Whitelabeled.IsNull() && !m.Whitelabeled.IsUnknown() {
 		body["whitelabeled"] = m.Whitelabeled.ValueBool()
@@ -919,6 +918,9 @@ func (r *StatusPageResource) postCreateBody(ctx context.Context, m StatusPageMod
 // updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
 func (r *StatusPageResource) updateBody(ctx context.Context, config, plan, state StatusPageModel) map[string]interface{} {
 	body := r.bodyForUpdate(ctx, config)
+	if !state.CompanyUrl.IsNull() && !state.CompanyUrl.IsUnknown() && plan.CompanyUrl.IsNull() {
+		body["company_url"] = nil
+	}
 	if !state.CustomDomain.IsNull() && !state.CustomDomain.IsUnknown() && plan.CustomDomain.IsNull() {
 		body["custom_domain"] = nil
 	}
@@ -946,6 +948,9 @@ func (r *StatusPageResource) updateBody(ctx context.Context, config, plan, state
 	if !state.GoogleAnalyticsId.IsNull() && !state.GoogleAnalyticsId.IsUnknown() && plan.GoogleAnalyticsId.IsNull() {
 		body["google_analytics_id"] = nil
 	}
+	if !state.Password.IsNull() && !state.Password.IsUnknown() && plan.Password.IsNull() {
+		body["password"] = nil
+	}
 	if !state.StatusPageGroupId.IsNull() && !state.StatusPageGroupId.IsUnknown() && plan.StatusPageGroupId.IsNull() {
 		body["status_page_group_id"] = nil
 	}
@@ -962,6 +967,7 @@ func (r *StatusPageResource) updateBody(ctx context.Context, config, plan, state
 }
 
 func (r *StatusPageResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, statusPageKeptOnRemoval, &resp.Diagnostics)
 	var plan StatusPageModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request StatusPageModel
@@ -1054,14 +1060,20 @@ func populateStatusPage(ctx context.Context, m *StatusPageModel, attrs map[strin
 	if attrs == nil {
 		return
 	}
-	if v, ok := int64FromAPI(attrs["organization_id"]); ok {
-		m.OrganizationId = types.Int64Value(v)
+	if v, ok := stringFromAPI(attrs["organization_id"]); ok {
+		m.OrganizationId = types.StringValue(v)
 	}
 	if v, ok := stringFromAPI(attrs["company_name"]); ok {
 		m.CompanyName = types.StringValue(v)
 	}
-	if v, ok := stringFromAPI(attrs["company_url"]); ok {
-		m.CompanyUrl = types.StringValue(v)
+	if rawValue, exists := attrs["company_url"]; exists {
+		if rawValue == nil {
+			m.CompanyUrl = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["company_url"]); ok {
+				m.CompanyUrl = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := stringFromAPI(attrs["subdomain"]); ok {
 		m.Subdomain = types.StringValue(v)
@@ -1185,10 +1197,10 @@ func populateStatusPage(ctx context.Context, m *StatusPageModel, attrs map[strin
 	}
 	if rawValue, exists := attrs["status_page_group_id"]; exists {
 		if rawValue == nil {
-			m.StatusPageGroupId = types.Int64Null()
+			m.StatusPageGroupId = types.StringNull()
 		} else {
-			if v, ok := int64FromAPI(attrs["status_page_group_id"]); ok {
-				m.StatusPageGroupId = types.Int64Value(v)
+			if v, ok := stringFromAPI(attrs["status_page_group_id"]); ok {
+				m.StatusPageGroupId = types.StringValue(v)
 			}
 		}
 	}
@@ -1296,6 +1308,7 @@ func (r *StatusPageResource) mergeResponse(ctx context.Context, m StatusPageMode
 }
 
 func (r *StatusPageResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, statusPageKeptOnRemoval, &resp.Diagnostics)
 	var plan StatusPageModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request StatusPageModel
@@ -1374,10 +1387,14 @@ func (r *StatusPageResource) Delete(ctx context.Context, req resource.DeleteRequ
 	}
 }
 
+// Attributes whose removal from the configuration keeps the server's value (no default, no null).
+var statusPageKeptOnRemoval = []string{"ip_allowlist", "navigation_links", "sections"}
+
 // ModifyPlan matches each configured list item without an id to the existing item it stands for,
 // by the list's item key, and plans that item's id and unconfigured values from it. The write then
 // updates the item in place, where an item sent without an id would be created anew.
 func (r *StatusPageResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	warnKeptOnRemoval(ctx, "betterstack_status_page", req, resp, statusPageKeptOnRemoval)
 	if resp.Diagnostics.HasError() || req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
 		return
 	}
@@ -1403,6 +1420,6 @@ var _ resource.ResourceWithMoveState = &StatusPageResource{}
 // betteruptime_status_page (registry.terraform.io/BetterStackHQ/better-uptime).
 func (r *StatusPageResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"sentinel_null\",\"path\":\"status_page_group_id\",\"value\":0}],\"ignored_fields\":[],\"instructions\":[\"Keep every attribute: the legacy provider wrote the same /api/v2/status-pages fields. Its status_page_group_id of zero means no group and becomes null. Keep password in its original sensitive input expression, never copy it into migration output; read refresh must retain the write-only value. Import uses the existing page id.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/better-uptime\",\"source_type\":\"betteruptime_status_page\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"computed\":true,\"description\":\"The overall status of this status page.\",\"name\":\"aggregate_state\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Add an announcement to your status page.\",\"name\":\"announcement\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Modify the design of the announcement embed.\",\"name\":\"announcement_embed_css\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Point your embedded announcement to a specified URL.\",\"name\":\"announcement_embed_link\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Toggle this field if you want to show an announcement in your embed. You can embed the announcement using this snippet: `<script src=\\\"https://uptime.betterstack.com/widgets/announcement.js\\\" data-id=\\\"<SET STATUS_PAGE_ID>\\\" async=\\\"async\\\" type=\\\"text/javascript\\\"></script>`\",\"name\":\"announcement_embed_visible\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Generate automatic reports when your services go down\",\"name\":\"automatic_reports\",\"optional\":true,\"type\":\"bool\"},{\"description\":\"Name of your company.\",\"name\":\"company_name\",\"required\":true,\"type\":\"string\"},{\"description\":\"URL of your company's website.\",\"name\":\"company_url\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"URL that should be used for contacting you in case of an emergency.\",\"name\":\"contact_url\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this status page was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Unleash your inner designer and tweak our status page design to fit your branding.\",\"name\":\"custom_css\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Do you want a custom domain on your status page? Add a CNAME record that points your domain to status.betteruptime.com. Example: `CNAME status.walmine.com statuspage.betteruptime.com` To remove the custom domain, set the value to an empty string `\\\"\\\"`.\",\"name\":\"custom_domain\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Add custom behavior to your status page. It is only allowed for status pages with a custom domain name.\",\"name\":\"custom_javascript\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"A direct link to a dark version of your company's logo. The image should be under 20MB in size.\",\"name\":\"dark_logo_url\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Choose between classic and modern status page design. Possible values: 'v1', 'v2'.\",\"name\":\"design\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Specify your own Google Analytics ID if you want to receive hits on your status page.\",\"name\":\"google_analytics_id\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Hide your status page from search engines.\",\"name\":\"hide_from_search_engines\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Number of days to display on the status page. Between 7 and 365 days.\",\"name\":\"history\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.func14\"},{\"computed\":true,\"description\":\"The ID of this Status Page.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"List of IP addresses or CIDR ranges that are allowed to access the status page. Accepts IPv4, IPv6, CIDR ranges, and comments starting with `#`. To remove all IP restrictions, set to an empty list `[]`. This is a [billable feature](https://betterstack.com/pricing#status-pages).\",\"name\":\"ip_allowlist\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"Choose usual vertical layout or space-saving horizontal layout. Only applicable when design: v2. Possible values: 'vertical', 'horizontal'.\",\"name\":\"layout\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"A direct link to your company's logo. The image should be under 20MB in size.\",\"name\":\"logo_url\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"If you don't want to display short incidents on your status page, this attribute is for you.\",\"name\":\"min_incident_length\",\"optional\":true,\"type\":\"int\"},{\"description\":\"Adjust the navigation links on your status page. Only applicable when design: v2. Only first 4 links considered.\",\"name\":\"navigation_links\",\"optional\":true,\"type\":\"list(object)\"},{\"description\":\"Href of the link. Use full URL for external links. Use `/`, `/maintenance` and `/incidents` for built-in links.\",\"name\":\"navigation_links.href\",\"required\":true,\"type\":\"string\"},{\"description\":\"Label of the link.\",\"name\":\"navigation_links.text\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Set a password of your status page (we won't store it as plaintext, promise). Required when password_enabled: true. We will set password_enabled: false automatically when you send us an empty password.\",\"name\":\"password\",\"optional\":true,\"sensitive\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Do you want to enable password protection on your status page?\",\"name\":\"password_enabled\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Is your status page currently accessible?\",\"name\":\"published\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Require SSO sign-in to access your status page. Requires SSO to be configured for your organization and is mutually exclusive with password protection.\",\"name\":\"require_sso\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Set this attribute if you want to add this status page to a status page group.\",\"name\":\"status_page_group_id\",\"optional\":true,\"type\":\"int\"},{\"description\":\"What subdomain should we use for your status page? This needs to be unique across our entire application, so choose carefully\",\"name\":\"subdomain\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Do you want to allow users to subscribe to your status page changes?\",\"name\":\"subscribable\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Choose theme of your status page. Only applicable when design: v2. Possible values: 'light', 'dark'.\",\"name\":\"theme\",\"optional\":true,\"type\":\"string\"},{\"description\":\"What timezone should we display your status page in? The accepted values can be found in the Rails TimeZone documentation. https://api.rubyonrails.org/classes/ActiveSupport/TimeZone.html\",\"name\":\"timezone\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this status page was updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether the 'Powered by Better Stack' footer should be removed.\",\"name\":\"whitelabeled\",\"optional\":true,\"type\":\"bool\"}],\"response_projections\":[]}"),
+		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"sentinel_null\",\"path\":\"status_page_group_id\",\"value\":0},{\"op\":\"string_id\",\"path\":\"status_page_group_id\"}],\"ignored_fields\":[],\"instructions\":[\"Keep every attribute: the legacy provider wrote the same /api/v2/status-pages fields. Its status_page_group_id of zero means no group and becomes null. Keep password in its original sensitive input expression, never copy it into migration output; read refresh must retain the write-only value. Import uses the existing page id.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/better-uptime\",\"source_type\":\"betteruptime_status_page\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"computed\":true,\"description\":\"The overall status of this status page.\",\"name\":\"aggregate_state\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Add an announcement to your status page.\",\"name\":\"announcement\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Modify the design of the announcement embed.\",\"name\":\"announcement_embed_css\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Point your embedded announcement to a specified URL.\",\"name\":\"announcement_embed_link\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Toggle this field if you want to show an announcement in your embed. You can embed the announcement using this snippet: `<script src=\\\"https://uptime.betterstack.com/widgets/announcement.js\\\" data-id=\\\"<SET STATUS_PAGE_ID>\\\" async=\\\"async\\\" type=\\\"text/javascript\\\"></script>`\",\"name\":\"announcement_embed_visible\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Generate automatic reports when your services go down\",\"name\":\"automatic_reports\",\"optional\":true,\"type\":\"bool\"},{\"description\":\"Name of your company.\",\"name\":\"company_name\",\"required\":true,\"type\":\"string\"},{\"description\":\"URL of your company's website.\",\"name\":\"company_url\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"URL that should be used for contacting you in case of an emergency.\",\"name\":\"contact_url\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this status page was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Unleash your inner designer and tweak our status page design to fit your branding.\",\"name\":\"custom_css\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Do you want a custom domain on your status page? Add a CNAME record that points your domain to status.betteruptime.com. Example: `CNAME status.walmine.com statuspage.betteruptime.com` To remove the custom domain, set the value to an empty string `\\\"\\\"`.\",\"name\":\"custom_domain\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Add custom behavior to your status page. It is only allowed for status pages with a custom domain name.\",\"name\":\"custom_javascript\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"A direct link to a dark version of your company's logo. The image should be under 20MB in size.\",\"name\":\"dark_logo_url\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Choose between classic and modern status page design. Possible values: 'v1', 'v2'.\",\"name\":\"design\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Specify your own Google Analytics ID if you want to receive hits on your status page.\",\"name\":\"google_analytics_id\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Hide your status page from search engines.\",\"name\":\"hide_from_search_engines\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Number of days to display on the status page. Between 7 and 365 days.\",\"name\":\"history\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.func14\"},{\"computed\":true,\"description\":\"The ID of this Status Page.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"List of IP addresses or CIDR ranges that are allowed to access the status page. Accepts IPv4, IPv6, CIDR ranges, and comments starting with `#`. To remove all IP restrictions, set to an empty list `[]`. This is a [billable feature](https://betterstack.com/pricing#status-pages).\",\"name\":\"ip_allowlist\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"Choose usual vertical layout or space-saving horizontal layout. Only applicable when design: v2. Possible values: 'vertical', 'horizontal'.\",\"name\":\"layout\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"A direct link to your company's logo. The image should be under 20MB in size.\",\"name\":\"logo_url\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"If you don't want to display short incidents on your status page, this attribute is for you.\",\"name\":\"min_incident_length\",\"optional\":true,\"type\":\"int\"},{\"description\":\"Adjust the navigation links on your status page. Only applicable when design: v2. Only first 4 links considered.\",\"name\":\"navigation_links\",\"optional\":true,\"type\":\"list(object)\"},{\"description\":\"Href of the link. Use full URL for external links. Use `/`, `/maintenance` and `/incidents` for built-in links.\",\"name\":\"navigation_links.href\",\"required\":true,\"type\":\"string\"},{\"description\":\"Label of the link.\",\"name\":\"navigation_links.text\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Set a password of your status page (we won't store it as plaintext, promise). Required when password_enabled: true. We will set password_enabled: false automatically when you send us an empty password.\",\"name\":\"password\",\"optional\":true,\"sensitive\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Do you want to enable password protection on your status page?\",\"name\":\"password_enabled\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Is your status page currently accessible?\",\"name\":\"published\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Require SSO sign-in to access your status page. Requires SSO to be configured for your organization and is mutually exclusive with password protection.\",\"name\":\"require_sso\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Set this attribute if you want to add this status page to a status page group.\",\"name\":\"status_page_group_id\",\"optional\":true,\"type\":\"int\"},{\"description\":\"What subdomain should we use for your status page? This needs to be unique across our entire application, so choose carefully\",\"name\":\"subdomain\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Do you want to allow users to subscribe to your status page changes?\",\"name\":\"subscribable\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Choose theme of your status page. Only applicable when design: v2. Possible values: 'light', 'dark'.\",\"name\":\"theme\",\"optional\":true,\"type\":\"string\"},{\"description\":\"What timezone should we display your status page in? The accepted values can be found in the Rails TimeZone documentation. https://api.rubyonrails.org/classes/ActiveSupport/TimeZone.html\",\"name\":\"timezone\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this status page was updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether the 'Powered by Better Stack' footer should be removed.\",\"name\":\"whitelabeled\",\"optional\":true,\"type\":\"bool\"}],\"response_projections\":[]}"),
 	}
 }

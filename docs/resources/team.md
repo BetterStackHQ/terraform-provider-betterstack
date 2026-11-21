@@ -27,20 +27,20 @@ resource "betterstack_team" "example" {
 
 Optional attributes are also computed: left unset, they take the server-side default.
 
-- `incident_grouping_period` (Number) Seconds within which a new incident is grouped with an open one, from 0 to 2147483647. New teams start at 300.
+- `incident_grouping_period` (Number) Seconds within which a new incident is grouped with an open one, from 0 to 2147483647. New teams start at 300. Defaults to `300`.
 - `incident_grouping_metadata_scope` (List of String) Metadata keys whose values must match for incidents to be grouped. New teams start with ["Origin"]. Defaults to `["Origin"]`.
-- `notify_about_all_incidents_in_a_group` (Boolean) Whether every incident in a group alerts, rather than only the first. New teams start at true.
-- `reporting_enabled` (Boolean) Whether reporting is on. New teams start at false.
-- `opened_emails_tracking_enabled` (Boolean) Whether the incident timeline records opened alert e-mails. New teams start at true.
-- `on_call_reminder_lead_time` (Number) Seconds before an on-call shift starts to remind the person: one of 0 (off), 3600, 21600, 43200, 86400, 172800 or 604800. A value other than 0 needs a plan with on-call scheduling. New teams start at 86400.
-- `on_call_reminder_sms` (Boolean) Send on-call reminders by SMS. Turning it on needs a plan with on-call scheduling and SMS alerts. New teams start at false.
-- `on_call_reminder_email` (Boolean) Send on-call reminders by e-mail. Turning it on needs a plan with on-call scheduling. New teams start at true.
-- `on_call_reminder_push` (Boolean) Send on-call reminders as push notifications. Turning it on needs a plan with on-call scheduling and push alerts. New teams start at true.
+- `notify_about_all_incidents_in_a_group` (Boolean) Whether every incident in a group alerts, rather than only the first. New teams start at true. Defaults to `true`.
+- `reporting_enabled` (Boolean) Whether reporting is on. New teams start at false. Defaults to `false`.
+- `opened_emails_tracking_enabled` (Boolean) Whether the incident timeline records opened alert e-mails. New teams start at true. Defaults to `true`.
+- `on_call_reminder_lead_time` (Number) Seconds before an on-call shift starts to remind the person: one of 0 (off), 3600, 21600, 43200, 86400, 172800 or 604800. A value other than 0 needs a plan with on-call scheduling. New teams start at 86400. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `on_call_reminder_sms` (Boolean) Send on-call reminders by SMS. Turning it on needs a plan with on-call scheduling and SMS alerts. New teams start at false. Defaults to `false`.
+- `on_call_reminder_email` (Boolean) Send on-call reminders by e-mail. Turning it on needs a plan with on-call scheduling. New teams start at true. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `on_call_reminder_push` (Boolean) Send on-call reminders as push notifications. Turning it on needs a plan with on-call scheduling and push alerts. New teams start at true. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
 
 ### Read-Only
 
 - `id` (String) The id of this team.
-- `organization_id` (Number) ID of the organization the team belongs to.
+- `organization_id` (String) ID of the organization the team belongs to.
 - `created_at` (String (RFC 3339)) When the team was created.
 - `updated_at` (String (RFC 3339)) When the team was last updated.
 

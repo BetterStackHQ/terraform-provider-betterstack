@@ -33,8 +33,8 @@ resource "betterstack_status_page" "example" {
 
 Optional attributes are also computed: left unset, they take the server-side default.
 
-- `organization_id` (Number) Organization the page belongs to, as its Better Stack organization id. Defaults to the first organization the token can access. An organization the token can't access returns a 422 error that lists the ones it can. Ignored on update. Can only be set when creating the resource; changing it afterwards replaces the resource.
-- `company_url` (String) Company website URL.
+- `organization_id` (String) Organization the page belongs to, as its Better Stack organization id. Defaults to the first organization the token can access. An organization the token can't access returns a 422 error that lists the ones it can. Ignored on update. Can only be set when creating the resource; changing it afterwards replaces the resource.
+- `company_url` (String) Company website URL. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `custom_domain` (String) Custom domain for the page. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `contact_url` (String) Contact URL shown on the page. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `logo_url` (String) The logo shown in light mode. Send an image URL and the logo is fetched from it. Responses return the URL of the stored logo. Send `null` to remove the logo. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
@@ -48,7 +48,7 @@ Optional attributes are also computed: left unset, they take the server-side def
 - `subscribable` (Boolean) Whether visitors can subscribe to updates. Defaults to `false`.
 - `hide_from_search_engines` (Boolean) Whether to hide the page from search engines with a `noindex` tag. Defaults to `false`.
 - `password_enabled` (Boolean) Whether visitors need a password to view the page. Defaults to `false`.
-- `password` (String, Sensitive) Password visitors enter to view the page. Never returned. Setting a password also turns on `password_enabled`, unless you send `password_enabled` too. An empty password removes the password and turns protection off. Write-only: the API never returns it; Terraform keeps the configured value.
+- `password` (String, Sensitive) Password visitors enter to view the page. Never returned. Setting a password also turns on `password_enabled`, unless you send `password_enabled` too. An empty password removes the password and turns protection off. Write-only: the API never returns it; Terraform keeps the configured value. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `require_sso` (Boolean) Whether visitors must sign in with SSO to view the page. Defaults to `false`.
 - `published` (Boolean) Whether the page is published and publicly visible. An unpublished page is a draft. Publishing a draft fails when the organization already has as many published status pages as its plan allows. Defaults to `true`.
 - `history` (Number) Number of days of history the page shows, from 7 to 365. Defaults to `90`.
@@ -56,15 +56,15 @@ Optional attributes are also computed: left unset, they take the server-side def
 - `theme` (String) Color theme. Valid values: `light`, `dark`, `system`. Defaults to `light`.
 - `layout` (String) How resources are laid out on the page. Valid values: `vertical`, `horizontal`. Defaults to `vertical`.
 - `automatic_reports` (Boolean) Whether maintenance reports are created automatically. Defaults to `false`.
-- `status_page_group_id` (Number) Status page group the page belongs to. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `status_page_group_id` (String) Status page group the page belongs to. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `whitelabeled` (Boolean) Whether to remove Better Stack branding from the page. Defaults to `false`.
 - `announcement` (String) Announcement banner text. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `announcement_embed_visible` (Boolean) Whether the embeddable widget shows the announcement. Defaults to `true`.
 - `announcement_embed_link` (String) Link the announcement points to on the embeddable widget. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `announcement_embed_css` (String) Custom CSS for the announcement on the embeddable widget. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `navigation_links` (Attributes List, see [nested schema](#nestedatt--navigation_links)) Up to four links in the page's navigation, each with `text` and `href`. Only the `v2` design shows them. Send `[]` to remove them all.
-- `ip_allowlist` (List of String) IP addresses or CIDR ranges allowed to view the page. Send `[]` to remove them all.
-- `sections` (Attributes List, see [nested schema](#nestedatt--sections)) The page's sections in display order, each with its resources in display order. Sent, the list replaces the page's whole structure: sections and resources are matched by id, ones without an id are created, and ones left out are removed from the page. The monitors and other records behind them aren't affected. An attribute a resource leaves out keeps its value. Left out, the structure stays as it is. Writable on update only, so a new page gets its sections in a follow-up update. Not accepted by the create request; the provider applies it in an immediate follow-up call once the resource exists.
+- `navigation_links` (Attributes List, see [nested schema](#nestedatt--navigation_links)) Up to four links in the page's navigation, each with `text` and `href`. Only the `v2` design shows them. Send `[]` to remove them all. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `ip_allowlist` (List of String) IP addresses or CIDR ranges allowed to view the page. Send `[]` to remove them all. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `sections` (Attributes List, see [nested schema](#nestedatt--sections)) The page's sections in display order, each with its resources in display order. Sent, the list replaces the page's whole structure: sections and resources are matched by id, ones without an id are created, and ones left out are removed from the page. The monitors and other records behind them aren't affected. An attribute a resource leaves out keeps its value. Left out, the structure stays as it is. Writable on update only, so a new page gets its sections in a follow-up update. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it. Not accepted by the create request; the provider applies it in an immediate follow-up call once the resource exists.
 
 ### Read-Only
 
@@ -91,7 +91,7 @@ Optional attributes are also computed: left unset, they take the server-side def
 
 - `id` (String) Resource id. Leave it out for a new resource. An id keeps the resource and its subscribers, even when it moves to another section.
 - `resource_type` (String) Type of the underlying resource. Required for a new resource. ThirdPartyService is added in the web app only: an item read back keeps its type and services when listed by id. Valid values: `Monitor`, `MonitorGroup`, `Heartbeat`, `HeartbeatGroup`, `WebhookIntegration`, `EmailIntegration`, `IncomingWebhook`, `AmazonSnsIntegration`, `ManuallyTrackedItem`, `LogsChart`, `CatalogReference`, `ThirdPartyService`.
-- `resource_id` (Number) Id of the underlying monitor, heartbeat, group or other record. Required for a new resource, unless resource_type is ManuallyTrackedItem, which creates its backing record.
+- `resource_id` (String) Id of the underlying monitor, heartbeat, group or other record. Required for a new resource, unless resource_type is ManuallyTrackedItem, which creates its backing record.
 - `public_name` (String) Name shown publicly. Required for a new resource.
 - `explanation` (String) Tooltip explanation shown to visitors.
 - `widget_type` (String) How this resource is rendered. Valid values: `plain`, `history`, `intraday_history`, `response_times`, `intraday_response_times`, `chart_only`.

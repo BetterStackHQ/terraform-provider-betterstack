@@ -53,13 +53,13 @@ type ConnectionModel struct {
 }
 
 type ConnectionCreatedByModel struct {
-	Id    types.Int64  `tfsdk:"id"`
+	Id    types.String `tfsdk:"id"`
 	Email types.String `tfsdk:"email"`
 }
 
 func connectionCreatedByAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"id":    types.Int64Type,
+		"id":    types.StringType,
 		"email": types.StringType,
 	}
 }
@@ -73,7 +73,7 @@ func expandConnectionCreatedBy(ctx context.Context, o types.Object) map[string]i
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
 	if !m.Id.IsNull() && !m.Id.IsUnknown() {
-		out["id"] = m.Id.ValueInt64()
+		out["id"] = idToAPI(m.Id.ValueString())
 	}
 	if !m.Email.IsNull() && !m.Email.IsUnknown() {
 		out["email"] = m.Email.ValueString()
@@ -88,8 +88,8 @@ func flattenConnectionCreatedBy(ctx context.Context, prior types.Object, raw map
 	if !prior.IsNull() && !prior.IsUnknown() {
 		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
 	}
-	if v, ok := int64FromAPI(raw["id"]); ok {
-		m.Id = types.Int64Value(v)
+	if v, ok := stringFromAPI(raw["id"]); ok {
+		m.Id = types.StringValue(v)
 	}
 	if v, ok := stringFromAPI(raw["email"]); ok {
 		m.Email = types.StringValue(v)
@@ -99,7 +99,7 @@ func flattenConnectionCreatedBy(ctx context.Context, prior types.Object, raw map
 }
 
 type ConnectionDataSourcesModel struct {
-	SourceId      types.Int64  `tfsdk:"source_id"`
+	SourceId      types.String `tfsdk:"source_id"`
 	SourceName    types.String `tfsdk:"source_name"`
 	TeamName      types.String `tfsdk:"team_name"`
 	ConnectionUrl types.String `tfsdk:"connection_url"`
@@ -108,7 +108,7 @@ type ConnectionDataSourcesModel struct {
 
 func connectionDataSourcesAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"source_id":      types.Int64Type,
+		"source_id":      types.StringType,
 		"source_name":    types.StringType,
 		"team_name":      types.StringType,
 		"connection_url": types.StringType,
@@ -125,7 +125,7 @@ func expandConnectionDataSources(ctx context.Context, o types.Object) map[string
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
 	if !m.SourceId.IsNull() && !m.SourceId.IsUnknown() {
-		out["source_id"] = m.SourceId.ValueInt64()
+		out["source_id"] = idToAPI(m.SourceId.ValueString())
 	}
 	if !m.SourceName.IsNull() && !m.SourceName.IsUnknown() {
 		out["source_name"] = m.SourceName.ValueString()
@@ -154,8 +154,8 @@ func flattenConnectionDataSources(ctx context.Context, prior types.Object, raw m
 	if !prior.IsNull() && !prior.IsUnknown() {
 		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
 	}
-	if v, ok := int64FromAPI(raw["source_id"]); ok {
-		m.SourceId = types.Int64Value(v)
+	if v, ok := stringFromAPI(raw["source_id"]); ok {
+		m.SourceId = types.StringValue(v)
 	}
 	if v, ok := stringFromAPI(raw["source_name"]); ok {
 		m.SourceName = types.StringValue(v)
@@ -191,9 +191,9 @@ func (r *ConnectionResource) Schema(ctx context.Context, req resource.SchemaRequ
 			"id":           schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"client_type":  schema.StringAttribute{Required: true, Description: "Client protocol.", Validators: []validator.String{stringvalidator.OneOf("clickhouse", "grafana")}, PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_connection"}}},
 			"created_at":   schema.StringAttribute{Computed: true, Description: "When the connection was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"created_by":   schema.SingleNestedAttribute{Computed: true, Attributes: map[string]schema.Attribute{"id": schema.Int64Attribute{Computed: true}, "email": schema.StringAttribute{Computed: true}}, Description: "User who created the connection in the web UI. Always `null` for a connection created through the API or MCP."},
+			"created_by":   schema.SingleNestedAttribute{Computed: true, Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true}, "email": schema.StringAttribute{Computed: true}}, Description: "User who created the connection in the web UI. Always `null` for a connection created through the API or MCP."},
 			"data_region":  schema.StringAttribute{Optional: true, Description: "Cluster name or region ID to limit the connection to. Leave it out to reach every cluster where the connection's teams store data, which is returned as `null`. Otherwise it's returned as the cluster's storage backend name.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_connection"}}},
-			"data_sources": schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"source_id": schema.Int64Attribute{Computed: true}, "source_name": schema.StringAttribute{Computed: true}, "team_name": schema.StringAttribute{Computed: true}, "connection_url": schema.StringAttribute{Computed: true}, "data_sources": schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "ClickHouse collection names exposed for this source."}}}, Description: "Sources this connection can query. Not returned when listing connections."},
+			"data_sources": schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"source_id": schema.StringAttribute{Computed: true}, "source_name": schema.StringAttribute{Computed: true}, "team_name": schema.StringAttribute{Computed: true}, "connection_url": schema.StringAttribute{Computed: true}, "data_sources": schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "ClickHouse collection names exposed for this source."}}}, Description: "Sources this connection can query. Not returned when listing connections."},
 			"host":         schema.StringAttribute{Computed: true, Description: "Connection host."},
 			"ip_allowlist": schema.ListAttribute{Optional: true, Computed: true, Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})), ElementType: types.StringType, Description: "Allowed source IPs or CIDRs.", PlanModifiers: []planmodifier.List{replaceWarningList{listplanmodifier.RequiresReplace(), "betterstack_connection"}}},
 			"note":         schema.StringAttribute{Optional: true, Description: "Free-form note.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_connection"}}},

@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -25,6 +26,7 @@ import (
 var _ resource.Resource = &EmailIntegrationResource{}
 var _ resource.ResourceWithConfigure = &EmailIntegrationResource{}
 var _ resource.ResourceWithImportState = &EmailIntegrationResource{}
+var _ resource.ResourceWithModifyPlan = &EmailIntegrationResource{}
 
 type EmailIntegrationResource struct {
 	client *Client
@@ -45,13 +47,13 @@ type EmailIntegrationModel struct {
 	CriticalAlert            types.Bool   `tfsdk:"critical_alert"`
 	Email                    types.Bool   `tfsdk:"email"`
 	EmailAddress             types.String `tfsdk:"email_address"`
+	EscalationPolicyId       types.String `tfsdk:"escalation_policy_id"`
 	Metadata                 types.Map    `tfsdk:"metadata"`
 	Name                     types.String `tfsdk:"name"`
 	OtherAcknowledgedFields  types.List   `tfsdk:"other_acknowledged_fields"`
 	OtherResolvedFields      types.List   `tfsdk:"other_resolved_fields"`
 	OtherStartedFields       types.List   `tfsdk:"other_started_fields"`
 	Paused                   types.Bool   `tfsdk:"paused"`
-	PolicyId                 types.String `tfsdk:"policy_id"`
 	Push                     types.Bool   `tfsdk:"push"`
 	RecoveryPeriod           types.Int64  `tfsdk:"recovery_period"`
 	ResolvedAlertIdField     types.Object `tfsdk:"resolved_alert_id_field"`
@@ -1100,7 +1102,7 @@ func (r *EmailIntegrationResource) Schema(ctx context.Context, req resource.Sche
 		Attributes: map[string]schema.Attribute{
 			"id":                          schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"acknowledged_alert_id_field": schema.SingleNestedAttribute{Optional: true, Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true}, "special_type": schema.StringAttribute{Optional: true, Computed: true, Description: "The built-in role of this field. `null` for a custom field.", Validators: []validator.String{stringvalidator.OneOf("alert_id", "cause", "title")}}, "field_target": schema.StringAttribute{Optional: true, Computed: true, Description: "Part of the e-mail this field reads.", Validators: []validator.String{stringvalidator.OneOf("from_email", "subject", "body")}}, "match_type": schema.StringAttribute{Optional: true, Computed: true, Description: "How the value is extracted.", Validators: []validator.String{stringvalidator.OneOf("match_before", "match_after", "match_between", "match_regex", "match_everything")}}, "content": schema.StringAttribute{Optional: true, Computed: true, Description: "The delimiter for `match_before` and `match_after`, or the regex for `match_regex`."}, "content_before": schema.StringAttribute{Optional: true, Computed: true, Description: "The start delimiter for `match_between`."}, "content_after": schema.StringAttribute{Optional: true, Computed: true, Description: "The end delimiter for `match_between`."}}, Description: "Field that extracts the alert ID from an acknowledging e-mail."},
-			"acknowledged_rule_type":      schema.StringAttribute{Optional: true, Computed: true, Description: "How the acknowledged rules acknowledge the incident: `any` when one rule matches, `all` when every rule matches. `unused` turns off acknowledging by rules.", Validators: []validator.String{stringvalidator.OneOf("unused", "any", "all")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"acknowledged_rule_type":      schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("unused"), Description: "How the acknowledged rules acknowledge the incident: `any` when one rule matches, `all` when every rule matches. `unused` turns off acknowledging by rules.", Validators: []validator.String{stringvalidator.OneOf("unused", "any", "all")}},
 			"acknowledged_rules":          schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"rule_target": schema.StringAttribute{Optional: true, Computed: true, Description: "Part of the e-mail this rule matches.", Validators: []validator.String{stringvalidator.OneOf("from_email", "subject", "body")}}, "match_type": schema.StringAttribute{Optional: true, Computed: true, Description: "How to compare the content.", Validators: []validator.String{stringvalidator.OneOf("contains", "contains_not", "matches_regex", "matches_regex_not", "equals", "equals_not")}}, "content": schema.StringAttribute{Optional: true, Computed: true, Description: "Value or pattern to match."}}}, Description: "Rules that classify an e-mail as acknowledging the incident.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
 			"call":                        schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Alert by phone call."},
 			"cause_field":                 schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true}, "special_type": schema.StringAttribute{Optional: true, Computed: true, Description: "The built-in role of this field. `null` for a custom field.", Validators: []validator.String{stringvalidator.OneOf("alert_id", "cause", "title")}}, "field_target": schema.StringAttribute{Optional: true, Computed: true, Description: "Part of the e-mail this field reads.", Validators: []validator.String{stringvalidator.OneOf("from_email", "subject", "body")}}, "match_type": schema.StringAttribute{Optional: true, Computed: true, Description: "How the value is extracted.", Validators: []validator.String{stringvalidator.OneOf("match_before", "match_after", "match_between", "match_regex", "match_everything")}}, "content": schema.StringAttribute{Optional: true, Computed: true, Description: "The delimiter for `match_before` and `match_after`, or the regex for `match_regex`."}, "content_before": schema.StringAttribute{Optional: true, Computed: true, Description: "The start delimiter for `match_between`."}, "content_after": schema.StringAttribute{Optional: true, Computed: true, Description: "The end delimiter for `match_between`."}}, Description: "Field that extracts the incident cause.", PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()}},
@@ -1108,21 +1110,21 @@ func (r *EmailIntegrationResource) Schema(ctx context.Context, req resource.Sche
 			"critical_alert":              schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Alert by a critical push notification that bypasses silent mode."},
 			"email":                       schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Alert by e-mail."},
 			"email_address":               schema.StringAttribute{Computed: true, Description: "Inbound address that turns received e-mails into incidents."},
+			"escalation_policy_id":        schema.StringAttribute{Optional: true, Description: "ID of the escalation policy used for alerts. Returned as a string. You can send it as a number or a string."},
 			"metadata":                    schema.MapNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"values": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true, Description: "`String`, or the type of the referenced item."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The text of a String value."}, "item_id": schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the referenced item: a number, or for a team its ID starting with `t`, such as `t123`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "Referenced item's name."}, "email": schema.StringAttribute{Optional: true, Computed: true, Description: "Referenced user's e-mail."}}}}}}, Description: "Custom metadata. Each key holds a list of values. A value is a string, written as `{type: \"String\", value}`, or a catalog reference, written as `{type, item_id, name, email}`. Team references are returned as team IDs such as `t123`.", PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()}},
-			"name":                        schema.StringAttribute{Optional: true, Computed: true, Description: "Integration name.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"name":                        schema.StringAttribute{Optional: true, Description: "Integration name."},
 			"other_acknowledged_fields":   schema.ListNestedAttribute{Optional: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true}, "special_type": schema.StringAttribute{Optional: true, Computed: true, Description: "The built-in role of this field. `null` for a custom field.", Validators: []validator.String{stringvalidator.OneOf("alert_id", "cause", "title")}}, "field_target": schema.StringAttribute{Optional: true, Computed: true, Description: "Part of the e-mail this field reads.", Validators: []validator.String{stringvalidator.OneOf("from_email", "subject", "body")}}, "match_type": schema.StringAttribute{Optional: true, Computed: true, Description: "How the value is extracted.", Validators: []validator.String{stringvalidator.OneOf("match_before", "match_after", "match_between", "match_regex", "match_everything")}}, "content": schema.StringAttribute{Optional: true, Computed: true, Description: "The delimiter for `match_before` and `match_after`, or the regex for `match_regex`."}, "content_before": schema.StringAttribute{Optional: true, Computed: true, Description: "The start delimiter for `match_between`."}, "content_after": schema.StringAttribute{Optional: true, Computed: true, Description: "The end delimiter for `match_between`."}}}, Description: "Custom fields extracted from an acknowledging e-mail."},
 			"other_resolved_fields":       schema.ListNestedAttribute{Optional: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true}, "special_type": schema.StringAttribute{Optional: true, Computed: true, Description: "The built-in role of this field. `null` for a custom field.", Validators: []validator.String{stringvalidator.OneOf("alert_id", "cause", "title")}}, "field_target": schema.StringAttribute{Optional: true, Computed: true, Description: "Part of the e-mail this field reads.", Validators: []validator.String{stringvalidator.OneOf("from_email", "subject", "body")}}, "match_type": schema.StringAttribute{Optional: true, Computed: true, Description: "How the value is extracted.", Validators: []validator.String{stringvalidator.OneOf("match_before", "match_after", "match_between", "match_regex", "match_everything")}}, "content": schema.StringAttribute{Optional: true, Computed: true, Description: "The delimiter for `match_before` and `match_after`, or the regex for `match_regex`."}, "content_before": schema.StringAttribute{Optional: true, Computed: true, Description: "The start delimiter for `match_between`."}, "content_after": schema.StringAttribute{Optional: true, Computed: true, Description: "The end delimiter for `match_between`."}}}, Description: "Custom fields extracted from a resolving e-mail."},
 			"other_started_fields":        schema.ListNestedAttribute{Optional: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true}, "special_type": schema.StringAttribute{Optional: true, Computed: true, Description: "The built-in role of this field. `null` for a custom field.", Validators: []validator.String{stringvalidator.OneOf("alert_id", "cause", "title")}}, "field_target": schema.StringAttribute{Optional: true, Computed: true, Description: "Part of the e-mail this field reads.", Validators: []validator.String{stringvalidator.OneOf("from_email", "subject", "body")}}, "match_type": schema.StringAttribute{Optional: true, Computed: true, Description: "How the value is extracted.", Validators: []validator.String{stringvalidator.OneOf("match_before", "match_after", "match_between", "match_regex", "match_everything")}}, "content": schema.StringAttribute{Optional: true, Computed: true, Description: "The delimiter for `match_before` and `match_after`, or the regex for `match_regex`."}, "content_before": schema.StringAttribute{Optional: true, Computed: true, Description: "The start delimiter for `match_between`."}, "content_after": schema.StringAttribute{Optional: true, Computed: true, Description: "The end delimiter for `match_between`."}}}, Description: "Custom fields extracted from a started e-mail, stored as incident metadata."},
 			"paused":                      schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether the integration is paused. A paused integration opens no incidents."},
-			"policy_id":                   schema.StringAttribute{Optional: true, Description: "ID of the escalation policy used for alerts. Returned as a string. You can send it as a number or a string."},
 			"push":                        schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Alert by push notification."},
-			"recovery_period":             schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(0), Description: "Seconds a matching resolved e-mail must hold before the incident resolves. One of 0, 60, 180, 300, 900, 1800, 3600, 7200."},
+			"recovery_period":             schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(0), Description: "Seconds a matching resolved e-mail must hold before the incident resolves. One of 0, 60, 180, 300, 900, 1800, 3600, 7200. Has no effect while `resolved_rule_type` is `unused`."},
 			"resolved_alert_id_field":     schema.SingleNestedAttribute{Optional: true, Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true}, "special_type": schema.StringAttribute{Optional: true, Computed: true, Description: "The built-in role of this field. `null` for a custom field.", Validators: []validator.String{stringvalidator.OneOf("alert_id", "cause", "title")}}, "field_target": schema.StringAttribute{Optional: true, Computed: true, Description: "Part of the e-mail this field reads.", Validators: []validator.String{stringvalidator.OneOf("from_email", "subject", "body")}}, "match_type": schema.StringAttribute{Optional: true, Computed: true, Description: "How the value is extracted.", Validators: []validator.String{stringvalidator.OneOf("match_before", "match_after", "match_between", "match_regex", "match_everything")}}, "content": schema.StringAttribute{Optional: true, Computed: true, Description: "The delimiter for `match_before` and `match_after`, or the regex for `match_regex`."}, "content_before": schema.StringAttribute{Optional: true, Computed: true, Description: "The start delimiter for `match_between`."}, "content_after": schema.StringAttribute{Optional: true, Computed: true, Description: "The end delimiter for `match_between`."}}, Description: "Field that extracts the alert ID from a resolving e-mail."},
-			"resolved_rule_type":          schema.StringAttribute{Optional: true, Computed: true, Description: "How the resolved rules resolve the incident: `any` when one rule matches, `all` when every rule matches. `unused` turns off resolving by rules.", Validators: []validator.String{stringvalidator.OneOf("unused", "any", "all")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"resolved_rule_type":          schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("unused"), Description: "How the resolved rules resolve the incident: `any` when one rule matches, `all` when every rule matches. `unused` turns off resolving by rules.", Validators: []validator.String{stringvalidator.OneOf("unused", "any", "all")}},
 			"resolved_rules":              schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"rule_target": schema.StringAttribute{Optional: true, Computed: true, Description: "Part of the e-mail this rule matches.", Validators: []validator.String{stringvalidator.OneOf("from_email", "subject", "body")}}, "match_type": schema.StringAttribute{Optional: true, Computed: true, Description: "How to compare the content.", Validators: []validator.String{stringvalidator.OneOf("contains", "contains_not", "matches_regex", "matches_regex_not", "equals", "equals_not")}}, "content": schema.StringAttribute{Optional: true, Computed: true, Description: "Value or pattern to match."}}}, Description: "Rules that classify an e-mail as resolving the incident.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
 			"sms":                         schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Alert by SMS."},
 			"started_alert_id_field":      schema.SingleNestedAttribute{Optional: true, Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true}, "special_type": schema.StringAttribute{Optional: true, Computed: true, Description: "The built-in role of this field. `null` for a custom field.", Validators: []validator.String{stringvalidator.OneOf("alert_id", "cause", "title")}}, "field_target": schema.StringAttribute{Optional: true, Computed: true, Description: "Part of the e-mail this field reads.", Validators: []validator.String{stringvalidator.OneOf("from_email", "subject", "body")}}, "match_type": schema.StringAttribute{Optional: true, Computed: true, Description: "How the value is extracted.", Validators: []validator.String{stringvalidator.OneOf("match_before", "match_after", "match_between", "match_regex", "match_everything")}}, "content": schema.StringAttribute{Optional: true, Computed: true, Description: "The delimiter for `match_before` and `match_after`, or the regex for `match_regex`."}, "content_before": schema.StringAttribute{Optional: true, Computed: true, Description: "The start delimiter for `match_between`."}, "content_after": schema.StringAttribute{Optional: true, Computed: true, Description: "The end delimiter for `match_between`."}}, Description: "Field that extracts the alert ID, which links the started, acknowledged and resolved e-mails of one alert."},
-			"started_rule_type":           schema.StringAttribute{Optional: true, Computed: true, Description: "How the started rules open an incident: `any` when one rule matches, `all` when every rule matches. `unused` turns off opening incidents by rules.", Validators: []validator.String{stringvalidator.OneOf("unused", "any", "all")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"started_rule_type":           schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("unused"), Description: "How the started rules open an incident: `any` when one rule matches, `all` when every rule matches. `unused` turns off opening incidents by rules.", Validators: []validator.String{stringvalidator.OneOf("unused", "any", "all")}},
 			"started_rules":               schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"rule_target": schema.StringAttribute{Optional: true, Computed: true, Description: "Part of the e-mail this rule matches.", Validators: []validator.String{stringvalidator.OneOf("from_email", "subject", "body")}}, "match_type": schema.StringAttribute{Optional: true, Computed: true, Description: "How to compare the content.", Validators: []validator.String{stringvalidator.OneOf("contains", "contains_not", "matches_regex", "matches_regex_not", "equals", "equals_not")}}, "content": schema.StringAttribute{Optional: true, Computed: true, Description: "Value or pattern to match."}}}, Description: "Rules that classify an e-mail as opening an incident.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
 			"team_name":                   schema.StringAttribute{Computed: true, Description: "Name of the team that owns this integration."},
 			"team_wait":                   schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(180), Description: "Seconds before escalating to the whole team."},
@@ -1156,8 +1158,8 @@ func (r *EmailIntegrationResource) body(ctx context.Context, m EmailIntegrationM
 		}
 		body["metadata"] = items
 	}
-	if !m.PolicyId.IsNull() && !m.PolicyId.IsUnknown() {
-		body["policy_id"] = m.PolicyId.ValueString()
+	if !m.EscalationPolicyId.IsNull() && !m.EscalationPolicyId.IsUnknown() {
+		body["escalation_policy_id"] = m.EscalationPolicyId.ValueString()
 	}
 	if !m.Paused.IsNull() && !m.Paused.IsUnknown() {
 		body["paused"] = m.Paused.ValueBool()
@@ -1267,8 +1269,11 @@ func (r *EmailIntegrationResource) body(ctx context.Context, m EmailIntegrationM
 // updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
 func (r *EmailIntegrationResource) updateBody(ctx context.Context, config, plan, state EmailIntegrationModel) map[string]interface{} {
 	body := r.body(ctx, config)
-	if !state.PolicyId.IsNull() && !state.PolicyId.IsUnknown() && plan.PolicyId.IsNull() {
-		body["policy_id"] = nil
+	if !state.Name.IsNull() && !state.Name.IsUnknown() && plan.Name.IsNull() {
+		body["name"] = nil
+	}
+	if !state.EscalationPolicyId.IsNull() && !state.EscalationPolicyId.IsUnknown() && plan.EscalationPolicyId.IsNull() {
+		body["escalation_policy_id"] = nil
 	}
 	if !state.TitleField.IsNull() && !state.TitleField.IsUnknown() && plan.TitleField.IsNull() {
 		body["title_field"] = nil
@@ -1295,18 +1300,22 @@ func (r *EmailIntegrationResource) updateBody(ctx context.Context, config, plan,
 }
 
 func (r *EmailIntegrationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, emailIntegrationKeptOnRemoval, &resp.Diagnostics)
 	var plan EmailIntegrationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request EmailIntegrationModel
 	resp.Diagnostics.Append(configWithPlannedUnknowns(ctx, req.Config, req.Plan, nullValue(req.Plan.Raw.Type()), &request)...)
-	request.Call = plan.Call                     // its schema default travels when unset, so removing the line resets it
-	request.CriticalAlert = plan.CriticalAlert   // its schema default travels when unset, so removing the line resets it
-	request.Email = plan.Email                   // its schema default travels when unset, so removing the line resets it
-	request.Paused = plan.Paused                 // its schema default travels when unset, so removing the line resets it
-	request.Push = plan.Push                     // its schema default travels when unset, so removing the line resets it
-	request.RecoveryPeriod = plan.RecoveryPeriod // its schema default travels when unset, so removing the line resets it
-	request.Sms = plan.Sms                       // its schema default travels when unset, so removing the line resets it
-	request.TeamWait = plan.TeamWait             // its schema default travels when unset, so removing the line resets it
+	request.AcknowledgedRuleType = plan.AcknowledgedRuleType // its schema default travels when unset, so removing the line resets it
+	request.Call = plan.Call                                 // its schema default travels when unset, so removing the line resets it
+	request.CriticalAlert = plan.CriticalAlert               // its schema default travels when unset, so removing the line resets it
+	request.Email = plan.Email                               // its schema default travels when unset, so removing the line resets it
+	request.Paused = plan.Paused                             // its schema default travels when unset, so removing the line resets it
+	request.Push = plan.Push                                 // its schema default travels when unset, so removing the line resets it
+	request.RecoveryPeriod = plan.RecoveryPeriod             // its schema default travels when unset, so removing the line resets it
+	request.ResolvedRuleType = plan.ResolvedRuleType         // its schema default travels when unset, so removing the line resets it
+	request.Sms = plan.Sms                                   // its schema default travels when unset, so removing the line resets it
+	request.StartedRuleType = plan.StartedRuleType           // its schema default travels when unset, so removing the line resets it
+	request.TeamWait = plan.TeamWait                         // its schema default travels when unset, so removing the line resets it
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -1357,8 +1366,14 @@ func populateEmailIntegration(ctx context.Context, m *EmailIntegrationModel, att
 	if attrs == nil {
 		return
 	}
-	if v, ok := stringFromAPI(attrs["name"]); ok {
-		m.Name = types.StringValue(v)
+	if rawValue, exists := attrs["name"]; exists {
+		if rawValue == nil {
+			m.Name = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["name"]); ok {
+				m.Name = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := stringFromAPI(attrs["team_name"]); ok {
 		m.TeamName = types.StringValue(v)
@@ -1377,12 +1392,12 @@ func populateEmailIntegration(ctx context.Context, m *EmailIntegrationModel, att
 		mv, _ := types.MapValue(types.ObjectType{AttrTypes: emailIntegrationMetadataAttrTypes()}, items)
 		m.Metadata = mv
 	}
-	if rawValue, exists := attrs["policy_id"]; exists {
+	if rawValue, exists := attrs["escalation_policy_id"]; exists {
 		if rawValue == nil {
-			m.PolicyId = types.StringNull()
+			m.EscalationPolicyId = types.StringNull()
 		} else {
-			if v, ok := stringFromAPI(attrs["policy_id"]); ok {
-				m.PolicyId = types.StringValue(v)
+			if v, ok := stringFromAPI(attrs["escalation_policy_id"]); ok {
+				m.EscalationPolicyId = types.StringValue(v)
 			}
 		}
 	}
@@ -1560,6 +1575,7 @@ func populateEmailIntegration(ctx context.Context, m *EmailIntegrationModel, att
 }
 
 func (r *EmailIntegrationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, emailIntegrationKeptOnRemoval, &resp.Diagnostics)
 	var plan EmailIntegrationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request EmailIntegrationModel
@@ -1571,6 +1587,9 @@ func (r *EmailIntegrationResource) Update(ctx context.Context, req resource.Upda
 	}
 	// An unset line's default travels only when it changes the stored value (the line was just
 	// removed): resending an unchanged default can act on its own, e.g. unpause a group's members.
+	if !plan.AcknowledgedRuleType.Equal(state.AcknowledgedRuleType) {
+		request.AcknowledgedRuleType = plan.AcknowledgedRuleType
+	}
 	if !plan.Call.Equal(state.Call) {
 		request.Call = plan.Call
 	}
@@ -1589,8 +1608,14 @@ func (r *EmailIntegrationResource) Update(ctx context.Context, req resource.Upda
 	if !plan.RecoveryPeriod.Equal(state.RecoveryPeriod) {
 		request.RecoveryPeriod = plan.RecoveryPeriod
 	}
+	if !plan.ResolvedRuleType.Equal(state.ResolvedRuleType) {
+		request.ResolvedRuleType = plan.ResolvedRuleType
+	}
 	if !plan.Sms.Equal(state.Sms) {
 		request.Sms = plan.Sms
+	}
+	if !plan.StartedRuleType.Equal(state.StartedRuleType) {
+		request.StartedRuleType = plan.StartedRuleType
 	}
 	if !plan.TeamWait.Equal(state.TeamWait) {
 		request.TeamWait = plan.TeamWait
@@ -1619,6 +1644,13 @@ func (r *EmailIntegrationResource) Delete(ctx context.Context, req resource.Dele
 	if err := r.client.Delete(ctx, emailIntegrationBinding, vars); err != nil {
 		addAPIError(&resp.Diagnostics, "deleting email_integration", err, req.State.Raw.Type())
 	}
+}
+
+// Attributes whose removal from the configuration keeps the server's value (no default, no null).
+var emailIntegrationKeptOnRemoval = []string{"acknowledged_rules", "cause_field", "metadata", "resolved_rules", "started_rules"}
+
+func (r *EmailIntegrationResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	warnKeptOnRemoval(ctx, "betterstack_email_integration", req, resp, emailIntegrationKeptOnRemoval)
 }
 
 func (r *EmailIntegrationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

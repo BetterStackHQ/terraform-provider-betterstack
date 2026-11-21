@@ -23,7 +23,7 @@ Removing this resource only forgets Terraform state. No remote delete request is
 ```terraform
 resource "betterstack_release" "example" {
   version        = "v1.2.3"
-  application_id = 1
+  application_id = "12345"
 }
 ```
 
@@ -32,7 +32,7 @@ resource "betterstack_release" "example" {
 ### Required
 
 - `version` (String) Release version or commit ref. Changing it replaces the resource.
-- `application_id` (Number) IDs of the applications to register this release on. The ID of a connected application registers the release on the application it's connected to. Without it, the release is registered on every application already reporting this version. If none do, nothing is registered and the response is still 201. Can only be set when creating the resource; changing it afterwards replaces the resource.
+- `application_id` (String) IDs of the applications to register this release on. The ID of a connected application registers the release on the application it's connected to. Without it, the release is registered on every application already reporting this version. If none do, nothing is registered and the response is still 201. Can only be set when creating the resource; changing it afterwards replaces the resource.
 
 ### Optional
 

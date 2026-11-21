@@ -13,7 +13,7 @@ A release of an error-tracking application, detected automatically or registered
 
 ```terraform
 data "betterstack_release" "example" {
-  application_id = 1
+  application_id = "12345"
 }
 ```
 
@@ -25,7 +25,7 @@ Set `id`, or filter attributes matching exactly one record.
 
 - `id` (String) Look up by id.
 - `version` (String) Release version or commit ref.
-- `application_id` (Number) IDs of the applications to register this release on. The ID of a connected application registers the release on the application it's connected to. Without it, the release is registered on every application already reporting this version. If none do, nothing is registered and the response is still 201.
+- `application_id` (String) IDs of the applications to register this release on. The ID of a connected application registers the release on the application it's connected to. Without it, the release is registered on every application already reporting this version. If none do, nothing is registered and the response is still 201.
 
 ### Read-Only
 

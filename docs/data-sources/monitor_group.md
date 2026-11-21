@@ -34,8 +34,8 @@ data "betterstack_monitor_group" "example" {
 
 ## Endpoints
 
-- `GET /api/v2/monitor-groups`
-- `GET /api/v2/monitor-groups/:id`
-- `POST /api/v2/monitor-groups`
-- `PATCH /api/v2/monitor-groups/:id`
-- `DELETE /api/v2/monitor-groups/:id`
+- `GET /api/v3/monitor-groups`
+- `GET /api/v3/monitor-groups/:id`
+- `POST /api/v3/monitor-groups`
+- `PATCH /api/v3/monitor-groups/:id`
+- `DELETE /api/v3/monitor-groups/:id`

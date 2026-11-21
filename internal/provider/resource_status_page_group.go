@@ -7,7 +7,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -29,7 +28,7 @@ type StatusPageGroupModel struct {
 	Id             types.String `tfsdk:"id"`
 	CreatedAt      types.String `tfsdk:"created_at"`
 	Name           types.String `tfsdk:"name"`
-	OrganizationId types.Int64  `tfsdk:"organization_id"`
+	OrganizationId types.String `tfsdk:"organization_id"`
 	SortIndex      types.Int64  `tfsdk:"sort_index"`
 	UpdatedAt      types.String `tfsdk:"updated_at"`
 }
@@ -45,7 +44,7 @@ func (r *StatusPageGroupResource) Schema(ctx context.Context, req resource.Schem
 			"id":              schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"created_at":      schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"name":            schema.StringAttribute{Required: true, Description: "Group name."},
-			"organization_id": schema.Int64Attribute{Optional: true, Computed: true, Description: "Organization the group belongs to, as its Better Stack organization id. Defaults to the first organization the token can access. An organization the token can't access returns a 422 error that lists the ones it can. Not returned in responses.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown(), replaceWarningInt64{int64planmodifier.RequiresReplaceIfConfigured(), "betterstack_status_page_group"}}},
+			"organization_id": schema.StringAttribute{Optional: true, Computed: true, Description: "Organization the group belongs to, as its Better Stack organization id. Defaults to the first organization the token can access. An organization the token can't access returns a 422 error that lists the ones it can. Not returned in responses.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_status_page_group"}}},
 			"sort_index":      schema.Int64Attribute{Optional: true, Description: "Display order among the organization's status page groups. Writes also accept it as position."},
 			"updated_at":      schema.StringAttribute{Computed: true},
 		},
@@ -65,7 +64,7 @@ func (r *StatusPageGroupResource) Configure(ctx context.Context, req resource.Co
 func (r *StatusPageGroupResource) body(ctx context.Context, m StatusPageGroupModel) map[string]interface{} {
 	body := map[string]interface{}{}
 	if !m.OrganizationId.IsNull() && !m.OrganizationId.IsUnknown() {
-		body["organization_id"] = m.OrganizationId.ValueInt64()
+		body["organization_id"] = idToAPI(m.OrganizationId.ValueString())
 	}
 	if !m.Name.IsNull() && !m.Name.IsUnknown() {
 		body["name"] = m.Name.ValueString()

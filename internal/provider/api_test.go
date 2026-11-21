@@ -104,7 +104,7 @@ func TestDecodeItemAndListWalkTheEnvelope(t *testing.T) {
 // A declared sideloaded field arrives as a relationship reference and is resolved against the
 // document's included records, meta keys included. Undeclared relationships stay out.
 func TestDeclaredRelationshipsResolveThroughIncluded(t *testing.T) {
-	body := `{"data":{"id":"5","type":"on_call_calendar","attributes":{"name":"Primary"},` +
+	body := `{"data":{"id":"5","type":"on_call_schedule","attributes":{"name":"Primary"},` +
 		`"relationships":{"on_call_users":{"data":[{"id":"77","type":"user","meta":{"email":"sre@example.com"}}]},` +
 		`"team":{"data":{"id":"3","type":"team"}}}},` +
 		`"included":[{"id":"77","type":"user","attributes":{"first_name":"Sam","phone_numbers":["+1555"]}},` +

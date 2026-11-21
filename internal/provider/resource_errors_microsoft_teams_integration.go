@@ -8,10 +8,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -23,6 +24,7 @@ import (
 var _ resource.Resource = &ErrorsMicrosoftTeamsIntegrationResource{}
 var _ resource.ResourceWithConfigure = &ErrorsMicrosoftTeamsIntegrationResource{}
 var _ resource.ResourceWithImportState = &ErrorsMicrosoftTeamsIntegrationResource{}
+var _ resource.ResourceWithModifyPlan = &ErrorsMicrosoftTeamsIntegrationResource{}
 
 type ErrorsMicrosoftTeamsIntegrationResource struct {
 	client *Client
@@ -294,13 +296,13 @@ func flattenErrorsMicrosoftTeamsIntegrationRoutes(ctx context.Context, prior typ
 }
 
 type ErrorsMicrosoftTeamsIntegrationRoutesApplicationsModel struct {
-	ApplicationId types.Int64 `tfsdk:"application_id"`
-	Environments  types.List  `tfsdk:"environments"`
+	ApplicationId types.String `tfsdk:"application_id"`
+	Environments  types.List   `tfsdk:"environments"`
 }
 
 func errorsMicrosoftTeamsIntegrationRoutesApplicationsAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"application_id": types.Int64Type,
+		"application_id": types.StringType,
 		"environments":   types.ListType{ElemType: types.StringType},
 	}
 }
@@ -314,7 +316,7 @@ func expandErrorsMicrosoftTeamsIntegrationRoutesApplications(ctx context.Context
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
 	if !m.ApplicationId.IsNull() && !m.ApplicationId.IsUnknown() {
-		out["application_id"] = m.ApplicationId.ValueInt64()
+		out["application_id"] = idToAPI(m.ApplicationId.ValueString())
 	}
 	if !m.Environments.IsNull() && !m.Environments.IsUnknown() {
 		var vals []string
@@ -334,8 +336,8 @@ func flattenErrorsMicrosoftTeamsIntegrationRoutesApplications(ctx context.Contex
 	if !prior.IsNull() && !prior.IsUnknown() {
 		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
 	}
-	if v, ok := int64FromAPI(raw["application_id"]); ok {
-		m.ApplicationId = types.Int64Value(v)
+	if v, ok := stringFromAPI(raw["application_id"]); ok {
+		m.ApplicationId = types.StringValue(v)
 	}
 	if raw, ok := raw["environments"].([]interface{}); ok {
 		vals := make([]string, 0, len(raw))
@@ -404,13 +406,13 @@ func (r *ErrorsMicrosoftTeamsIntegrationResource) Schema(ctx context.Context, re
 		Attributes: map[string]schema.Attribute{
 			// The declared lifecycle addresses an existing object, so identity is configured.
 			"id":                             schema.StringAttribute{Required: true, Description: "Existing remote object ID to adopt; no remote object is created.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_errors_microsoft_teams_integration"}}},
-			"affected_users_threshold_count": schema.Int64Attribute{Optional: true, Computed: true, Description: "Total number of affected users for `notifications.affected_users_threshold`.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
+			"affected_users_threshold_count": schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Total number of affected users for `notifications.affected_users_threshold`."},
 			"microsoft_teams_channel_name":   schema.StringAttribute{Computed: true, Description: "Channel the app was added to, which gets every error while `routes` is empty."},
 			"microsoft_teams_team_name":      schema.StringAttribute{Computed: true, Description: "Microsoft Teams team the Better Stack app was added to."},
 			"notifications":                  schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"spikes": schema.BoolAttribute{Optional: true, Computed: true, Description: "Application has a spike in errors."}, "spike_protection": schema.BoolAttribute{Optional: true, Computed: true, Description: "Spike protection starts sampling exceptions."}, "new_releases": schema.BoolAttribute{Optional: true, Computed: true, Description: "New release is observed."}, "new_errors": schema.BoolAttribute{Optional: true, Computed: true, Description: "New error occurs."}, "occurrence_milestones": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches an occurrence milestone (10, 100, 200, 500...)."}, "occurrence_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error occurs `occurrence_threshold_count` times within `occurrence_threshold_interval`."}, "automatically_reopened": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error is automatically re-opened."}, "affected_users_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches `affected_users_threshold_count` affected users."}}, Description: "\"Notify me when\": which events post to the channels. An update changes only the toggles sent.", PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()}},
-			"occurrence_threshold_count":     schema.Int64Attribute{Optional: true, Computed: true, Description: "Number of occurrences for `notifications.occurrence_threshold`.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
-			"occurrence_threshold_interval":  schema.StringAttribute{Optional: true, Computed: true, Description: "Time window for `notifications.occurrence_threshold`.", Validators: []validator.String{stringvalidator.OneOf("minute", "hour", "day", "week")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"routes":                         schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"applications": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"application_id": schema.Int64Attribute{Optional: true, Computed: true}, "environments": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType}}}, Description: "Applications whose errors this route sends, each with its environments. Empty means any application."}, "channels": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Optional: true, Computed: true, Description: "Microsoft Teams channel ID: a standard channel of the team the app was added to."}, "name": schema.StringAttribute{Computed: true, Description: "Channel name, as Teams lists it."}}}, Description: "Channels the route posts to. At least one."}}}, Description: "Which applications' errors go to which channels. An application in no route gets no messages unless a route has no applications. Empty means everything goes to the channel the app was added to. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"occurrence_threshold_count":     schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Number of occurrences for `notifications.occurrence_threshold`."},
+			"occurrence_threshold_interval":  schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("minute"), Description: "Time window for `notifications.occurrence_threshold`.", Validators: []validator.String{stringvalidator.OneOf("minute", "hour", "day", "week")}},
+			"routes":                         schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"applications": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"application_id": schema.StringAttribute{Optional: true, Computed: true}, "environments": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType}}}, Description: "Applications whose errors this route sends, each with its environments. Empty means any application."}, "channels": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Optional: true, Computed: true, Description: "Microsoft Teams channel ID: a standard channel of the team the app was added to."}, "name": schema.StringAttribute{Computed: true, Description: "Channel name, as Teams lists it."}}}, Description: "Channels the route posts to. At least one."}}}, Description: "Which applications' errors go to which channels. An application in no route gets no messages unless a route has no applications. Empty means everything goes to the channel the app was added to. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
 			"tag_filter":                     schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"tag": schema.StringAttribute{Optional: true, Computed: true, Description: "Exception tag, such as environment or level."}, "values": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Matches any of these values."}}}, Description: "Acts on an error only when one of its exceptions has every tag listed, each with one of its values. Empty means every error. At most 10 tags with 50 values each, 200 characters per tag or value, each tag once. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
 			"team_id":                        schema.StringAttribute{Computed: true, Description: "ID of the team that owns the integration, as the web app shows it (t123).", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"team_name":                      schema.StringAttribute{Computed: true, Description: "Name of the team that owns the integration."},
@@ -464,10 +466,14 @@ func (r *ErrorsMicrosoftTeamsIntegrationResource) body(ctx context.Context, m Er
 }
 
 func (r *ErrorsMicrosoftTeamsIntegrationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, errorsMicrosoftTeamsIntegrationKeptOnRemoval, &resp.Diagnostics)
 	var plan ErrorsMicrosoftTeamsIntegrationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request ErrorsMicrosoftTeamsIntegrationModel
 	resp.Diagnostics.Append(configWithPlannedUnknowns(ctx, req.Config, req.Plan, nullValue(req.Plan.Raw.Type()), &request)...)
+	request.AffectedUsersThresholdCount = plan.AffectedUsersThresholdCount // its schema default travels when unset, so removing the line resets it
+	request.OccurrenceThresholdCount = plan.OccurrenceThresholdCount       // its schema default travels when unset, so removing the line resets it
+	request.OccurrenceThresholdInterval = plan.OccurrenceThresholdInterval // its schema default travels when unset, so removing the line resets it
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -597,6 +603,7 @@ func populateErrorsMicrosoftTeamsIntegration(ctx context.Context, m *ErrorsMicro
 }
 
 func (r *ErrorsMicrosoftTeamsIntegrationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, errorsMicrosoftTeamsIntegrationKeptOnRemoval, &resp.Diagnostics)
 	var plan ErrorsMicrosoftTeamsIntegrationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request ErrorsMicrosoftTeamsIntegrationModel
@@ -605,6 +612,17 @@ func (r *ErrorsMicrosoftTeamsIntegrationResource) Update(ctx context.Context, re
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+	// An unset line's default travels only when it changes the stored value (the line was just
+	// removed): resending an unchanged default can act on its own, e.g. unpause a group's members.
+	if !plan.AffectedUsersThresholdCount.Equal(state.AffectedUsersThresholdCount) {
+		request.AffectedUsersThresholdCount = plan.AffectedUsersThresholdCount
+	}
+	if !plan.OccurrenceThresholdCount.Equal(state.OccurrenceThresholdCount) {
+		request.OccurrenceThresholdCount = plan.OccurrenceThresholdCount
+	}
+	if !plan.OccurrenceThresholdInterval.Equal(state.OccurrenceThresholdInterval) {
+		request.OccurrenceThresholdInterval = plan.OccurrenceThresholdInterval
 	}
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
@@ -622,6 +640,13 @@ func (r *ErrorsMicrosoftTeamsIntegrationResource) Update(ctx context.Context, re
 func (r *ErrorsMicrosoftTeamsIntegrationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retention is explicit IaC policy: removal forgets state and never deletes remote history.
 	return
+}
+
+// Attributes whose removal from the configuration keeps the server's value (no default, no null).
+var errorsMicrosoftTeamsIntegrationKeptOnRemoval = []string{"notifications", "routes", "tag_filter"}
+
+func (r *ErrorsMicrosoftTeamsIntegrationResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	warnKeptOnRemoval(ctx, "betterstack_errors_microsoft_teams_integration", req, resp, errorsMicrosoftTeamsIntegrationKeptOnRemoval)
 }
 
 func (r *ErrorsMicrosoftTeamsIntegrationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

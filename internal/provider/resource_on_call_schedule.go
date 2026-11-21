@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -29,7 +29,7 @@ func NewOnCallScheduleResource() resource.Resource {
 
 type OnCallScheduleModel struct {
 	Id                    types.String `tfsdk:"id"`
-	DefaultCalendar       types.Bool   `tfsdk:"default_calendar"`
+	DefaultSchedule       types.Bool   `tfsdk:"default_schedule"`
 	Name                  types.String `tfsdk:"name"`
 	OnCallUsers           types.List   `tfsdk:"on_call_users"`
 	SlackGroupHandle      types.String `tfsdk:"slack_group_handle"`
@@ -301,13 +301,13 @@ func (r *OnCallScheduleResource) Schema(ctx context.Context, req resource.Schema
 		Description: "An on-call schedule: who is on call and when.",
 		Attributes: map[string]schema.Attribute{
 			"id":                       schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"default_calendar":         schema.BoolAttribute{Computed: true, Description: "Whether this is the team's default on-call schedule."},
+			"default_schedule":         schema.BoolAttribute{Computed: true, Description: "Whether this is the team's default on-call schedule."},
 			"name":                     schema.StringAttribute{Required: true, Description: "Schedule name."},
 			"on_call_users":            schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true}, "first_name": schema.StringAttribute{Computed: true}, "last_name": schema.StringAttribute{Computed: true}, "email": schema.StringAttribute{Computed: true}, "phone_numbers": schema.ListAttribute{Computed: true, ElementType: types.StringType}}}, Description: "Users on call now, with their id, name, e-mail and phone numbers. When getting a single schedule, date picks another time. Each user's entry under relationships also has meta with email, on_holiday and holiday_ends_at."},
 			"slack_group_handle":       schema.StringAttribute{Optional: true, Description: "Handle of the Slack user group that follows who is on call, without the @. Null when none."},
 			"slack_groups":             schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"slack_workspace_id": schema.StringAttribute{Computed: true}, "slack_workspace_name": schema.StringAttribute{Computed: true}, "status": schema.StringAttribute{Computed: true}, "error": schema.StringAttribute{Computed: true}, "unconnected_users": schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true}, "first_name": schema.StringAttribute{Computed: true}, "last_name": schema.StringAttribute{Computed: true}, "email": schema.StringAttribute{Computed: true}}}}}}, Description: "How each connected Slack workspace took the handle. status is pending while Better Stack sets the group up, then shows the state of the link, or reinstall_required. error explains a failure. unconnected_users lists the on-call users the group doesn't include, and only appears when getting a single schedule."},
 			"team_name":                schema.StringAttribute{Computed: true, Description: "Name of the team that owns the schedule."},
-			"use_existing_slack_group": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether slack_group_handle names an existing Slack user group to take over instead of one created for the schedule. Sending `null` or leaving it out keeps the current setting.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
+			"use_existing_slack_group": schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether slack_group_handle names an existing Slack user group to take over instead of one created for the schedule. Sending `null` or leaving it out keeps the current setting."},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -350,6 +350,7 @@ func (r *OnCallScheduleResource) Create(ctx context.Context, req resource.Create
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request OnCallScheduleModel
 	resp.Diagnostics.Append(configWithPlannedUnknowns(ctx, req.Config, req.Plan, nullValue(req.Plan.Raw.Type()), &request)...)
+	request.UseExistingSlackGroup = plan.UseExistingSlackGroup // its schema default travels when unset, so removing the line resets it
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -403,8 +404,8 @@ func populateOnCallSchedule(ctx context.Context, m *OnCallScheduleModel, attrs m
 	if v, ok := stringFromAPI(attrs["name"]); ok {
 		m.Name = types.StringValue(v)
 	}
-	if v, ok := boolFromAPI(attrs["default_calendar"]); ok {
-		m.DefaultCalendar = types.BoolValue(v)
+	if v, ok := boolFromAPI(attrs["default_schedule"]); ok {
+		m.DefaultSchedule = types.BoolValue(v)
 	}
 	if v, ok := stringFromAPI(attrs["team_name"]); ok {
 		m.TeamName = types.StringValue(v)
@@ -471,6 +472,11 @@ func (r *OnCallScheduleResource) Update(ctx context.Context, req resource.Update
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+	// An unset line's default travels only when it changes the stored value (the line was just
+	// removed): resending an unchanged default can act on its own, e.g. unpause a group's members.
+	if !plan.UseExistingSlackGroup.Equal(state.UseExistingSlackGroup) {
+		request.UseExistingSlackGroup = plan.UseExistingSlackGroup
 	}
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()

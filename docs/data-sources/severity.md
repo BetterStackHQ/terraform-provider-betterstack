@@ -34,12 +34,12 @@ Set `id`, or filter attributes matching exactly one record.
 - `email` (Boolean) Trigger e-mail alerts at this severity.
 - `push` (Boolean) Trigger mobile push alerts at this severity.
 - `critical_alert` (Boolean) Trigger critical push alerts that bypass silent mode.
-- `urgency_group_id` (Number) Severity group this severity belongs to.
+- `severity_group_id` (String) Severity group this severity belongs to.
 
 ## Endpoints
 
-- `GET /api/v2/urgencies`
-- `GET /api/v2/urgencies/:id`
-- `POST /api/v2/urgencies`
-- `PATCH /api/v2/urgencies/:id`
-- `DELETE /api/v2/urgencies/:id`
+- `GET /api/v3/severities`
+- `GET /api/v3/severities/:id`
+- `POST /api/v3/severities`
+- `PATCH /api/v3/severities/:id`
+- `DELETE /api/v3/severities/:id`

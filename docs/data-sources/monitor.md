@@ -32,7 +32,7 @@ Set `id`, or filter attributes matching exactly one record.
 - `team_name` (String) Name of the team that owns this monitor.
 - `metadata` (Attributes Map, see [nested schema](#nestedatt--metadata)) Custom metadata. Each key holds a list of values. A value is a string, written as `{type: "String", value}`, or a catalog reference, written as `{type, item_id, name, email}`. Team references are returned as team IDs such as `t123`. Each key holds its list under `values`, for example `{ owner = { values = [ ... ] } }`.
 - `monitor_type` (String) What kind of check to run. Valid values: `status`, `expected_status_code`, `keyword`, `keyword_absence`, `ping`, `tcp`, `udp`, `smtp`, `pop`, `imap`, `dns`, `playwright`.
-- `monitor_group_id` (Number) ID of the monitor group this monitor belongs to.
+- `monitor_group_id` (String) ID of the monitor group this monitor belongs to.
 - `paused` (Boolean) Whether checks are paused.
 - `check_frequency` (Number) How often to check, in seconds. The monitor can check less often than this. effective_check_frequency shows how often it actually checks.
 - `effective_check_frequency` (Number) How often the monitor actually checks, in seconds. This is check_frequency, unless checks are slowed down, or raised to the request timeout or to the plan's minimum after a downgrade.
@@ -61,8 +61,8 @@ Set `id`, or filter attributes matching exactly one record.
 - `push` (Boolean) Alert by push notification.
 - `critical_alert` (Boolean) Alert by a critical push notification that bypasses silent mode.
 - `team_wait` (Number) Seconds before escalating to the whole team.
-- `policy_id` (String) ID of the escalation policy used for alerts. Returned as a string. You can send it as a number or a string.
-- `expiration_policy_id` (Number) ID of the escalation policy for SSL certificate and domain expiration alerts.
+- `escalation_policy_id` (String) ID of the escalation policy used for alerts. Returned as a string. You can send it as a number or a string.
+- `expiration_policy_id` (String) ID of the escalation policy for SSL certificate and domain expiration alerts.
 - `ssl_expiration` (Number) Days before the SSL certificate expires to start alerting. `-1` turns it off.
 - `domain_expiration` (Number) Days before the domain expires to start alerting. `-1` turns it off.
 - `maintenance_from` (String) Start time of the maintenance window, as `HH:MM:SS`.
@@ -101,8 +101,8 @@ Set `id`, or filter attributes matching exactly one record.
 
 ## Endpoints
 
-- `GET /api/v2/monitors`
-- `GET /api/v2/monitors/:id`
-- `POST /api/v2/monitors`
-- `PATCH /api/v2/monitors/:id`
-- `DELETE /api/v2/monitors/:id`
+- `GET /api/v3/monitors`
+- `GET /api/v3/monitors/:id`
+- `POST /api/v3/monitors`
+- `PATCH /api/v3/monitors/:id`
+- `DELETE /api/v3/monitors/:id`

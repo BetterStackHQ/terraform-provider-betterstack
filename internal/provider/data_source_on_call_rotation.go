@@ -29,15 +29,17 @@ func (d *OnCallRotationDataSource) Schema(ctx context.Context, req datasource.Sc
 	resp.Schema = schema.Schema{
 		Description: "An on-call rotation: the recurring shift configuration for an on-call schedule.",
 		Attributes: map[string]schema.Attribute{
-			"id":                 schema.StringAttribute{Required: true, Description: "Id of the on_call_rotation to look up."},
-			"effective_timezone": schema.StringAttribute{Computed: true, Description: "Time zone the working hours actually use."},
-			"end_rotations_at":   schema.StringAttribute{Computed: true, Description: "When the rotation schedule ends. Must be after start_rotations_at."},
-			"rotation_interval":  schema.StringAttribute{Computed: true, Description: "Unit for the rotation length."},
-			"rotation_length":    schema.Int64Attribute{Computed: true, Description: "Number of intervals each shift lasts."},
-			"start_rotations_at": schema.StringAttribute{Computed: true, Description: "When the rotation schedule starts."},
-			"timezone":           schema.StringAttribute{Computed: true, Description: "Time zone for working hours and for handovers across daylight saving changes. If you leave it out, the previous rotation's time zone is kept. A new rotation with working hours defaults to UTC."},
-			"users":              schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "E-mail addresses of users in the rotation, in shift order. Each must be a responder in the schedule's team."},
-			"working_hours":      schema.SetNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"day": schema.StringAttribute{Computed: true}, "start_time": schema.StringAttribute{Computed: true}, "end_time": schema.StringAttribute{Computed: true}}}, Description: "Working hours, as up to 50 windows in local time. They are returned as `HH:MM`, sorted by day. A window that ends at or before its start runs overnight, and one with the same start and end covers the whole day. Leave it out or send `[]` for none."},
+			"id":                  schema.StringAttribute{Required: true, Description: "Id of the on_call_rotation to look up."},
+			"apply_from":          schema.StringAttribute{Computed: true, Description: "When this change takes effect, as Apply changes from in the web app. Shifts before it are kept. Leave it out to apply the change now."},
+			"apply_from_timezone": schema.StringAttribute{Computed: true, Description: "Time zone that apply_from is read in when it has no UTC offset. The web app shows apply_from in this time zone. Defaults to UTC."},
+			"effective_timezone":  schema.StringAttribute{Computed: true, Description: "Time zone the working hours actually use."},
+			"end_rotations_at":    schema.StringAttribute{Computed: true, Description: "When the rotation schedule ends. Must be after start_rotations_at. If you leave it out, the rotation keeps running, as one set up in the web app: its shifts are generated two years ahead and kept extended."},
+			"rotation_interval":   schema.StringAttribute{Computed: true, Description: "Unit for the rotation length."},
+			"rotation_length":     schema.Int64Attribute{Computed: true, Description: "Number of intervals each shift lasts."},
+			"start_rotations_at":  schema.StringAttribute{Computed: true, Description: "When the rotation schedule starts."},
+			"timezone":            schema.StringAttribute{Computed: true, Description: "Time zone for working hours and for handovers across daylight saving changes. If you leave it out, the previous rotation's time zone is kept. A new rotation with working hours defaults to UTC."},
+			"users":               schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "E-mail addresses of users in the rotation, in shift order. Each must be a responder in the schedule's team."},
+			"working_hours":       schema.SetNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"day": schema.StringAttribute{Computed: true}, "start_time": schema.StringAttribute{Computed: true}, "end_time": schema.StringAttribute{Computed: true}}}, Description: "Working hours, as up to 50 windows in local time. They are returned as `HH:MM`, sorted by day. A window that ends at or before its start runs overnight, and one with the same start and end covers the whole day. Leave it out or send `[]` for none."},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)

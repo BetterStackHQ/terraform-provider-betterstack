@@ -56,13 +56,13 @@ type SlackIntegrationModel struct {
 
 type SlackIntegrationChannelInviteesModel struct {
 	Type types.String `tfsdk:"type"`
-	Id   types.Int64  `tfsdk:"id"`
+	Id   types.String `tfsdk:"id"`
 }
 
 func slackIntegrationChannelInviteesAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"type": types.StringType,
-		"id":   types.Int64Type,
+		"id":   types.StringType,
 	}
 }
 
@@ -75,8 +75,8 @@ func flattenSlackIntegrationChannelInvitees(ctx context.Context, prior types.Obj
 	if v, ok := stringFromAPI(raw["type"]); ok {
 		m.Type = types.StringValue(v)
 	}
-	if v, ok := int64FromAPI(raw["id"]); ok {
-		m.Id = types.Int64Value(v)
+	if v, ok := stringFromAPI(raw["id"]); ok {
+		m.Id = types.StringValue(v)
 	}
 	obj, _ := types.ObjectValueFrom(ctx, slackIntegrationChannelInviteesAttrTypes(), m)
 	return obj
@@ -152,13 +152,13 @@ func flattenSlackIntegrationAlertOptions(ctx context.Context, prior types.Object
 
 type SlackIntegrationStatusPageUpdateResourcesModel struct {
 	Type types.String `tfsdk:"type"`
-	Id   types.Int64  `tfsdk:"id"`
+	Id   types.String `tfsdk:"id"`
 }
 
 func slackIntegrationStatusPageUpdateResourcesAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"type": types.StringType,
-		"id":   types.Int64Type,
+		"id":   types.StringType,
 	}
 }
 
@@ -171,8 +171,8 @@ func flattenSlackIntegrationStatusPageUpdateResources(ctx context.Context, prior
 	if v, ok := stringFromAPI(raw["type"]); ok {
 		m.Type = types.StringValue(v)
 	}
-	if v, ok := int64FromAPI(raw["id"]); ok {
-		m.Id = types.Int64Value(v)
+	if v, ok := stringFromAPI(raw["id"]); ok {
+		m.Id = types.StringValue(v)
 	}
 	obj, _ := types.ObjectValueFrom(ctx, slackIntegrationStatusPageUpdateResourcesAttrTypes(), m)
 	return obj
@@ -352,7 +352,7 @@ func (d *SlackIntegrationDataSource) Schema(ctx context.Context, req datasource.
 			"alert_all_teams_and_policies":          schema.BoolAttribute{Computed: true, Description: "Notify this channel for every team and escalation policy."},
 			"alert_options":                         schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Computed: true, Description: "Type of routing target. Responses use policy. Requests accept policy or escalation_policy."}, "id": schema.StringAttribute{Computed: true, Description: "A team's t-prefixed id (t123), or an escalation policy's numeric id."}, "name": schema.StringAttribute{Computed: true, Description: "Team or escalation policy name. Ignored in requests."}, "team_id": schema.StringAttribute{Computed: true, Description: "The escalation policy's team, as a t-prefixed id. Only on policy entries, and ignored in requests."}, "team_name": schema.StringAttribute{Computed: true, Description: "The escalation policy's team name. Only on policy entries, and ignored in requests."}, "call": schema.BoolAttribute{Computed: true, Description: "Alert by phone call. Only on team entries."}, "sms": schema.BoolAttribute{Computed: true, Description: "Alert by SMS. Only on team entries."}, "email": schema.BoolAttribute{Computed: true, Description: "Alert by e-mail. Only on team entries."}, "push": schema.BoolAttribute{Computed: true, Description: "Alert by push notification. Only on team entries."}, "critical_alert": schema.BoolAttribute{Computed: true, Description: "Alert by a critical push notification. Only on team entries."}}}, Description: "Teams and escalation policies whose incidents notify this channel. Sending it replaces the whole list. An alert channel left out of a team entry is off."},
 			"channel_display_name":                  schema.StringAttribute{Computed: true, Description: "Display name for the channel in Better Stack. Blank clears it."},
-			"channel_invitees":                      schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Computed: true, Description: "What is invited."}, "id": schema.Int64Attribute{Computed: true, Description: "Id of the user, on-call calendar or Slack user group."}}}, Description: "Who is invited to incident channels. Replaces the whole list."},
+			"channel_invitees":                      schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Computed: true, Description: "What is invited."}, "id": schema.StringAttribute{Computed: true, Description: "Id of the user, on-call calendar or Slack user group."}}}, Description: "Who is invited to incident channels. Replaces the whole list."},
 			"direct_message_on_mention":             schema.BoolAttribute{Computed: true, Description: "Direct-message users mentioned in incidents."},
 			"integration_type":                      schema.StringAttribute{Computed: true, Description: "Notification style."},
 			"invite_new_slack_users":                schema.BoolAttribute{Computed: true, Description: "Invite new Slack users automatically."},
@@ -370,7 +370,7 @@ func (d *SlackIntegrationDataSource) Schema(ctx context.Context, req datasource.
 			"slack_status":                          schema.StringAttribute{Computed: true, Description: "Connection status."},
 			"slack_team_id":                         schema.StringAttribute{Computed: true, Description: "Slack workspace id."},
 			"slack_team_name":                       schema.StringAttribute{Computed: true, Description: "Slack workspace name."},
-			"status_page_update_resources":          schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Computed: true, Description: "Resource type."}, "id": schema.Int64Attribute{Computed: true, Description: "Resource id."}}}, Description: "Resources whose status page updates are posted to this channel. Needs post_status_page_updates turned on. Sending it replaces the whole list."},
+			"status_page_update_resources":          schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Computed: true, Description: "Resource type."}, "id": schema.StringAttribute{Computed: true, Description: "Resource id."}}}, Description: "Resources whose status page updates are posted to this channel. Needs post_status_page_updates turned on. Sending it replaces the whole list."},
 			"team_name":                             schema.StringAttribute{Computed: true, Description: "Name of the team that owns this integration."},
 		},
 	}

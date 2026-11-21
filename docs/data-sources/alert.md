@@ -13,8 +13,8 @@ An alert on a dashboard chart or a saved exploration that opens an incident when
 
 ```terraform
 data "betterstack_alert" "example" {
-  dashboard_id = 1
-  chart_id     = 1
+  dashboard_id = "12345"
+  chart_id     = "12345"
   name         = "High Error Rate"
 }
 ```
@@ -23,8 +23,8 @@ data "betterstack_alert" "example" {
 
 ### Address
 
-- `dashboard_id` (Number, Required) Dashboard of the chart this alert watches. `null` for an alert on an exploration. Changing it replaces the resource.
-- `chart_id` (Number, Required) Chart this alert watches. It can't be changed after the alert is created. The alert belongs to the chart's dashboard or exploration. Changing it replaces the resource.
+- `dashboard_id` (String, Required) Dashboard of the chart this alert watches. `null` for an alert on an exploration. Changing it replaces the resource.
+- `chart_id` (String, Required) Chart this alert watches. It can't be changed after the alert is created. The alert belongs to the chart's dashboard or exploration. Changing it replaces the resource.
 
 ### Lookup
 
@@ -35,7 +35,7 @@ Set `id`, or filter attributes matching exactly one record.
 
 ### Read-Only
 
-- `exploration_id` (Number) Exploration this alert watches. `null` for an alert on a dashboard chart.
+- `exploration_id` (String) Exploration this alert watches. `null` for an alert on a dashboard chart.
 - `alert_type` (String) Alert type: `threshold` fires when the value crosses a threshold, `relative` compares it with the previous period, and `anomaly_rrcf` uses anomaly detection. Valid values: `threshold`, `relative`, `anomaly_rrcf`.
 - `operator` (String) How the value is compared. Required for threshold and relative alerts. Anomaly alerts don't use it and return `null`. Valid values: `equal`, `not_equal`, `higher_than`, `higher_than_or_equal`, `lower_than`, `lower_than_or_equal`, `increases_by`, `decreases_by`, `changes_by`.
 - `value` (Number) Threshold value. Creating a threshold or relative alert needs `value` or `string_value`. `null` on anomaly alerts.

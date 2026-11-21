@@ -32,47 +32,47 @@ At least one of `url` or `scenario_name` must be configured. The provider valida
 
 Optional attributes are also computed: left unset, they take the server-side default.
 
-- `metadata` (Attributes Map, see [nested schema](#nestedatt--metadata)) Custom metadata. Each key holds a list of values. A value is a string, written as `{type: "String", value}`, or a catalog reference, written as `{type, item_id, name, email}`. Team references are returned as team IDs such as `t123`. Each key holds its list under `values`, for example `{ owner = { values = [ ... ] } }`.
+- `metadata` (Attributes Map, see [nested schema](#nestedatt--metadata)) Custom metadata. Each key holds a list of values. A value is a string, written as `{type: "String", value}`, or a catalog reference, written as `{type, item_id, name, email}`. Team references are returned as team IDs such as `t123`. Each key holds its list under `values`, for example `{ owner = { values = [ ... ] } }`. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
 - `url` (String) URL or host the monitor checks. Required for every type except Playwright, which uses scenario_name.
-- `pronounceable_name` (String) Human-friendly name used in alerts.
-- `monitor_group_id` (Number) ID of the monitor group this monitor belongs to. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `pronounceable_name` (String) Human-friendly name used in alerts. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `monitor_group_id` (String) ID of the monitor group this monitor belongs to. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `paused` (Boolean) Whether checks are paused. Defaults to `false`.
 - `check_frequency` (Number) How often to check, in seconds. The monitor can check less often than this. effective_check_frequency shows how often it actually checks. Defaults to `180`.
-- `request_timeout` (Number) Check timeout. In seconds for HTTP and Playwright checks, and in milliseconds for `ping`, `tcp`, `udp`, `smtp`, `pop`, `imap` and `dns` monitors. A value of 0.5 is saved as 500.
-- `recovery_period` (Number) How long checks must keep passing before the incident resolves, in seconds.
-- `confirmation_period` (Number) How long to keep confirming a failure before alerting, in seconds.
-- `required_keyword` (String) Keyword that must be present, or absent for keyword_absence monitors.
+- `request_timeout` (Number) Check timeout. In seconds for HTTP and Playwright checks, and in milliseconds for `ping`, `tcp`, `udp`, `smtp`, `pop`, `imap` and `dns` monitors. A value of 0.5 is saved as 500. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `recovery_period` (Number) How long checks must keep passing before the incident resolves, in seconds. Defaults to `180`.
+- `confirmation_period` (Number) How long to keep confirming a failure before alerting, in seconds. Defaults to `0`.
+- `required_keyword` (String) Keyword that must be present, or absent for keyword_absence monitors. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `http_method` (String) HTTP method for HTTP checks. Defaults to `get`.
-- `request_body` (String) Request body sent with HTTP checks.
-- `request_headers` (Attributes List, see [nested schema](#nestedatt--request_headers)) Custom request headers, as a list of `{name, value}` objects. A list you send replaces all headers.
-- `expected_status_codes` (List of Number) Status codes that count as up, for expected_status_code monitors.
-- `follow_redirects` (Boolean) Follow HTTP redirects.
-- `remember_cookies` (Boolean) Persist cookies across redirects.
-- `verify_ssl` (Boolean) Fail the check on an invalid TLS certificate.
-- `auth_username` (String, Sensitive) HTTP basic-auth username.
-- `auth_password` (String, Sensitive) HTTP basic-auth password.
-- `regions` (List of String) Regions to check from: us, eu, as or au. If none are set, the monitor type's default regions are returned.
+- `request_body` (String) Request body sent with HTTP checks. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `request_headers` (Attributes List, see [nested schema](#nestedatt--request_headers)) Custom request headers, as a list of `{name, value}` objects. A list you send replaces all headers. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `expected_status_codes` (List of Number) Status codes that count as up, for expected_status_code monitors. Defaults to `[]`.
+- `follow_redirects` (Boolean) Follow HTTP redirects. Defaults to `true`.
+- `remember_cookies` (Boolean) Persist cookies across redirects. Defaults to `true`.
+- `verify_ssl` (Boolean) Fail the check on an invalid TLS certificate. Defaults to `true`.
+- `auth_username` (String, Sensitive) HTTP basic-auth username. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `auth_password` (String, Sensitive) HTTP basic-auth password. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `regions` (List of String) Regions to check from: us, eu, as or au. If none are set, the monitor type's default regions are returned. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
 - `ip_version` (String) IP version to check over. Valid values: `ipv4`, `ipv6`. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `port` (String) Port to check, for `tcp`, `udp`, `smtp`, `pop` and `imap` monitors.
-- `proxy_host` (String) Proxy host to route the check through.
-- `proxy_port` (Number) Proxy port to route the check through.
+- `port` (String) Port to check, for `tcp`, `udp`, `smtp`, `pop` and `imap` monitors. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `proxy_host` (String) Proxy host to route the check through. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `proxy_port` (Number) Proxy port to route the check through. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `email` (Boolean) Alert by e-mail. Defaults to `true`.
 - `sms` (Boolean) Alert by SMS. Defaults to `false`.
 - `call` (Boolean) Alert by phone call. Defaults to `false`.
 - `push` (Boolean) Alert by push notification. Defaults to `false`.
 - `critical_alert` (Boolean) Alert by a critical push notification that bypasses silent mode. Defaults to `false`.
-- `team_wait` (Number) Seconds before escalating to the whole team.
-- `policy_id` (String) ID of the escalation policy used for alerts. Returned as a string. You can send it as a number or a string. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `expiration_policy_id` (Number) ID of the escalation policy for SSL certificate and domain expiration alerts. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `team_wait` (Number) Seconds before escalating to the whole team. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `escalation_policy_id` (String) ID of the escalation policy used for alerts. Returned as a string. You can send it as a number or a string. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `expiration_policy_id` (String) ID of the escalation policy for SSL certificate and domain expiration alerts. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `ssl_expiration` (Number) Days before the SSL certificate expires to start alerting. `-1` turns it off. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `domain_expiration` (Number) Days before the domain expires to start alerting. `-1` turns it off. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `maintenance_from` (String) Start time of the maintenance window, as `HH:MM:SS`. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `maintenance_to` (String) End time of the maintenance window, as `HH:MM:SS`. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `maintenance_timezone` (String) Time zone of the maintenance window.
-- `maintenance_days` (Set of String) Days of the week the maintenance window applies to.
-- `playwright_script` (String) Playwright script to run, for Playwright monitors.
+- `maintenance_timezone` (String) Time zone of the maintenance window. Defaults to `UTC`.
+- `maintenance_days` (Set of String) Days of the week the maintenance window applies to. Defaults to `["mon", "tue", "wed", "thu", "fri", "sat", "sun"]`.
+- `playwright_script` (String) Playwright script to run, for Playwright monitors. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `scenario_name` (String) Playwright scenario name. Playwright monitors send it instead of url.
-- `environment_variables` (Dynamic, Sensitive) Environment variables for the Playwright run. An object you send replaces all of them.
+- `environment_variables` (Dynamic, Sensitive) Environment variables for the Playwright run. An object you send replaces all of them. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
 
 ### Read-Only
 
@@ -109,11 +109,11 @@ Optional attributes are also computed: left unset, they take the server-side def
 
 ## Endpoints
 
-- `GET /api/v2/monitors`
-- `GET /api/v2/monitors/:id`
-- `POST /api/v2/monitors`
-- `PATCH /api/v2/monitors/:id`
-- `DELETE /api/v2/monitors/:id`
+- `GET /api/v3/monitors`
+- `GET /api/v3/monitors/:id`
+- `POST /api/v3/monitors`
+- `PATCH /api/v3/monitors/:id`
+- `DELETE /api/v3/monitors/:id`
 
 -> A metadata object you send replaces all keys, including keys written through the metadata endpoints (`/api/v4/metadata`). Leave metadata out to keep it unchanged, or send an empty object (`{}`) to clear it. Manage an object's metadata either here or through those endpoints, not both.
 

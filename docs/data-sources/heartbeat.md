@@ -33,7 +33,7 @@ data "betterstack_heartbeat" "example" {
 - `paused` (Boolean) Whether the heartbeat is paused.
 - `period` (Number) Expected time between pings, in seconds. At least 30 and less than a year.
 - `grace` (Number) How long to wait after the period before alerting, in seconds. At least 0.
-- `heartbeat_group_id` (Number) ID of the heartbeat group this heartbeat belongs to.
+- `heartbeat_group_id` (String) ID of the heartbeat group this heartbeat belongs to.
 - `sort_index` (Number) Display order within the group.
 - `email` (Boolean) Alert by e-mail.
 - `sms` (Boolean) Alert by SMS.
@@ -41,7 +41,7 @@ data "betterstack_heartbeat" "example" {
 - `push` (Boolean) Alert by push notification.
 - `critical_alert` (Boolean) Alert by a critical push notification that bypasses silent mode.
 - `team_wait` (Number) Seconds before escalating to the whole team.
-- `policy_id` (String) ID of the escalation policy used for alerts. Returned as a string. You can send it as a number or a string.
+- `escalation_policy_id` (String) ID of the escalation policy used for alerts. Returned as a string. You can send it as a number or a string.
 - `server_timezone` (String) IANA time zone, such as `Europe/London`, that keeps expected pings at the same local time of day. Only accepted for a period of 1 hour (3600 seconds) or more.
 - `maintenance_from` (String) Start time of the maintenance window, as `HH:MM:SS`.
 - `maintenance_to` (String) End time of the maintenance window, as `HH:MM:SS`.
@@ -67,8 +67,8 @@ data "betterstack_heartbeat" "example" {
 
 ## Endpoints
 
-- `GET /api/v2/heartbeats`
-- `GET /api/v2/heartbeats/:id`
-- `POST /api/v2/heartbeats`
-- `PATCH /api/v2/heartbeats/:id`
-- `DELETE /api/v2/heartbeats/:id`
+- `GET /api/v3/heartbeats`
+- `GET /api/v3/heartbeats/:id`
+- `POST /api/v3/heartbeats`
+- `PATCH /api/v3/heartbeats/:id`
+- `DELETE /api/v3/heartbeats/:id`

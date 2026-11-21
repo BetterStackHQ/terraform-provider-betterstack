@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -26,15 +26,15 @@ func NewSeverityResource() resource.Resource {
 }
 
 type SeverityModel struct {
-	Id             types.String `tfsdk:"id"`
-	Call           types.Bool   `tfsdk:"call"`
-	CriticalAlert  types.Bool   `tfsdk:"critical_alert"`
-	Email          types.Bool   `tfsdk:"email"`
-	Name           types.String `tfsdk:"name"`
-	Push           types.Bool   `tfsdk:"push"`
-	Sms            types.Bool   `tfsdk:"sms"`
-	TeamName       types.String `tfsdk:"team_name"`
-	UrgencyGroupId types.Int64  `tfsdk:"urgency_group_id"`
+	Id              types.String `tfsdk:"id"`
+	Call            types.Bool   `tfsdk:"call"`
+	CriticalAlert   types.Bool   `tfsdk:"critical_alert"`
+	Email           types.Bool   `tfsdk:"email"`
+	Name            types.String `tfsdk:"name"`
+	Push            types.Bool   `tfsdk:"push"`
+	SeverityGroupId types.String `tfsdk:"severity_group_id"`
+	Sms             types.Bool   `tfsdk:"sms"`
+	TeamName        types.String `tfsdk:"team_name"`
 }
 
 func (r *SeverityResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -45,15 +45,15 @@ func (r *SeverityResource) Schema(ctx context.Context, req resource.SchemaReques
 	resp.Schema = schema.Schema{
 		Description: "A severity: a named alerting level with its notification-channel settings.",
 		Attributes: map[string]schema.Attribute{
-			"id":               schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"call":             schema.BoolAttribute{Optional: true, Computed: true, Description: "Trigger phone-call alerts at this severity.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
-			"critical_alert":   schema.BoolAttribute{Optional: true, Computed: true, Description: "Trigger critical push alerts that bypass silent mode.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
-			"email":            schema.BoolAttribute{Optional: true, Computed: true, Description: "Trigger e-mail alerts at this severity.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
-			"name":             schema.StringAttribute{Required: true, Description: "Severity name."},
-			"push":             schema.BoolAttribute{Optional: true, Computed: true, Description: "Trigger mobile push alerts at this severity.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
-			"sms":              schema.BoolAttribute{Optional: true, Computed: true, Description: "Trigger SMS alerts at this severity.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
-			"team_name":        schema.StringAttribute{Computed: true, Description: "Name of the team that owns this severity."},
-			"urgency_group_id": schema.Int64Attribute{Optional: true, Description: "Severity group this severity belongs to."},
+			"id":                schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"call":              schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Trigger phone-call alerts at this severity."},
+			"critical_alert":    schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Trigger critical push alerts that bypass silent mode."},
+			"email":             schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Trigger e-mail alerts at this severity."},
+			"name":              schema.StringAttribute{Required: true, Description: "Severity name."},
+			"push":              schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Trigger mobile push alerts at this severity."},
+			"severity_group_id": schema.StringAttribute{Optional: true, Description: "Severity group this severity belongs to."},
+			"sms":               schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Trigger SMS alerts at this severity."},
+			"team_name":         schema.StringAttribute{Computed: true, Description: "Name of the team that owns this severity."},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -88,8 +88,8 @@ func (r *SeverityResource) body(ctx context.Context, m SeverityModel) map[string
 	if !m.CriticalAlert.IsNull() && !m.CriticalAlert.IsUnknown() {
 		body["critical_alert"] = m.CriticalAlert.ValueBool()
 	}
-	if !m.UrgencyGroupId.IsNull() && !m.UrgencyGroupId.IsUnknown() {
-		body["urgency_group_id"] = m.UrgencyGroupId.ValueInt64()
+	if !m.SeverityGroupId.IsNull() && !m.SeverityGroupId.IsUnknown() {
+		body["severity_group_id"] = idToAPI(m.SeverityGroupId.ValueString())
 	}
 	return body
 }
@@ -97,8 +97,8 @@ func (r *SeverityResource) body(ctx context.Context, m SeverityModel) map[string
 // updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
 func (r *SeverityResource) updateBody(ctx context.Context, config, plan, state SeverityModel) map[string]interface{} {
 	body := r.body(ctx, config)
-	if !state.UrgencyGroupId.IsNull() && !state.UrgencyGroupId.IsUnknown() && plan.UrgencyGroupId.IsNull() {
-		body["urgency_group_id"] = nil
+	if !state.SeverityGroupId.IsNull() && !state.SeverityGroupId.IsUnknown() && plan.SeverityGroupId.IsNull() {
+		body["severity_group_id"] = nil
 	}
 	return body
 }
@@ -108,6 +108,11 @@ func (r *SeverityResource) Create(ctx context.Context, req resource.CreateReques
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request SeverityModel
 	resp.Diagnostics.Append(configWithPlannedUnknowns(ctx, req.Config, req.Plan, nullValue(req.Plan.Raw.Type()), &request)...)
+	request.Call = plan.Call                   // its schema default travels when unset, so removing the line resets it
+	request.CriticalAlert = plan.CriticalAlert // its schema default travels when unset, so removing the line resets it
+	request.Email = plan.Email                 // its schema default travels when unset, so removing the line resets it
+	request.Push = plan.Push                   // its schema default travels when unset, so removing the line resets it
+	request.Sms = plan.Sms                     // its schema default travels when unset, so removing the line resets it
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -179,12 +184,12 @@ func populateSeverity(ctx context.Context, m *SeverityModel, attrs map[string]in
 	if v, ok := boolFromAPI(attrs["critical_alert"]); ok {
 		m.CriticalAlert = types.BoolValue(v)
 	}
-	if rawValue, exists := attrs["urgency_group_id"]; exists {
+	if rawValue, exists := attrs["severity_group_id"]; exists {
 		if rawValue == nil {
-			m.UrgencyGroupId = types.Int64Null()
+			m.SeverityGroupId = types.StringNull()
 		} else {
-			if v, ok := int64FromAPI(attrs["urgency_group_id"]); ok {
-				m.UrgencyGroupId = types.Int64Value(v)
+			if v, ok := stringFromAPI(attrs["severity_group_id"]); ok {
+				m.SeverityGroupId = types.StringValue(v)
 			}
 		}
 	}
@@ -199,6 +204,23 @@ func (r *SeverityResource) Update(ctx context.Context, req resource.UpdateReques
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+	// An unset line's default travels only when it changes the stored value (the line was just
+	// removed): resending an unchanged default can act on its own, e.g. unpause a group's members.
+	if !plan.Call.Equal(state.Call) {
+		request.Call = plan.Call
+	}
+	if !plan.CriticalAlert.Equal(state.CriticalAlert) {
+		request.CriticalAlert = plan.CriticalAlert
+	}
+	if !plan.Email.Equal(state.Email) {
+		request.Email = plan.Email
+	}
+	if !plan.Push.Equal(state.Push) {
+		request.Push = plan.Push
+	}
+	if !plan.Sms.Equal(state.Sms) {
+		request.Sms = plan.Sms
 	}
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
@@ -236,6 +258,6 @@ var _ resource.ResourceWithMoveState = &SeverityResource{}
 // betteruptime_severity (registry.terraform.io/BetterStackHQ/better-uptime).
 func (r *SeverityResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{\"severity_group_id\":\"urgency_group_id\"},\"constants\":{},\"transforms\":[],\"ignored_fields\":[\"team_name\"],\"instructions\":[\"Rename severity_group_id to urgency_group_id, the wire name the legacy provider already sent. Keep the existing severity id, name and every notification channel. Move team_name to the provider's team_id (or a provider alias for that team).\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/better-uptime\",\"source_type\":\"betteruptime_severity\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"computed\":true,\"description\":\"Whether to call when a new incident is created.\",\"name\":\"call\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Whether to send a critical push notification that ignores the mute switch and Do not Disturb mode when a new incident is created.\",\"name\":\"critical_alert\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Whether to send an email when a new incident is created.\",\"name\":\"email\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"The ID of this Severity.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"The name of this Severity.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether to send a push notification when a new incident is created.\",\"name\":\"push\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Set this attribute if you want to add this severity to a severity group.\",\"name\":\"severity_group_id\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"Whether to send an SMS when a new incident is created.\",\"name\":\"sms\",\"optional\":true,\"type\":\"bool\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.teamNameSchema.func1\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\"}],\"response_projections\":[]}"),
+		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"string_id\",\"path\":\"severity_group_id\"}],\"ignored_fields\":[\"team_name\"],\"instructions\":[\"Keep the existing severity id, name and every notification channel. Move team_name to the provider's team_id (or a provider alias for that team).\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/better-uptime\",\"source_type\":\"betteruptime_severity\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"computed\":true,\"description\":\"Whether to call when a new incident is created.\",\"name\":\"call\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Whether to send a critical push notification that ignores the mute switch and Do not Disturb mode when a new incident is created.\",\"name\":\"critical_alert\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Whether to send an email when a new incident is created.\",\"name\":\"email\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"The ID of this Severity.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"The name of this Severity.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether to send a push notification when a new incident is created.\",\"name\":\"push\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Set this attribute if you want to add this severity to a severity group.\",\"name\":\"severity_group_id\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"Whether to send an SMS when a new incident is created.\",\"name\":\"sms\",\"optional\":true,\"type\":\"bool\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.teamNameSchema.func1\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\"}],\"response_projections\":[]}"),
 	}
 }

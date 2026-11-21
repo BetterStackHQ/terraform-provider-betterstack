@@ -7,7 +7,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -28,7 +27,7 @@ func NewReleaseResource() resource.Resource {
 
 type ReleaseModel struct {
 	Id            types.String `tfsdk:"id"`
-	ApplicationId types.Int64  `tfsdk:"application_id"`
+	ApplicationId types.String `tfsdk:"application_id"`
 	CreatedAt     types.String `tfsdk:"created_at"`
 	Environment   types.List   `tfsdk:"environment"`
 	Environments  types.List   `tfsdk:"environments"`
@@ -49,7 +48,7 @@ func (r *ReleaseResource) Schema(ctx context.Context, req resource.SchemaRequest
 		Description: "A release of an error-tracking application, detected automatically or registered through the API so it appears the moment it deploys.",
 		Attributes: map[string]schema.Attribute{
 			"id":             schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"application_id": schema.Int64Attribute{Required: true, Description: "IDs of the applications to register this release on. The ID of a connected application registers the release on the application it's connected to. Without it, the release is registered on every application already reporting this version. If none do, nothing is registered and the response is still 201.", PlanModifiers: []planmodifier.Int64{replaceWarningInt64{int64planmodifier.RequiresReplace(), "betterstack_release"}}},
+			"application_id": schema.StringAttribute{Required: true, Description: "IDs of the applications to register this release on. The ID of a connected application registers the release on the application it's connected to. Without it, the release is registered on every application already reporting this version. If none do, nothing is registered and the response is still 201.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_release"}}},
 			"created_at":     schema.StringAttribute{Computed: true, Description: "When the release was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"environment":    schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Environments this release was deployed to. A single string is accepted too. Added to any environments the release already has.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown(), replaceWarningList{listplanmodifier.RequiresReplaceIfConfigured(), "betterstack_release"}}},
 			"environments":   schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "Environments this release was deployed to. On create, the given environments are added to any the release already has. A registration with only a version and no applications adds its environment to every application's existing release of that version."},
@@ -87,7 +86,7 @@ func (r *ReleaseResource) body(ctx context.Context, m ReleaseModel) map[string]i
 		body["team_id"] = m.TeamId.ValueString()
 	}
 	if !m.ApplicationId.IsNull() && !m.ApplicationId.IsUnknown() {
-		body["application_id"] = m.ApplicationId.ValueInt64()
+		body["application_id"] = idToAPI(m.ApplicationId.ValueString())
 	}
 	return body
 }
@@ -193,8 +192,8 @@ func populateRelease(ctx context.Context, m *ReleaseModel, attrs map[string]inte
 		m.UpdatedAt = datetimeValue(m.UpdatedAt, v)
 	}
 	if m.ApplicationId.IsNull() || m.ApplicationId.IsUnknown() {
-		if v, ok := int64FromAPI(attrs["application_id"]); ok {
-			m.ApplicationId = types.Int64Value(v)
+		if v, ok := stringFromAPI(attrs["application_id"]); ok {
+			m.ApplicationId = types.StringValue(v)
 		}
 	}
 }
@@ -237,6 +236,6 @@ var _ resource.ResourceWithMoveState = &ReleaseResource{}
 // logtail_errors_release (registry.terraform.io/BetterStackHQ/logtail).
 func (r *ReleaseResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[],\"ignored_fields\":[],\"instructions\":[\"Rename to betterstack_release and preserve the existing release ID, application_id, version and configured environments (the API merges environments, Terraform does not take ownership of the server union).\",\"This resource registers exactly one application/version. Version/application/environment changes register a replacement while retaining historical releases. Destroy only forgets state and never sends DELETE; no cleanup call should be added.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_errors_release\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"description\":\"The ID of the Errors application this release belongs to. The API resolves the value to the canonical application ID, which may differ from the one you provide when the application has sibling sources - state always keeps the canonical ID.\",\"force_new\":true,\"name\":\"application_id\",\"required\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The time when this release was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"description\":\"Environments the release was deployed to, e.g. `[\\\"production\\\"]`. The server keeps merging in environments the release is later seen in, so state always keeps the configured value.\",\"force_new\":true,\"name\":\"environments\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"The time when this release was first seen.\",\"name\":\"first_seen_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this release.\",\"name\":\"id\",\"type\":\"string\"},{\"computed\":true,\"description\":\"How this release was detected, e.g. `reported` for releases registered via the API.\",\"name\":\"origin\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this release was last updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"description\":\"Release version or commit ref, e.g. `v1.2.3` or a commit SHA.\",\"force_new\":true,\"name\":\"version\",\"required\":true,\"type\":\"string\"}],\"response_projections\":[]}"),
+		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"string_id\",\"path\":\"application_id\"}],\"ignored_fields\":[],\"instructions\":[\"Rename to betterstack_release and preserve the existing release ID, application_id, version and configured environments (the API merges environments, Terraform does not take ownership of the server union).\",\"This resource registers exactly one application/version. Version/application/environment changes register a replacement while retaining historical releases. Destroy only forgets state and never sends DELETE; no cleanup call should be added.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_errors_release\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"description\":\"The ID of the Errors application this release belongs to. The API resolves the value to the canonical application ID, which may differ from the one you provide when the application has sibling sources - state always keeps the canonical ID.\",\"force_new\":true,\"name\":\"application_id\",\"required\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The time when this release was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"description\":\"Environments the release was deployed to, e.g. `[\\\"production\\\"]`. The server keeps merging in environments the release is later seen in, so state always keeps the configured value.\",\"force_new\":true,\"name\":\"environments\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"The time when this release was first seen.\",\"name\":\"first_seen_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this release.\",\"name\":\"id\",\"type\":\"string\"},{\"computed\":true,\"description\":\"How this release was detected, e.g. `reported` for releases registered via the API.\",\"name\":\"origin\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this release was last updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"description\":\"Release version or commit ref, e.g. `v1.2.3` or a commit SHA.\",\"force_new\":true,\"name\":\"version\",\"required\":true,\"type\":\"string\"}],\"response_projections\":[]}"),
 	}
 }

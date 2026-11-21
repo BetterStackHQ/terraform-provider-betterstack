@@ -42,7 +42,7 @@ data "betterstack_errors_slack_integration" "example" {
 <a id="nestedatt--applications"></a>
 ### Nested Schema for `applications`
 
-- `application_id` (Number) ID of an Error tracking application in the token's team.
+- `application_id` (String) ID of an Error tracking application in the token's team.
 - `environments` (List of String) Environments to act on errors from. Empty means every environment.
 
 <a id="nestedatt--notifications"></a>

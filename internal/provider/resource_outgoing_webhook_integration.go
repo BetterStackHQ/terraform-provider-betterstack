@@ -22,6 +22,7 @@ import (
 var _ resource.Resource = &OutgoingWebhookIntegrationResource{}
 var _ resource.ResourceWithConfigure = &OutgoingWebhookIntegrationResource{}
 var _ resource.ResourceWithImportState = &OutgoingWebhookIntegrationResource{}
+var _ resource.ResourceWithModifyPlan = &OutgoingWebhookIntegrationResource{}
 
 type OutgoingWebhookIntegrationResource struct {
 	client *Client
@@ -366,7 +367,7 @@ func (r *OutgoingWebhookIntegrationResource) Schema(ctx context.Context, req res
 			"custom_webhook_template":            schema.SingleNestedAttribute{Computed: true, Attributes: map[string]schema.Attribute{"http_method": schema.StringAttribute{Computed: true, Description: "HTTP method for the outgoing request."}, "headers_template": schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Computed: true}, "value": schema.StringAttribute{Computed: true}}}, Description: "Custom request headers, as a list of `{name, value}` objects."}, "body_template": schema.StringAttribute{Computed: true, Description: "Request body template, as a string."}, "auth_username": schema.StringAttribute{Computed: true, Description: "Basic-auth username.", Sensitive: true}, "auth_password": schema.StringAttribute{Computed: true, Description: "Basic-auth password.", Sensitive: true}}, Description: "The saved request template, returned under `included`. `null` when there is none."},
 			"custom_webhook_template_attributes": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the saved template, to edit it in place."}, "http_method": schema.StringAttribute{Optional: true, Computed: true, Description: "HTTP method for the outgoing request.", Validators: []validator.String{stringvalidator.OneOf("head", "get", "post", "put", "patch", "options")}}, "headers_template": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true}, "value": schema.StringAttribute{Optional: true, Computed: true}}}, Description: "Custom request headers, as a list of `{name, value}` objects. Values can use template variables."}, "body_template": schema.DynamicAttribute{Optional: true, Computed: true, Description: "Request body template, as a string or a JSON object. It can use template variables."}, "auth_username": schema.StringAttribute{Optional: true, Computed: true, Description: "Basic authentication username sent with the request. Set both username and password, or neither.", Sensitive: true}, "auth_password": schema.StringAttribute{Optional: true, Computed: true, Description: "Basic authentication password sent with the request. Set both username and password, or neither.", Sensitive: true}}, Description: "Custom request method, headers, body and basic authentication. Leave it out to keep the saved template unchanged.", PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()}},
 			"metadata_api_version":               schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("v3"), Description: "How template variables show metadata. With v2, a key shows its last plain-text value. With v3, it shows every value with its type.", Validators: []validator.String{stringvalidator.OneOf("v2", "v3")}},
-			"name":                               schema.StringAttribute{Optional: true, Computed: true, Description: "Integration name.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"name":                               schema.StringAttribute{Optional: true, Description: "Integration name."},
 			"notify_alongside_primary_responder": schema.BoolAttribute{Optional: true, Computed: true, Description: "Also notify the primary on-call responder.", Validators: []validator.Bool{appliesWhenConfigBool{Sibling: "trigger_type", Values: []string{"incident_change"}}}, PlanModifiers: []planmodifier.Bool{appliesWhenPlanBool{Sibling: "trigger_type", Values: []string{"incident_change"}, Default: types.BoolValue(true)}}},
 			"on_incident_acknowledged":           schema.BoolAttribute{Optional: true, Computed: true, Description: "Fire when an incident is acknowledged.", Validators: []validator.Bool{appliesWhenConfigBool{Sibling: "trigger_type", Values: []string{"incident_change"}}}, PlanModifiers: []planmodifier.Bool{appliesWhenPlanBool{Sibling: "trigger_type", Values: []string{"incident_change"}, Default: types.BoolValue(true)}}},
 			"on_incident_comment":                schema.BoolAttribute{Optional: true, Computed: true, Description: "Fire on a new incident comment.", Validators: []validator.Bool{appliesWhenConfigBool{Sibling: "trigger_type", Values: []string{"incident_change"}}}, PlanModifiers: []planmodifier.Bool{appliesWhenPlanBool{Sibling: "trigger_type", Values: []string{"incident_change"}, Default: types.BoolValue(true)}}},
@@ -464,7 +465,17 @@ func (r *OutgoingWebhookIntegrationResource) bodyForUpdate(ctx context.Context, 
 	return body
 }
 
+// updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
+func (r *OutgoingWebhookIntegrationResource) updateBody(ctx context.Context, config, plan, state OutgoingWebhookIntegrationModel) map[string]interface{} {
+	body := r.bodyForUpdate(ctx, config)
+	if !state.Name.IsNull() && !state.Name.IsUnknown() && plan.Name.IsNull() {
+		body["name"] = nil
+	}
+	return body
+}
+
 func (r *OutgoingWebhookIntegrationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, outgoingWebhookIntegrationKeptOnRemoval, &resp.Diagnostics)
 	var plan OutgoingWebhookIntegrationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request OutgoingWebhookIntegrationModel
@@ -526,8 +537,14 @@ func populateOutgoingWebhookIntegration(ctx context.Context, m *OutgoingWebhookI
 	if attrs == nil {
 		return
 	}
-	if v, ok := stringFromAPI(attrs["name"]); ok {
-		m.Name = types.StringValue(v)
+	if rawValue, exists := attrs["name"]; exists {
+		if rawValue == nil {
+			m.Name = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["name"]); ok {
+				m.Name = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := stringFromAPI(attrs["team_name"]); ok {
 		m.TeamName = types.StringValue(v)
@@ -581,6 +598,7 @@ func (r *OutgoingWebhookIntegrationResource) mergeResponse(ctx context.Context, 
 }
 
 func (r *OutgoingWebhookIntegrationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, outgoingWebhookIntegrationKeptOnRemoval, &resp.Diagnostics)
 	var plan OutgoingWebhookIntegrationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request OutgoingWebhookIntegrationModel
@@ -615,7 +633,7 @@ func (r *OutgoingWebhookIntegrationResource) Update(ctx context.Context, req res
 	}
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
-	out, err := r.client.Update(ctx, outgoingWebhookIntegrationBinding, vars, r.bodyForUpdate(ctx, request))
+	out, err := r.client.Update(ctx, outgoingWebhookIntegrationBinding, vars, r.updateBody(ctx, request, plan, state))
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "updating outgoing_webhook_integration", err, req.Plan.Raw.Type())
 		return
@@ -638,6 +656,13 @@ func (r *OutgoingWebhookIntegrationResource) Delete(ctx context.Context, req res
 	if err := r.client.Delete(ctx, outgoingWebhookIntegrationBinding, vars); err != nil {
 		addAPIError(&resp.Diagnostics, "deleting outgoing_webhook_integration", err, req.State.Raw.Type())
 	}
+}
+
+// Attributes whose removal from the configuration keeps the server's value (no default, no null).
+var outgoingWebhookIntegrationKeptOnRemoval = []string{"custom_webhook_template_attributes"}
+
+func (r *OutgoingWebhookIntegrationResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	warnKeptOnRemoval(ctx, "betterstack_outgoing_webhook_integration", req, resp, outgoingWebhookIntegrationKeptOnRemoval)
 }
 
 func (r *OutgoingWebhookIntegrationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

@@ -30,15 +30,15 @@ func (d *SeverityDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 	resp.Schema = schema.Schema{
 		Description: "A severity: a named alerting level with its notification-channel settings.",
 		Attributes: map[string]schema.Attribute{
-			"id":               schema.StringAttribute{Optional: true, Computed: true, Description: "Look up by id, or by name."},
-			"call":             schema.BoolAttribute{Computed: true, Description: "Trigger phone-call alerts at this severity."},
-			"critical_alert":   schema.BoolAttribute{Computed: true, Description: "Trigger critical push alerts that bypass silent mode."},
-			"email":            schema.BoolAttribute{Computed: true, Description: "Trigger e-mail alerts at this severity."},
-			"name":             schema.StringAttribute{Optional: true, Computed: true, Description: "Severity name."},
-			"push":             schema.BoolAttribute{Computed: true, Description: "Trigger mobile push alerts at this severity."},
-			"sms":              schema.BoolAttribute{Computed: true, Description: "Trigger SMS alerts at this severity."},
-			"team_name":        schema.StringAttribute{Computed: true, Description: "Name of the team that owns this severity."},
-			"urgency_group_id": schema.Int64Attribute{Computed: true, Description: "Severity group this severity belongs to."},
+			"id":                schema.StringAttribute{Optional: true, Computed: true, Description: "Look up by id, or by name."},
+			"call":              schema.BoolAttribute{Computed: true, Description: "Trigger phone-call alerts at this severity."},
+			"critical_alert":    schema.BoolAttribute{Computed: true, Description: "Trigger critical push alerts that bypass silent mode."},
+			"email":             schema.BoolAttribute{Computed: true, Description: "Trigger e-mail alerts at this severity."},
+			"name":              schema.StringAttribute{Optional: true, Computed: true, Description: "Severity name."},
+			"push":              schema.BoolAttribute{Computed: true, Description: "Trigger mobile push alerts at this severity."},
+			"severity_group_id": schema.StringAttribute{Computed: true, Description: "Severity group this severity belongs to."},
+			"sms":               schema.BoolAttribute{Computed: true, Description: "Trigger SMS alerts at this severity."},
+			"team_name":         schema.StringAttribute{Computed: true, Description: "Name of the team that owns this severity."},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)

@@ -23,6 +23,7 @@ import (
 var _ resource.Resource = &MetricResource{}
 var _ resource.ResourceWithConfigure = &MetricResource{}
 var _ resource.ResourceWithImportState = &MetricResource{}
+var _ resource.ResourceWithModifyPlan = &MetricResource{}
 
 type MetricResource struct {
 	client *Client
@@ -94,6 +95,7 @@ func (r *MetricResource) body(ctx context.Context, m MetricModel) map[string]int
 }
 
 func (r *MetricResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, metricKeptOnRemoval, &resp.Diagnostics)
 	var plan MetricModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request MetricModel
@@ -185,6 +187,7 @@ func (r *MetricResource) mergeResponse(ctx context.Context, m MetricModel, attrs
 }
 
 func (r *MetricResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, metricKeptOnRemoval, &resp.Diagnostics)
 	var plan MetricModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request MetricModel
@@ -226,6 +229,13 @@ func (r *MetricResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	if err := r.client.Delete(ctx, metricBinding, vars); err != nil {
 		addAPIError(&resp.Diagnostics, "deleting metric", err, req.State.Raw.Type())
 	}
+}
+
+// Attributes whose removal from the configuration keeps the server's value (no default, no null).
+var metricKeptOnRemoval = []string{"aggregations", "type"}
+
+func (r *MetricResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	warnKeptOnRemoval(ctx, "betterstack_metric", req, resp, metricKeptOnRemoval)
 }
 
 // The object hangs off a parent collection, so its address is composite:

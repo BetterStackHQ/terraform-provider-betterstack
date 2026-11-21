@@ -99,13 +99,13 @@ func flattenCatalogRecordAttributes(ctx context.Context, prior types.Object, raw
 }
 
 type CatalogRecordAttributesAttributeModel struct {
-	Id   types.Int64  `tfsdk:"id"`
+	Id   types.String `tfsdk:"id"`
 	Name types.String `tfsdk:"name"`
 }
 
 func catalogRecordAttributesAttributeAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"id":   types.Int64Type,
+		"id":   types.StringType,
 		"name": types.StringType,
 	}
 }
@@ -119,7 +119,7 @@ func expandCatalogRecordAttributesAttribute(ctx context.Context, o types.Object)
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
 	if !m.Id.IsNull() && !m.Id.IsUnknown() {
-		out["id"] = m.Id.ValueInt64()
+		out["id"] = idToAPI(m.Id.ValueString())
 	}
 	if !m.Name.IsNull() && !m.Name.IsUnknown() {
 		out["name"] = m.Name.ValueString()
@@ -134,8 +134,8 @@ func flattenCatalogRecordAttributesAttribute(ctx context.Context, prior types.Ob
 	if !prior.IsNull() && !prior.IsUnknown() {
 		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
 	}
-	if v, ok := int64FromAPI(raw["id"]); ok {
-		m.Id = types.Int64Value(v)
+	if v, ok := stringFromAPI(raw["id"]); ok {
+		m.Id = types.StringValue(v)
 	}
 	if v, ok := stringFromAPI(raw["name"]); ok {
 		m.Name = types.StringValue(v)
@@ -223,7 +223,7 @@ func (r *CatalogRecordResource) Schema(ctx context.Context, req resource.SchemaR
 		Description: "A catalog record: one entry in a catalog relation, with values for its attributes.",
 		Attributes: map[string]schema.Attribute{
 			"id":                  schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"attributes":          schema.ListNestedAttribute{Required: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"attribute": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"id": schema.Int64Attribute{Optional: true, Computed: true}, "name": schema.StringAttribute{Optional: true, Computed: true}}, Description: "The catalog attribute to set, by id or name. Responses include both."}, "values": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true, Description: "`String`, or the type of the referenced item."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The text of a String value."}, "item_id": schema.StringAttribute{Optional: true, Computed: true, Description: "Id of the referenced item: a number, or a team's t-prefixed id."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "Referenced item's name."}, "email": schema.StringAttribute{Optional: true, Computed: true, Description: "Referenced user's e-mail."}}}, Description: "Values to set for this attribute. See the note on value shapes."}}}, Description: "Values for the record's attributes. Each entry sets one catalog attribute, by id or name, to one or more values. Required on create and update. An update replaces all of them."},
+			"attributes":          schema.ListNestedAttribute{Required: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"attribute": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Optional: true, Computed: true}, "name": schema.StringAttribute{Optional: true, Computed: true}}, Description: "The catalog attribute to set, by id or name. Responses include both."}, "values": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true, Description: "`String`, or the type of the referenced item."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The text of a String value."}, "item_id": schema.StringAttribute{Optional: true, Computed: true, Description: "Id of the referenced item: a number, or a team's t-prefixed id."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "Referenced item's name."}, "email": schema.StringAttribute{Optional: true, Computed: true, Description: "Referenced user's e-mail."}}}, Description: "Values to set for this attribute. See the note on value shapes."}}}, Description: "Values for the record's attributes. Each entry sets one catalog attribute, by id or name, to one or more values. Required on create and update. An update replaces all of them."},
 			"catalog_relation_id": schema.StringAttribute{Required: true, Description: "Id of the parent this catalog relation belongs to.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_catalog_record"}}},
 		},
 	}

@@ -26,19 +26,19 @@ func NewAwsCloudwatchIntegrationResource() resource.Resource {
 }
 
 type AwsCloudwatchIntegrationModel struct {
-	Id             types.String `tfsdk:"id"`
-	Call           types.Bool   `tfsdk:"call"`
-	CriticalAlert  types.Bool   `tfsdk:"critical_alert"`
-	Email          types.Bool   `tfsdk:"email"`
-	Name           types.String `tfsdk:"name"`
-	Paused         types.Bool   `tfsdk:"paused"`
-	PolicyId       types.Int64  `tfsdk:"policy_id"`
-	Push           types.Bool   `tfsdk:"push"`
-	RecoveryPeriod types.Int64  `tfsdk:"recovery_period"`
-	Sms            types.Bool   `tfsdk:"sms"`
-	TeamName       types.String `tfsdk:"team_name"`
-	TeamWait       types.Int64  `tfsdk:"team_wait"`
-	WebhookUrl     types.String `tfsdk:"webhook_url"`
+	Id                 types.String `tfsdk:"id"`
+	Call               types.Bool   `tfsdk:"call"`
+	CriticalAlert      types.Bool   `tfsdk:"critical_alert"`
+	Email              types.Bool   `tfsdk:"email"`
+	EscalationPolicyId types.String `tfsdk:"escalation_policy_id"`
+	Name               types.String `tfsdk:"name"`
+	Paused             types.Bool   `tfsdk:"paused"`
+	Push               types.Bool   `tfsdk:"push"`
+	RecoveryPeriod     types.Int64  `tfsdk:"recovery_period"`
+	Sms                types.Bool   `tfsdk:"sms"`
+	TeamName           types.String `tfsdk:"team_name"`
+	TeamWait           types.Int64  `tfsdk:"team_wait"`
+	WebhookUrl         types.String `tfsdk:"webhook_url"`
 }
 
 func (r *AwsCloudwatchIntegrationResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -49,19 +49,19 @@ func (r *AwsCloudwatchIntegrationResource) Schema(ctx context.Context, req resou
 	resp.Schema = schema.Schema{
 		Description: "Receives alerts from AWS CloudWatch and opens Better Stack incidents.",
 		Attributes: map[string]schema.Attribute{
-			"id":              schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"call":            schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Alert by phone call."},
-			"critical_alert":  schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Alert by a critical push notification that bypasses silent mode."},
-			"email":           schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Alert by e-mail."},
-			"name":            schema.StringAttribute{Optional: true, Computed: true, Description: "Integration name.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"paused":          schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether the integration is paused. A paused integration opens no incidents."},
-			"policy_id":       schema.Int64Attribute{Optional: true, Description: "ID of the escalation policy used for alerts."},
-			"push":            schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Alert by push notification."},
-			"recovery_period": schema.Int64Attribute{Optional: true, Description: "Seconds a resolved alert must hold before the incident resolves."},
-			"sms":             schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Alert by SMS."},
-			"team_name":       schema.StringAttribute{Computed: true, Description: "Name of the team that owns this integration."},
-			"team_wait":       schema.Int64Attribute{Optional: true, Description: "Seconds before escalating to the whole team."},
-			"webhook_url":     schema.StringAttribute{Computed: true, Description: "The URL to paste into AWS CloudWatch. Alerts AWS CloudWatch sends to it open incidents.", Sensitive: true},
+			"id":                   schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"call":                 schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Alert by phone call."},
+			"critical_alert":       schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Alert by a critical push notification that bypasses silent mode."},
+			"email":                schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Alert by e-mail."},
+			"escalation_policy_id": schema.StringAttribute{Optional: true, Description: "ID of the escalation policy used for alerts."},
+			"name":                 schema.StringAttribute{Optional: true, Description: "Integration name."},
+			"paused":               schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether the integration is paused. A paused integration opens no incidents."},
+			"push":                 schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Alert by push notification."},
+			"recovery_period":      schema.Int64Attribute{Optional: true, Description: "Seconds a resolved alert must hold before the incident resolves. Has no effect for this integration, since an incident resolves as soon as AWS CloudWatch reports the alert as resolved."},
+			"sms":                  schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Alert by SMS."},
+			"team_name":            schema.StringAttribute{Computed: true, Description: "Name of the team that owns this integration."},
+			"team_wait":            schema.Int64Attribute{Optional: true, Description: "Seconds before escalating to the whole team."},
+			"webhook_url":          schema.StringAttribute{Computed: true, Description: "The URL to paste into AWS CloudWatch. Alerts AWS CloudWatch sends to it open incidents.", Sensitive: true},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -81,8 +81,8 @@ func (r *AwsCloudwatchIntegrationResource) body(ctx context.Context, m AwsCloudw
 	if !m.Name.IsNull() && !m.Name.IsUnknown() {
 		body["name"] = m.Name.ValueString()
 	}
-	if !m.PolicyId.IsNull() && !m.PolicyId.IsUnknown() {
-		body["policy_id"] = m.PolicyId.ValueInt64()
+	if !m.EscalationPolicyId.IsNull() && !m.EscalationPolicyId.IsUnknown() {
+		body["escalation_policy_id"] = idToAPI(m.EscalationPolicyId.ValueString())
 	}
 	if !m.Paused.IsNull() && !m.Paused.IsUnknown() {
 		body["paused"] = m.Paused.ValueBool()
@@ -114,8 +114,11 @@ func (r *AwsCloudwatchIntegrationResource) body(ctx context.Context, m AwsCloudw
 // updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
 func (r *AwsCloudwatchIntegrationResource) updateBody(ctx context.Context, config, plan, state AwsCloudwatchIntegrationModel) map[string]interface{} {
 	body := r.body(ctx, config)
-	if !state.PolicyId.IsNull() && !state.PolicyId.IsUnknown() && plan.PolicyId.IsNull() {
-		body["policy_id"] = nil
+	if !state.Name.IsNull() && !state.Name.IsUnknown() && plan.Name.IsNull() {
+		body["name"] = nil
+	}
+	if !state.EscalationPolicyId.IsNull() && !state.EscalationPolicyId.IsUnknown() && plan.EscalationPolicyId.IsNull() {
+		body["escalation_policy_id"] = nil
 	}
 	if !state.TeamWait.IsNull() && !state.TeamWait.IsUnknown() && plan.TeamWait.IsNull() {
 		body["team_wait"] = nil
@@ -187,18 +190,24 @@ func populateAwsCloudwatchIntegration(ctx context.Context, m *AwsCloudwatchInteg
 	if attrs == nil {
 		return
 	}
-	if v, ok := stringFromAPI(attrs["name"]); ok {
-		m.Name = types.StringValue(v)
+	if rawValue, exists := attrs["name"]; exists {
+		if rawValue == nil {
+			m.Name = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["name"]); ok {
+				m.Name = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := stringFromAPI(attrs["team_name"]); ok {
 		m.TeamName = types.StringValue(v)
 	}
-	if rawValue, exists := attrs["policy_id"]; exists {
+	if rawValue, exists := attrs["escalation_policy_id"]; exists {
 		if rawValue == nil {
-			m.PolicyId = types.Int64Null()
+			m.EscalationPolicyId = types.StringNull()
 		} else {
-			if v, ok := int64FromAPI(attrs["policy_id"]); ok {
-				m.PolicyId = types.Int64Value(v)
+			if v, ok := stringFromAPI(attrs["escalation_policy_id"]); ok {
+				m.EscalationPolicyId = types.StringValue(v)
 			}
 		}
 	}
@@ -309,6 +318,6 @@ var _ resource.ResourceWithMoveState = &AwsCloudwatchIntegrationResource{}
 // betteruptime_aws_cloudwatch_integration (registry.terraform.io/BetterStackHQ/better-uptime).
 func (r *AwsCloudwatchIntegrationResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"sentinel_null\",\"path\":\"policy_id\",\"value\":0}],\"ignored_fields\":[\"team_name\"],\"instructions\":[\"Rename to betterstack_aws_cloudwatch_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same /api/v2/aws-cloudwatch-integrations fields. A policy_id of 0 becomes null. Move team_name to the provider's team_id (or a provider alias for that team).\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/better-uptime\",\"source_type\":\"betteruptime_aws_cloudwatch_integration\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"computed\":true,\"description\":\"Whether to call when a new incident is created.\",\"name\":\"call\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Whether to send a critical push notification that ignores the mute switch and Do not Disturb mode when a new incident is created.\",\"name\":\"critical_alert\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Whether to send an email when a new incident is created.\",\"name\":\"email\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"The ID of the AWS CloudWatch Integration.\",\"name\":\"id\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The name of the AWS CloudWatch Integration.\",\"name\":\"name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Is the AWS CloudWatch integration paused.\",\"name\":\"paused\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"ID of the escalation policy associated with the AWS CloudWatch integration.\",\"name\":\"policy_id\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"Whether to send a push notification when a new incident is created.\",\"name\":\"push\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"How long the alert must be up to automatically mark an incident as resolved. In seconds.\",\"name\":\"recovery_period\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"Whether to send an SMS when a new incident is created.\",\"name\":\"sms\",\"optional\":true,\"type\":\"bool\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.teamNameSchema.func1\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"How long we wait before escalating the incident alert to the team. In seconds.\",\"name\":\"team_wait\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The webhook URL for the AWS CloudWatch integration.\",\"name\":\"webhook_url\",\"type\":\"string\"}],\"response_projections\":[]}"),
+		legacyStateMover("{\"renames\":{\"policy_id\":\"escalation_policy_id\"},\"constants\":{},\"transforms\":[{\"op\":\"sentinel_null\",\"path\":\"escalation_policy_id\",\"value\":0},{\"op\":\"string_id\",\"path\":\"escalation_policy_id\"}],\"ignored_fields\":[\"team_name\"],\"instructions\":[\"Rename to betterstack_aws_cloudwatch_integration. Keep the integration id, webhook_url, channels and pause state: the legacy provider wrote the same fields on /api/v2/aws-cloudwatch-integrations, where escalation_policy_id was policy_id. A policy_id of 0 becomes a null escalation_policy_id. Move team_name to the provider's team_id (or a provider alias for that team).\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/better-uptime\",\"source_type\":\"betteruptime_aws_cloudwatch_integration\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"computed\":true,\"description\":\"Whether to call when a new incident is created.\",\"name\":\"call\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Whether to send a critical push notification that ignores the mute switch and Do not Disturb mode when a new incident is created.\",\"name\":\"critical_alert\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Whether to send an email when a new incident is created.\",\"name\":\"email\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"The ID of the AWS CloudWatch Integration.\",\"name\":\"id\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The name of the AWS CloudWatch Integration.\",\"name\":\"name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Is the AWS CloudWatch integration paused.\",\"name\":\"paused\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"ID of the escalation policy associated with the AWS CloudWatch integration.\",\"name\":\"policy_id\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"Whether to send a push notification when a new incident is created.\",\"name\":\"push\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"How long the alert must be up to automatically mark an incident as resolved. In seconds.\",\"name\":\"recovery_period\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"Whether to send an SMS when a new incident is created.\",\"name\":\"sms\",\"optional\":true,\"type\":\"bool\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.teamNameSchema.func1\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"How long we wait before escalating the incident alert to the team. In seconds.\",\"name\":\"team_wait\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The webhook URL for the AWS CloudWatch integration.\",\"name\":\"webhook_url\",\"type\":\"string\"}],\"response_projections\":[]}"),
 	}
 }

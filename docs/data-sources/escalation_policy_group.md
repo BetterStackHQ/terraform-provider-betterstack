@@ -33,8 +33,8 @@ data "betterstack_escalation_policy_group" "example" {
 
 ## Endpoints
 
-- `GET /api/v2/policy-groups`
-- `GET /api/v2/policy-groups/:id`
-- `POST /api/v2/policy-groups`
-- `PATCH /api/v2/policy-groups/:id`
-- `DELETE /api/v2/policy-groups/:id`
+- `GET /api/v3/escalation-policy-groups`
+- `GET /api/v3/escalation-policy-groups/:id`
+- `POST /api/v3/escalation-policy-groups`
+- `PATCH /api/v3/escalation-policy-groups/:id`
+- `DELETE /api/v3/escalation-policy-groups/:id`

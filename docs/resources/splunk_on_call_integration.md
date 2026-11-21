@@ -29,7 +29,7 @@ resource "betterstack_splunk_on_call_integration" "example" {
 
 Optional attributes are also computed: left unset, they take the server-side default.
 
-- `name` (String) Integration name.
+- `name` (String) Integration name. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
 - `notify_alongside_primary_responder` (Boolean) Also notify the primary on-call responder. Defaults to `true`.
 
 ### Read-Only

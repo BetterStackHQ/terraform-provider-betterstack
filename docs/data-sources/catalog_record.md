@@ -41,7 +41,7 @@ data "betterstack_catalog_record" "example" {
 <a id="nestedatt--attributes--attribute"></a>
 ### Nested Schema for `attributes.attribute`
 
-- `id` (Number)
+- `id` (String)
 - `name` (String)
 
 <a id="nestedatt--attributes--values"></a>

@@ -29,7 +29,7 @@ Omitting all lookup inputs selects the API's `default` object.
 
 ### Read-Only
 
-- `default_calendar` (Boolean) Whether this is the team's default on-call schedule.
+- `default_schedule` (Boolean) Whether this is the team's default on-call schedule.
 - `team_name` (String) Name of the team that owns the schedule.
 - `slack_group_handle` (String) Handle of the Slack user group that follows who is on call, without the @. Null when none.
 - `use_existing_slack_group` (Boolean) Whether slack_group_handle names an existing Slack user group to take over instead of one created for the schedule. Sending `null` or leaving it out keeps the current setting.
@@ -64,8 +64,8 @@ Omitting all lookup inputs selects the API's `default` object.
 
 ## Endpoints
 
-- `GET /api/v2/on-calls`
-- `GET /api/v2/on-calls/:id`
-- `POST /api/v2/on-calls`
-- `PATCH /api/v2/on-calls/:id`
-- `DELETE /api/v2/on-calls/:id`
+- `GET /api/v3/on-call-schedules`
+- `GET /api/v3/on-call-schedules/:id`
+- `POST /api/v3/on-call-schedules`
+- `PATCH /api/v3/on-call-schedules/:id`
+- `DELETE /api/v3/on-call-schedules/:id`

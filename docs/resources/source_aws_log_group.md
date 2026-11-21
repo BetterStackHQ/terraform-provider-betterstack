@@ -15,7 +15,7 @@ An override that subscribes a CloudWatch log group or keeps it unsubscribed, eve
 
 ```terraform
 resource "betterstack_source_aws_log_group" "example" {
-  source_id  = "12345"
+  source_id  = "95"
   region     = "us-east-1"
   name       = "/aws/lambda/checkout"
   subscribed = true

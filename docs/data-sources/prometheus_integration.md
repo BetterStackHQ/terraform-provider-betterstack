@@ -27,7 +27,7 @@ data "betterstack_prometheus_integration" "example" {
 
 - `name` (String) Integration name.
 - `team_name` (String) Name of the team that owns this integration.
-- `policy_id` (Number) ID of the escalation policy used for alerts.
+- `escalation_policy_id` (String) ID of the escalation policy used for alerts.
 - `webhook_url` (String, Sensitive) The URL to paste into Prometheus. Alerts Prometheus sends to it open incidents.
 - `paused` (Boolean) Whether the integration is paused. A paused integration opens no incidents.
 - `call` (Boolean) Alert by phone call.
@@ -36,12 +36,12 @@ data "betterstack_prometheus_integration" "example" {
 - `push` (Boolean) Alert by push notification.
 - `critical_alert` (Boolean) Alert by a critical push notification that bypasses silent mode.
 - `team_wait` (Number) Seconds before escalating to the whole team.
-- `recovery_period` (Number) Seconds a resolved alert must hold before the incident resolves.
+- `recovery_period` (Number) Seconds a resolved alert must hold before the incident resolves. Has no effect for this integration, since an incident resolves as soon as Prometheus reports the alert as resolved.
 
 ## Endpoints
 
-- `GET /api/v2/prometheus-integrations`
-- `GET /api/v2/prometheus-integrations/:id`
-- `POST /api/v2/prometheus-integrations`
-- `PATCH /api/v2/prometheus-integrations/:id`
-- `DELETE /api/v2/prometheus-integrations/:id`
+- `GET /api/v3/prometheus-integrations`
+- `GET /api/v3/prometheus-integrations/:id`
+- `POST /api/v3/prometheus-integrations`
+- `PATCH /api/v3/prometheus-integrations/:id`
+- `DELETE /api/v3/prometheus-integrations/:id`

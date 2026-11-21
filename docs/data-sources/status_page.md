@@ -25,7 +25,7 @@ data "betterstack_status_page" "example" {
 
 ### Read-Only
 
-- `organization_id` (Number) Organization the page belongs to, as its Better Stack organization id. Defaults to the first organization the token can access. An organization the token can't access returns a 422 error that lists the ones it can. Ignored on update.
+- `organization_id` (String) Organization the page belongs to, as its Better Stack organization id. Defaults to the first organization the token can access. An organization the token can't access returns a 422 error that lists the ones it can. Ignored on update.
 - `company_name` (String) Company name shown on the page.
 - `company_url` (String) Company website URL.
 - `subdomain` (String) betterstack.com subdomain for the page.
@@ -51,7 +51,7 @@ data "betterstack_status_page" "example" {
 - `theme` (String) Color theme. Valid values: `light`, `dark`, `system`.
 - `layout` (String) How resources are laid out on the page. Valid values: `vertical`, `horizontal`.
 - `automatic_reports` (Boolean) Whether maintenance reports are created automatically.
-- `status_page_group_id` (Number) Status page group the page belongs to.
+- `status_page_group_id` (String) Status page group the page belongs to.
 - `whitelabeled` (Boolean) Whether to remove Better Stack branding from the page.
 - `announcement` (String) Announcement banner text.
 - `announcement_embed_visible` (Boolean) Whether the embeddable widget shows the announcement.
@@ -82,7 +82,7 @@ data "betterstack_status_page" "example" {
 
 - `id` (String) Resource id. Leave it out for a new resource. An id keeps the resource and its subscribers, even when it moves to another section.
 - `resource_type` (String) Type of the underlying resource. Required for a new resource. ThirdPartyService is added in the web app only: an item read back keeps its type and services when listed by id. Valid values: `Monitor`, `MonitorGroup`, `Heartbeat`, `HeartbeatGroup`, `WebhookIntegration`, `EmailIntegration`, `IncomingWebhook`, `AmazonSnsIntegration`, `ManuallyTrackedItem`, `LogsChart`, `CatalogReference`, `ThirdPartyService`.
-- `resource_id` (Number) Id of the underlying monitor, heartbeat, group or other record. Required for a new resource, unless resource_type is ManuallyTrackedItem, which creates its backing record.
+- `resource_id` (String) Id of the underlying monitor, heartbeat, group or other record. Required for a new resource, unless resource_type is ManuallyTrackedItem, which creates its backing record.
 - `public_name` (String) Name shown publicly. Required for a new resource.
 - `explanation` (String) Tooltip explanation shown to visitors.
 - `widget_type` (String) How this resource is rendered. Valid values: `plain`, `history`, `intraday_history`, `response_times`, `intraday_response_times`, `chart_only`.

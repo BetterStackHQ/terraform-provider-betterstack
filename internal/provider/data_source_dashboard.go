@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -32,21 +31,21 @@ func (d *DashboardDataSource) Schema(ctx context.Context, req datasource.SchemaR
 		Description: "A dashboard of charts visualizing logs, metrics, and traces.",
 		Attributes: map[string]schema.Attribute{
 			"id":                     schema.StringAttribute{Optional: true, Computed: true, Description: "Look up by id, or by dashboard_group_id / name."},
-			"charts":                 schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.Int64Attribute{Computed: true}, "chart_type": schema.StringAttribute{Computed: true}, "name": schema.StringAttribute{Computed: true}, "x": schema.Int64Attribute{Computed: true}, "y": schema.Int64Attribute{Computed: true}, "w": schema.Int64Attribute{Computed: true}, "h": schema.Int64Attribute{Computed: true}}}, Description: "Charts on the dashboard. Returned when you get one dashboard."},
+			"charts":                 schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true}, "chart_type": schema.StringAttribute{Computed: true}, "name": schema.StringAttribute{Computed: true}, "x": schema.Int64Attribute{Computed: true}, "y": schema.Int64Attribute{Computed: true}, "w": schema.Int64Attribute{Computed: true}, "h": schema.Int64Attribute{Computed: true}}}, Description: "Charts on the dashboard. Returned when you get one dashboard."},
 			"created_at":             schema.StringAttribute{Computed: true, Description: "When the dashboard was created."},
-			"dashboard_group_id":     schema.Int64Attribute{Optional: true, Computed: true, Description: "Group this dashboard belongs to. Send `null` to remove it from its group."},
+			"dashboard_group_id":     schema.StringAttribute{Optional: true, Computed: true, Description: "Group this dashboard belongs to. Send `null` to remove it from its group."},
 			"date_range_from":        schema.StringAttribute{Computed: true, Description: "Default range start, for example now-3h."},
 			"date_range_to":          schema.StringAttribute{Computed: true, Description: "Default range end, for example now."},
 			"has_overlaps":           schema.BoolAttribute{Computed: true, Description: "Whether any charts overlap on the grid. Returned when you get one dashboard."},
 			"name":                   schema.StringAttribute{Optional: true, Computed: true, Description: "Dashboard name."},
 			"refresh_interval":       schema.Int64Attribute{Computed: true, Description: "Auto-refresh interval in seconds."},
 			"resource_group_name":    schema.StringAttribute{Computed: true, Description: "Name of the dashboard group to put the new dashboard in. The team's group with that name is used, or created when there is none. Use it instead of `dashboard_group_id`, not with it."},
-			"sections":               schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.Int64Attribute{Computed: true}, "name": schema.StringAttribute{Computed: true}, "y": schema.Int64Attribute{Computed: true}, "collapsed": schema.BoolAttribute{Computed: true}}}, Description: "Sections on the dashboard. Returned when you get one dashboard."},
+			"sections":               schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true}, "name": schema.StringAttribute{Computed: true}, "y": schema.Int64Attribute{Computed: true}, "collapsed": schema.BoolAttribute{Computed: true}}}, Description: "Sections on the dashboard. Returned when you get one dashboard."},
 			"source_eligibility_sql": schema.StringAttribute{Computed: true, Description: "SQL that decides which sources this dashboard's charts can read. Returned when you get one dashboard."},
-			"source_id":              schema.Int64Attribute{Computed: true, Description: "ID of the source to set the new dashboard up for. With it, creating a dashboard accepts only `name`, `template_id`, and either `dashboard_group_id` or `resource_group_name`."},
+			"source_id":              schema.StringAttribute{Computed: true, Description: "ID of the source to set the new dashboard up for. With it, creating a dashboard accepts only `name`, `template_id`, and either `dashboard_group_id` or `resource_group_name`."},
 			"team_id":                schema.StringAttribute{Computed: true, Description: "Team that owns the dashboard, as its `t`-prefixed Better Stack team ID, such as `t123`."},
 			"team_name":              schema.StringAttribute{Computed: true, Description: "Name of the team that owns the dashboard."},
-			"template_id":            schema.Int64Attribute{Computed: true, Description: "ID of the dashboard template to create the dashboard from, as GET /api/v4/dashboards/templates lists it. The dashboard starts with the template's charts, sections and alerts. With it, creating a dashboard accepts only `name`, `source_id`, and either `dashboard_group_id` or `resource_group_name`."},
+			"template_id":            schema.StringAttribute{Computed: true, Description: "ID of the dashboard template to create the dashboard from, as GET /api/v4/dashboards/templates lists it. The dashboard starts with the template's charts, sections and alerts. With it, creating a dashboard accepts only `name`, `source_id`, and either `dashboard_group_id` or `resource_group_name`."},
 			"updated_at":             schema.StringAttribute{Computed: true, Description: "When the dashboard was last updated."},
 			"variables":              schema.DynamicAttribute{Computed: true, Description: "Template variables, returned when you get one dashboard. An update replaces all variables: any you don't send is removed, except the built-in time, start_time, end_time and source variables, which always exist. The built-in variables keep their own type. `sql_definition` is accepted only on `select_with_sql` and `multi_select_with_sql` variables."},
 		},
@@ -81,10 +80,10 @@ func (d *DashboardDataSource) Read(ctx context.Context, req datasource.ReadReque
 			return
 		}
 		out = got
-		if !data.DashboardGroupId.IsNull() && !data.DashboardGroupId.IsUnknown() && strconv.FormatInt(data.DashboardGroupId.ValueInt64(), 10) != "" {
+		if !data.DashboardGroupId.IsNull() && !data.DashboardGroupId.IsUnknown() && data.DashboardGroupId.ValueString() != "" {
 			matched := false
 			for _, field := range []string{"dashboard_group_id"} {
-				if stringifyScalar(out[field]) == strconv.FormatInt(data.DashboardGroupId.ValueInt64(), 10) {
+				if stringifyScalar(out[field]) == data.DashboardGroupId.ValueString() {
 					matched = true
 					break
 				}
@@ -117,9 +116,9 @@ func (d *DashboardDataSource) Read(ctx context.Context, req datasource.ReadReque
 			"dashboard_group_id": {"dashboard_group_id"},
 			"name":               {"name"},
 		}
-		if !data.DashboardGroupId.IsNull() && !data.DashboardGroupId.IsUnknown() && strconv.FormatInt(data.DashboardGroupId.ValueInt64(), 10) != "" {
-			q.Set("dashboard_group_id", strconv.FormatInt(data.DashboardGroupId.ValueInt64(), 10))
-			want["dashboard_group_id"] = strconv.FormatInt(data.DashboardGroupId.ValueInt64(), 10)
+		if !data.DashboardGroupId.IsNull() && !data.DashboardGroupId.IsUnknown() && data.DashboardGroupId.ValueString() != "" {
+			q.Set("dashboard_group_id", data.DashboardGroupId.ValueString())
+			want["dashboard_group_id"] = data.DashboardGroupId.ValueString()
 		}
 		if !data.Name.IsNull() && !data.Name.IsUnknown() && data.Name.ValueString() != "" {
 			want["name"] = data.Name.ValueString()

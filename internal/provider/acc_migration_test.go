@@ -303,10 +303,10 @@ func (api *migrationFixtureAPI) ServeHTTP(w http.ResponseWriter, r *http.Request
 	var key, legacyPath, targetPath, kind string
 	for _, candidate := range []struct{ key, legacy, target, kind string }{
 		// The unified provider reads the same path API the legacy providers wrote, at each resource's
-		// newest version: only sources moved, to /api/v4.
-		{"101", "/api/v2/monitor-groups", "/api/v2/monitor-groups", "monitor_group"},
+		// newest version: sources moved to /api/v4, monitor groups and the alerting-tool integrations to /api/v3.
+		{"101", "/api/v2/monitor-groups", "/api/v3/monitor-groups", "monitor_group"},
 		{"202", "/api/v1/source-groups", "/api/v1/source-groups", "source_group"},
-		{"303", "/api/v2/datadog-integrations", "/api/v2/datadog-integrations", "datadog_integration"},
+		{"303", "/api/v2/datadog-integrations", "/api/v3/datadog-integrations", "datadog_integration"},
 		{"404", "/api/v2/sources", "/api/v4/sources", "source"},
 		{"404", "/api/v1/sources", "/api/v4/sources", "source"},
 		{"505", "/api/v2/explorations", "/api/v2/explorations", "exploration"},

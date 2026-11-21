@@ -9,10 +9,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/dynamicplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -24,6 +25,7 @@ import (
 var _ resource.Resource = &ErrorsJiraIntegrationResource{}
 var _ resource.ResourceWithConfigure = &ErrorsJiraIntegrationResource{}
 var _ resource.ResourceWithImportState = &ErrorsJiraIntegrationResource{}
+var _ resource.ResourceWithModifyPlan = &ErrorsJiraIntegrationResource{}
 
 type ErrorsJiraIntegrationResource struct {
 	client *Client
@@ -51,13 +53,13 @@ type ErrorsJiraIntegrationModel struct {
 }
 
 type ErrorsJiraIntegrationApplicationsModel struct {
-	ApplicationId types.Int64 `tfsdk:"application_id"`
-	Environments  types.List  `tfsdk:"environments"`
+	ApplicationId types.String `tfsdk:"application_id"`
+	Environments  types.List   `tfsdk:"environments"`
 }
 
 func errorsJiraIntegrationApplicationsAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"application_id": types.Int64Type,
+		"application_id": types.StringType,
 		"environments":   types.ListType{ElemType: types.StringType},
 	}
 }
@@ -71,7 +73,7 @@ func expandErrorsJiraIntegrationApplications(ctx context.Context, o types.Object
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
 	if !m.ApplicationId.IsNull() && !m.ApplicationId.IsUnknown() {
-		out["application_id"] = m.ApplicationId.ValueInt64()
+		out["application_id"] = idToAPI(m.ApplicationId.ValueString())
 	}
 	if !m.Environments.IsNull() && !m.Environments.IsUnknown() {
 		var vals []string
@@ -91,8 +93,8 @@ func flattenErrorsJiraIntegrationApplications(ctx context.Context, prior types.O
 	if !prior.IsNull() && !prior.IsUnknown() {
 		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
 	}
-	if v, ok := int64FromAPI(raw["application_id"]); ok {
-		m.ApplicationId = types.Int64Value(v)
+	if v, ok := stringFromAPI(raw["application_id"]); ok {
+		m.ApplicationId = types.StringValue(v)
 	}
 	if raw, ok := raw["environments"].([]interface{}); ok {
 		vals := make([]string, 0, len(raw))
@@ -254,16 +256,16 @@ func (r *ErrorsJiraIntegrationResource) Schema(ctx context.Context, req resource
 		Attributes: map[string]schema.Attribute{
 			// The declared lifecycle addresses an existing object, so identity is configured.
 			"id":                             schema.StringAttribute{Required: true, Description: "Existing remote object ID to adopt; no remote object is created.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_errors_jira_integration"}}},
-			"affected_users_threshold_count": schema.Int64Attribute{Optional: true, Computed: true, Description: "Total number of affected users for `notifications.affected_users_threshold`.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
-			"applications":                   schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"application_id": schema.Int64Attribute{Optional: true, Computed: true, Description: "ID of an Error tracking application in the token's team."}, "environments": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Environments to act on errors from. Empty means every environment."}}}, Description: "Applications this integration acts on, each with its environments. Empty means any application. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"affected_users_threshold_count": schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Total number of affected users for `notifications.affected_users_threshold`."},
+			"applications":                   schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"application_id": schema.StringAttribute{Optional: true, Computed: true, Description: "ID of an Error tracking application in the token's team."}, "environments": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Environments to act on errors from. Empty means every environment."}}}, Description: "Applications this integration acts on, each with its environments. Empty means any application. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
 			"jira_fields":                    schema.DynamicAttribute{Optional: true, Computed: true, Description: "Further Jira fields set on new work items, keyed by Jira field ID.", PlanModifiers: []planmodifier.Dynamic{dynamicplanmodifier.UseStateForUnknown()}},
 			"jira_issue_type_id":             schema.StringAttribute{Optional: true, Computed: true, Description: "Jira work type of new work items.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"jira_project_key":               schema.StringAttribute{Optional: true, Computed: true, Description: "Jira space work items are created in. A new space needs `jira_issue_type_id` in the same request and clears `jira_fields` unless they're sent too.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"jira_site_url":                  schema.StringAttribute{Computed: true, Description: "Jira site the integration is connected to."},
 			"name":                           schema.StringAttribute{Optional: true, Computed: true, Description: "Integration name.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"notifications":                  schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"spikes": schema.BoolAttribute{Optional: true, Computed: true, Description: "Application has a spike in errors."}, "new_errors": schema.BoolAttribute{Optional: true, Computed: true, Description: "New error occurs."}, "automatically_reopened": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error is automatically re-opened."}, "occurrence_milestones": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches an occurrence milestone (10, 100, 200, 500...)."}, "occurrence_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error occurs `occurrence_threshold_count` times within `occurrence_threshold_interval`."}, "affected_users_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches `affected_users_threshold_count` affected users."}}, Description: "\"Create work items when\": which events file a Jira work item. An update changes only the toggles sent.", PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()}},
-			"occurrence_threshold_count":     schema.Int64Attribute{Optional: true, Computed: true, Description: "Number of occurrences for `notifications.occurrence_threshold`.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
-			"occurrence_threshold_interval":  schema.StringAttribute{Optional: true, Computed: true, Description: "Time window for `notifications.occurrence_threshold`.", Validators: []validator.String{stringvalidator.OneOf("minute", "hour", "day", "week")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"occurrence_threshold_count":     schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Number of occurrences for `notifications.occurrence_threshold`."},
+			"occurrence_threshold_interval":  schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("minute"), Description: "Time window for `notifications.occurrence_threshold`.", Validators: []validator.String{stringvalidator.OneOf("minute", "hour", "day", "week")}},
 			"tag_filter":                     schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"tag": schema.StringAttribute{Optional: true, Computed: true, Description: "Exception tag, such as environment or level."}, "values": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Matches any of these values."}}}, Description: "Acts on an error only when one of its exceptions has every tag listed, each with one of its values. Empty means every error. At most 10 tags with 50 values each, 200 characters per tag or value, each tag once. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
 			"team_id":                        schema.StringAttribute{Computed: true, Description: "ID of the team that owns the integration, as the web app shows it (t123).", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"team_name":                      schema.StringAttribute{Computed: true, Description: "Name of the team that owns the integration."},
@@ -333,10 +335,14 @@ func (r *ErrorsJiraIntegrationResource) body(ctx context.Context, m ErrorsJiraIn
 }
 
 func (r *ErrorsJiraIntegrationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, errorsJiraIntegrationKeptOnRemoval, &resp.Diagnostics)
 	var plan ErrorsJiraIntegrationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request ErrorsJiraIntegrationModel
 	resp.Diagnostics.Append(configWithPlannedUnknowns(ctx, req.Config, req.Plan, nullValue(req.Plan.Raw.Type()), &request)...)
+	request.AffectedUsersThresholdCount = plan.AffectedUsersThresholdCount // its schema default travels when unset, so removing the line resets it
+	request.OccurrenceThresholdCount = plan.OccurrenceThresholdCount       // its schema default travels when unset, so removing the line resets it
+	request.OccurrenceThresholdInterval = plan.OccurrenceThresholdInterval // its schema default travels when unset, so removing the line resets it
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -478,6 +484,7 @@ func populateErrorsJiraIntegration(ctx context.Context, m *ErrorsJiraIntegration
 }
 
 func (r *ErrorsJiraIntegrationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer rememberConfigured(ctx, req.Config, resp.Private, errorsJiraIntegrationKeptOnRemoval, &resp.Diagnostics)
 	var plan ErrorsJiraIntegrationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request ErrorsJiraIntegrationModel
@@ -486,6 +493,17 @@ func (r *ErrorsJiraIntegrationResource) Update(ctx context.Context, req resource
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+	// An unset line's default travels only when it changes the stored value (the line was just
+	// removed): resending an unchanged default can act on its own, e.g. unpause a group's members.
+	if !plan.AffectedUsersThresholdCount.Equal(state.AffectedUsersThresholdCount) {
+		request.AffectedUsersThresholdCount = plan.AffectedUsersThresholdCount
+	}
+	if !plan.OccurrenceThresholdCount.Equal(state.OccurrenceThresholdCount) {
+		request.OccurrenceThresholdCount = plan.OccurrenceThresholdCount
+	}
+	if !plan.OccurrenceThresholdInterval.Equal(state.OccurrenceThresholdInterval) {
+		request.OccurrenceThresholdInterval = plan.OccurrenceThresholdInterval
 	}
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
@@ -503,6 +521,13 @@ func (r *ErrorsJiraIntegrationResource) Update(ctx context.Context, req resource
 func (r *ErrorsJiraIntegrationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retention is explicit IaC policy: removal forgets state and never deletes remote history.
 	return
+}
+
+// Attributes whose removal from the configuration keeps the server's value (no default, no null).
+var errorsJiraIntegrationKeptOnRemoval = []string{"applications", "jira_fields", "jira_issue_type_id", "jira_project_key", "name", "notifications", "tag_filter"}
+
+func (r *ErrorsJiraIntegrationResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	warnKeptOnRemoval(ctx, "betterstack_errors_jira_integration", req, resp, errorsJiraIntegrationKeptOnRemoval)
 }
 
 func (r *ErrorsJiraIntegrationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
