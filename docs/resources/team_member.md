@@ -9,6 +9,8 @@ description: |-
 
 A member of a team, or a pending invitation to join it, with the role they hold or would land on.
 
+-> Creating a team member e-mails them an invitation to join the team, and they join once they accept it. Someone already in another team of the organization joins at once, with no invitation.
+
 ~> Destroying a team member deletes its data for good, so `deletion_protection` is on by default: Terraform refuses to destroy or replace it until you set `deletion_protection = false` and apply.
 
 ## Example Usage
@@ -60,7 +62,7 @@ resource "betterstack_team_member" "invite_into_a_custom_role_by_id" {
 
 ### Read-Only
 
-- `id` (String) The ID of this team member.
+- `id` (String) The e-mail address, as the API stores it. Import takes it too.
 - `first_name` (String) The member's first name, or `null` when they haven't set one. Absent on a pending invitation.
 - `last_name` (String) The member's last name, or `null` when they haven't set one. Absent on a pending invitation.
 - `mobile_app_platforms` (List of String) The platforms the member's mobile apps receive push notifications on, `ios` and `android`, or empty when none. Absent on a pending invitation.
@@ -69,19 +71,19 @@ resource "betterstack_team_member" "invite_into_a_custom_role_by_id" {
 
 ## Import
 
-Import an existing team member by its ID. Get the user ID via [List team members](https://betterstack.com/docs/uptime/api/team-members/list/).
+Import an existing team member by its ID. Its ID is its e-mail address, such as `alice@example.com`.
 
 With Terraform 1.5 or later, use an `import` block:
 
 ```terraform
 import {
   to = betterstack_team_member.example
-  id = "12345"
+  id = "alice@example.com"
 }
 ```
 
 Or run `terraform import`:
 
 ```shell
-terraform import betterstack_team_member.example 12345
+terraform import betterstack_team_member.example alice@example.com
 ```

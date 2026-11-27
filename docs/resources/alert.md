@@ -11,61 +11,40 @@ An alert on a dashboard chart or a saved exploration that opens an incident when
 
 ## Example Usage
 
-### On a dashboard chart
-
 ```terraform
-resource "betterstack_alert" "on_a_dashboard_chart" {
-  dashboard_id        = "123"
-  chart_id            = "456"
-  name                = "High Error Rate"
-  alert_type          = "threshold"
-  operator            = "higher_than"
-  value               = 100
-  check_period        = 300
-  confirmation_period = 0
-  escalation_target   = { policy_name = "Critical Policy" }
-  metadata            = { runbook = ["http://runbook/high-errors"] }
-}
-```
-
-### On an exploration
-
-```terraform
-resource "betterstack_alert" "on_an_exploration" {
-  exploration_id      = "789"
-  name                = "Status is Error"
-  alert_type          = "threshold"
-  operator            = "equal"
-  string_value        = "error"
-  check_period        = 300
-  confirmation_period = 0
-}
-```
-
-### In an exploration
-
-```terraform
-resource "betterstack_exploration" "example" {
-  name            = "Error Rate Analysis"
-  date_range_from = "now-3h"
-  date_range_to   = "now"
-  chart           = { chart_type = "line_chart", description = "Shows error rates across all services", settings = { unit = "auto", decimal_places = 0, legend = "shown_below", stacking = "dont_stack" } }
-  queries         = [{ name = "Main Query", query_type = "sql_expression", sql_query = "SELECT {{time}} AS time, count(*) AS value\nFROM {{source}}\nWHERE dt BETWEEN {{start_time}} AND {{end_time}}\n  [[ AND match(JSONExtractString(raw, 'level'), {{level}}) ]]\nGROUP BY time", source_variable = "source" }]
-  variables       = [{ name = "source", variable_type = "source", values = ["123"] }, { name = "level", variable_type = "select_with_sql", values = [], default_values = [], sql_definition = "JSONExtractString(raw, 'level')", allow_multiple_values = true }]
+resource "betterstack_source" "app" {
+  name     = "Production app"
+  platform = "ubuntu"
 }
 
-resource "betterstack_alert" "in_exploration" {
-  dashboard_id        = "123"
-  chart_id            = "456"
-  name                = "High Error Rate"
-  alert_type          = "threshold"
-  operator            = "higher_than"
-  value               = 100
-  check_period        = 300
-  confirmation_period = 0
-  escalation_target   = { policy_name = "Critical Policy" }
-  metadata            = { runbook = ["http://runbook/high-errors"] }
-  exploration_id      = betterstack_exploration.example.id
+resource "betterstack_dashboard" "app" {
+  name = "Production app"
+}
+
+resource "betterstack_dashboard_chart" "errors" {
+  dashboard_id = betterstack_dashboard.app.id
+  chart_type   = "line_chart"
+  name         = "Errors"
+  queries = [{
+    query_type = "sql_expression"
+    sql_query  = "SELECT {{time}} AS time, count(*) AS value FROM {{source}} WHERE dt BETWEEN {{start_time}} AND {{end_time}} AND JSONExtract(raw, 'level', 'Nullable(String)') = 'error' GROUP BY time"
+  }]
+}
+
+resource "betterstack_alert" "error_spike" {
+  dashboard_id         = betterstack_dashboard.app.id
+  chart_id             = betterstack_dashboard_chart.errors.id
+  name                 = "Error spike"
+  alert_type           = "threshold"
+  operator             = "higher_than"
+  value                = 100
+  source_variable      = "source:${betterstack_source.app.table_name}"
+  aggregation_interval = 300
+  check_period         = 60
+  confirmation_period  = 300
+  recovery_period      = 300
+  email                = true
+  push                 = true
 }
 ```
 

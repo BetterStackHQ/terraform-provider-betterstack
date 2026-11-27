@@ -71,12 +71,12 @@ With Terraform 1.5 or later, use an `import` block:
 ```terraform
 import {
   to = betterstack_extracted_metric.example
-  id = "<source_id>/12345"
+  id = "<source_id>/m-123"
 }
 ```
 
 Or run `terraform import`:
 
 ```shell
-terraform import betterstack_extracted_metric.example <source_id>/12345
+terraform import betterstack_extracted_metric.example <source_id>/m-123
 ```

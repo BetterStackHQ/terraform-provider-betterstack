@@ -13,7 +13,7 @@ A team in the organization. Everything you create in any Better Stack product be
 
 ```terraform
 data "betterstack_team" "example" {
-  id = "12345"
+  id = "t123"
 }
 ```
 

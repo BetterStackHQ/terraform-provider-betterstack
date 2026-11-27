@@ -86,12 +86,12 @@ With Terraform 1.5 or later, use an `import` block:
 ```terraform
 import {
   to = betterstack_team.example
-  id = "12345"
+  id = "t123"
 }
 ```
 
 Or run `terraform import`:
 
 ```shell
-terraform import betterstack_team.example 12345
+terraform import betterstack_team.example t123
 ```

@@ -9,6 +9,8 @@ description: |-
 
 Sends a webhook to an external URL when incidents, on-call, or monitors change.
 
+-> Replaces `betteruptime_outgoing_webhook`. Existing state moves over with a `moved {}` block; see the [migration guide](../guides/migration.md).
+
 ## Example Usage
 
 ### Create an outgoing webhook integration

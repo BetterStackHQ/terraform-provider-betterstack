@@ -1,201 +1,253 @@
-# Migrate to the unified Better Stack Terraform provider
+---
+page_title: "Migrate from better-uptime and logtail"
+description: |-
+  Move resources from the better-uptime and logtail providers to this provider without recreating them.
+---
 
-The unified provider uses `BetterStackHQ/betterstack`, flat `betterstack_*` types, and the current versions of the Better Stack API. The legacy `BetterStackHQ/better-uptime` and `BetterStackHQ/logtail` providers and APIs remain available, receiving bug fixes. There is no migration deadline.
+# Migrate from better-uptime and logtail
 
-Migration changes Terraform ownership, not remote infrastructure. Do not accept a migration plan that creates, updates, deletes or replaces remote objects.
+The `betterstack` provider replaces the `better-uptime` and `logtail` providers with one provider and one API token. The old providers keep working and get bug fixes, but no new features. There is no deadline to move.
 
-## Before starting
+The Better Stack CLI moves your resources over without recreating them. It reads your Terraform state and writes two new files, and the migration only changes which provider manages each resource. Nothing changes in Better Stack.
 
-1. Use Terraform 1.8 or newer and a current `betterstack` CLI with migration metadata. Keep the old configuration, `.terraform.lock.hcl`, legacy provider versions and a backend-supported state backup. State and backups contain secrets; keep them private.
-2. Stop concurrent Terraform operations, run `terraform apply -refresh-only` with the legacy providers, and resolve unrelated drift first. The refresh brings values changed outside Terraform, such as an alert's `email` or `recovery_period` set in the web app, into state: the legacy providers read those fields as computed, so a normal plan doesn't show them. The CLI also writes each value as the object's read-only lookup returns it. `terraform show -json` does not reliably expose every tainted/deposed object, pending replacement, provider alias or configuration expression. The final Terraform plan remains mandatory.
-3. Keep the existing API token's organization/team scope. The unified provider uses `api_token` (or `BETTERSTACK_API_TOKEN`) and global `team_id` values such as `t123`. A legacy application's numeric team ID is not necessarily the global ID. Never obtain a team ID by adding `t` to that number.
-4. Preserve provider aliases for distinct credentials or teams. CLI OAuth credentials are only for read-only discovery; never put them into Terraform configuration or substitute them for the provider's API token.
+## Migrate your configuration
 
-## Ask the CLI for migration instructions
+These steps move a typical configuration, with all resources in one team. If your setup uses several teams, modules, workspaces or provider aliases, read the section for it below first.
 
-Install the `betterstack` CLI and sign in with `betterstack signin`, or set `BETTERSTACK_API_TOKEN` (the variable the provider reads) to a global API token. Then, in the directory of your Terraform configuration:
+You need Terraform 1.8 or newer and a [global API token](https://betterstack.com/settings/global-api-tokens).
 
-```sh
-terraform apply -refresh-only
-terraform show -json | betterstack terraform migrate --output migration.tf
-```
+1. Install the Better Stack CLI. On Windows, run `irm https://betterstack.sh/install.ps1 | iex` in PowerShell instead.
 
-It writes two new files: `migration.tf` with the `moved`, `removed` and `import` blocks, and `betterstack.tf` with the target configuration. `betterstack terraform migrate --help` lists every flag.
+    ```sh
+    curl -fsSL https://betterstack.sh | sh
+    ```
 
-A private saved **show-JSON state document** can be passed with `--state state.json`. This is not a raw backend state file or saved-plan JSON. `--team-id t123` can disambiguate a target team, but cannot override evidence of another owning team. It also names the team when the legacy state's `team_name` matches no team or several: a team renamed after its resources were created keeps its old name in state, because the legacy providers never read it back. Each object's own read still has to prove it is in that team.
+2. Sign in to the CLI. To use the API token instead, set it in `BETTERSTACK_API_TOKEN`, the variable the provider reads too.
 
-### Several teams in one state
+    ```sh
+    betterstack signin
+    ```
 
-A state whose resources name several teams (`team_name`) is split by team. Each name is matched to a team the token or sign-in reaches, and each object is checked under that team. Both files then declare one `betterstack` provider, with `team_id` set to the first of those teams (such as `t123`). Every migrated block whose type takes `team_id` sets it to its own team, and a rotation split out of a calendar to its calendar's team, including blocks inside modules, so one `for_each` block, one module call and one module source can hold objects of several teams. An `import` block finds its object in whichever team the token reaches, and the block's `team_id` keeps it there.
+3. In your configuration's directory, save a copy of the current state. Keep it private, since state holds secrets such as source tokens.
 
-A few types have no `team_id` argument, because their API reads don't say which team an object is in. An object of such a type outside the provider's team gets an aliased provider for its team. A block at the root names it with `provider = betterstack.t456`. Inside a module, blocks keep the module's plain `betterstack` provider, and the `module` block at the root passes the team's provider with `providers = { betterstack = betterstack.t456 }`, which modules it calls inherit. Module provider wiring is not in show-JSON state, so the files list that line for every module call that needs it.
+    ```sh
+    terraform state pull > before-migration.tfstate
+    ```
 
-The run stops with nothing written when a name matches no team or several teams, when `--team-id` names another team, when the API places an object in another team than its name, or when the teams are in different organizations. It also stops for a root block, or a module call, whose objects of a type without `team_id` are in different teams, because Terraform gives each one provider: give each team its own block or module call first.
+4. Refresh the state with the old providers. This brings changes made in the Better Stack web app into the state, so the new configuration matches what is in Better Stack.
 
-The helper reads the entire state and performs only read-only API lookups. It does not execute Terraform, rewrite your HCL, edit state, upload state, or apply changes. It resolves ownership using the selected credentials, not a user's default team. It refuses the whole input, writing nothing, for an unknown legacy type/schema, conflicting target addresses, scope or ownership it cannot prove, two addresses resolving to one remote object, missing required values or credential problems.
+    ```sh
+    terraform apply -refresh-only
+    ```
 
-For proven one-to-one migrations it writes sorted `moved` blocks into a new `migration.tf`; for reviewed guided resources whose current ID a scoped read-only lookup verified it writes a state-only `removed` block plus an `import`. Inside a module call with `count` or `for_each`, a `removed` block names the resource without instance keys (`module.app.betteruptime_policy.main`) and forgets it in every instance of the call, with one `import` per instance, so the instances are handed off together or all stay on the legacy provider. Since two module calls can use the same module source, which `terraform show -json` doesn't record, a resource that stays in one module call also keeps the resource of the same type and name in every other module call on the legacy provider. Collector `databases` rows and a calendar's rotation become separate target resources, each imported at the existing child a scoped lookup matched to exactly one row, next to the moved or imported parent. An AWS/GCP source link (`logtail_source_aws_account`, `logtail_source_gcp_project`) moves one to one to `betterstack_source_aws_account` or `betterstack_source_gcp_project`, keeping its state. Generated target configuration goes to a second new file (`--config-output`, default `betterstack.tf` beside it): one `betterstack_*` block per migrated resource, converted from state as the provider's state mover does, with sensitive values replaced by declared sensitive variables, write-only values the API never reads back (collector target passwords) left out with a comment because the server keeps them, count/for_each values indexed per instance and module resources commented out for their module source. Where the legacy provider stored `0`, `-1` or an empty string for a value it couldn't leave unset, the file follows what the read-only lookup returned for the object: a value that is `null` there is left out, or written as the attribute's documented null value such as an alert's `recovery_period = -1`. A create-only value the API now spells differently, such as a source's legacy `data_region` id `us-west-2a` where the API reads `us`, is left out with a comment, so neither the moved state nor an import plans a replacement. It never overwrites an existing path, and a failure leaves no partial final artifact. Secret values are not copied from state into either file or diagnostics. No legacy objects produces an explicit success message and no file; missing migration metadata instead requires an upgrade or bundle refresh.
+5. Run the migration.
 
-A team or user named by number inside an object's values (a metadata or catalog record value of type Team or User, an escalation policy member, an alert's escalation target) is the app's own number, which for most teams and users differs from the Better Stack ID. The files write the `t123` or `u123` ID that the object's own lookup read holds at the same place, and never add a prefix to the number. A number that read doesn't hold stops the run with nothing written, naming the object and the number.
+    ```sh
+    terraform show -json | betterstack terraform migrate
+    ```
 
-A guided object it cannot hand off (no reviewed import, a failed, empty or ambiguous lookup, or state content only its recipe can carry) does not stop the run: the files cover every proven object, and the `migration.tf` header and stderr list each left-over address with its reason and recipe. Those objects stay on the legacy provider, so keep their legacy HCL, provider blocks and credentials, and point their references at the migrated addresses. The command then exits with status 3 instead of 0.
+    It writes two new files next to your configuration:
 
-When the file contains `removed` blocks, keep the legacy provider blocks and credentials configured until the migration is applied: Terraform needs them to plan the removals. Remove them afterwards, unless objects stay on the legacy provider.
+    - `migration.tf` tells Terraform to hand each resource to the new provider, with `moved` blocks, and `removed` plus `import` blocks for the few types that can't be moved.
+    - `betterstack.tf` holds a `betterstack_*` resource block for each migrated resource, with the values from your state.
 
-Read the file before using it. **Moved blocks do not update resource declarations or expressions.** Apply its per-address instructions to your existing configuration, preserving variable references and sensitive inputs. Merge the commented provider snippet into the appropriate existing provider blocks; do not add a second default provider configuration.
+6. Add the `betterstack` provider next to the old ones. Keep the old providers until step 10, because Terraform needs them to apply `migration.tf`. Copy `team_id` from the commented provider block at the top of `betterstack.tf`.
 
-Use the target provider minimum version printed by the helper. The bundle and provider must agree on the mappings; an older provider cannot execute mappings from a newer bundle simply because Terraform understands `moved` blocks.
+    ```hcl
+    terraform {
+      required_providers {
+        betterstack = {
+          source = "BetterStackHQ/betterstack"
+        }
+        # ...keep better-uptime and logtail here for now
+      }
+    }
 
-## Configuration changes
+    provider "betterstack" {
+      api_token = var.betterstack_api_token
+      team_id   = "t123"
+    }
 
-Use the generated provider migration guide for the complete source-type inventory and each conversion/recipe. It is generated from the same schema metadata used by the mover and CLI, rather than a second name map in this document.
+    variable "betterstack_api_token" {
+      type      = string
+      sensitive = true
+      default   = null
+    }
+    ```
 
-- Keep effective timing units, defaults, null/sentinel values, nested settings and create-only constants. For example, consolidated vendor integrations require their original `service`; an alert's legacy recovery value `-1` means explicit null, not the default recovery interval.
-- Write every setting you want to keep. The unified provider plans each attribute's documented default, so an attribute your configuration leaves out is planned at that default, and a value set only in the web app (a monitor paused there, for example) shows as a change in the first plan. Add it to the configuration before applying.
-- Monitors, heartbeats, sources, applications, collectors, status pages, teams and team members start with `deletion_protection = true`, also when moved or imported, and the plan shows no change for it. A later `terraform destroy`, or a change that replaces one of them, then fails with "Deletion protection is on". A configuration that is destroyed on purpose (a preview environment, for example) sets `deletion_protection = false` on them and applies that first.
-- Preserve references to computed outputs. A team member's `id` is its e-mail address in both providers, and the legacy `member_id` has no counterpart: read the member's user id from the API if you need it.
-- Preserve provider HTTP controls: `api_retry_max`, `api_retry_wait_min`, `api_retry_wait_max`, `api_timeout`, `api_rate_limit` and `api_rate_burst`. Provider configuration and alias wiring cannot be recovered from show-JSON state.
-- Rewrite data-source declarations and lookup expressions, but do not import data sources. Check that their returned identities and useful outputs still refer to the same objects.
-- Do not run global search-and-replace commands over HCL. Strings, module wiring, renamed fields, split resources and expressions require address-specific review.
+7. Replace the old resources with the new ones:
 
-For managed charts and explorations, `queries` holds the configured query inputs and `queries_result` exposes the complete returned queries, including their read-only IDs. Move references to those IDs to `queries_result`; do not configure server-assigned IDs. Data sources continue to expose the complete returned collection as `queries`.
+    - Delete each `betteruptime_*` and `logtail_*` resource block that `betterstack.tf` replaces. Each block in `betterstack.tf` starts with a comment naming the old address.
+    - In `betterstack.tf`, put back your own variables, locals and expressions where the file has literal values.
+    - Point outputs and other references at the new addresses, such as `betterstack_source.app.token` instead of `logtail_source.app.token`.
 
-## Modules, workspaces and provider aliases
+8. Install the new provider and check the plan.
 
-`terraform show -json` records each resource's address and values, but not the expressions, module sources or provider aliases that produced them. The generated files work from that, so each of these needs one edit by hand:
+    ```sh
+    terraform init
+    terraform plan
+    ```
 
-- **Modules.** A resource inside a module gets its moved, removed and import blocks in `migration.tf` at the root, which Terraform accepts. Its target block is written commented out in `betterstack.tf`, once per module instance, with the module's inputs as literals. Write it once in the module's own source, replacing the legacy block, and turn the literals back into the module's variables. Declare `betterstack` in the module's `required_providers`, and in a module call that passes providers, rename the key: `providers = { betteruptime = betteruptime.ops }` becomes `providers = { betterstack = betterstack.ops }`. A module source that other configurations also use changes for them too, so migrate those configurations at the same time, or give this one its own copy of the module.
-- **count and for_each.** The generated blocks write `count` or `for_each` from the instances in state, with each instance's values indexed. Put your own expressions back, such as `for_each = local.services`.
-- **Workspaces.** Run the command once per workspace, on that workspace's state. The files differ only in the provider's `team_id`, the import IDs and values read from state, so key those by workspace:
+    The plan lists resources that have moved, resources to import and old addresses Terraform will no longer manage. It must not add, change or destroy anything:
 
-  ```hcl
-  locals {
-    team_id = { default = "t123", staging = "t456" }[terraform.workspace]
-  }
+    ```text
+    Plan: 1 to import, 0 to add, 0 to change, 0 to destroy.
+    ```
 
-  provider "betterstack" {
-    team_id = local.team_id
-  }
+    If it shows a change, don't apply. See [The plan shows changes](#the-plan-shows-changes).
 
-  import {
-    to = betterstack_escalation_policy.main
-    id = { default = "131824", staging = "131825" }[terraform.workspace]
-  }
-  ```
+9. Apply the migration.
 
-  An import ID from another workspace's team fails the plan with "Cannot import non-existent remote object", so a mix-up stops before any change.
-- **Provider aliases.** State doesn't record which alias a resource used, so with one team the generated blocks have no `provider` argument. Add `provider = betterstack.<alias>` back where the legacy block had one. With several teams the files set `team_id`, or a provider for the few types without it, as described in [Several teams in one state](#several-teams-in-one-state).
-- **Data sources.** They hold no state, so nothing moves. Replace each legacy data block with the target type the command names, renaming its arguments as its instructions say.
-- **Outputs and other references.** Outputs, locals and expressions that read a legacy address, such as `logtail_source.app.token`, need the new address (`betterstack_source.app.token`). The plan stops on any reference left behind. Keep output names as they are, so configurations that read them through `terraform_remote_state` keep working.
+    ```sh
+    terraform apply
+    ```
 
-## Guided cases
+10. Remove the old providers from `required_providers` and delete their `provider` blocks. Then run the plan again. It should say `No changes`. You can delete `migration.tf` now.
 
-Some states need imports, splits, merges, provider-alias wiring or information available only in configuration. For each object the helper cannot hand off it reports the corresponding recipe and leaves the object on the legacy provider. A left-over object is not permission to omit a resource or lose its capabilities.
+    ```sh
+    terraform init
+    terraform plan
+    ```
 
-Follow the generated recipe with a stable backed-up state. Resolve canonical IDs by scoped read-only API requests, then configure the same objects under their new addresses. Use declarative non-destructive state operations where supported; otherwise use the recipe's explicit `terraform state rm` / `terraform import` ordering. `terraform state rm` forgets ownership only; never run a remote deletion to free an address. Do not let old and new managed addresses own the same object simultaneously.
+Keep `before-migration.tfstate` until you're sure everything works, then delete it. To go back, see [Undo the migration](#undo-the-migration).
 
-Exported dashboards, metadata owner/key identities, append-only release history, and calendars or collector databases the helper could not match need their specific preservation steps. Write-only values stay on the server: leave them out of the configuration rather than sending them again, and never fabricate credentials a read cannot recover. Removing a virtual source-facet address must not disconnect the source, and forgetting a release address must not erase release history.
+## The plan shows changes
 
-### Status page sections and resources
+Don't apply a plan that adds, changes or destroys a resource. Find the cause, fix the configuration and run `terraform plan` again:
 
-The unified provider manages a status page's structure only through `betterstack_status_page`'s
-`sections` list: it has no standalone section or status page resource, and a `moved` block can't
-target a list entry. A legacy `betteruptime_status_page_section` or `betteruptime_status_page_resource`
-folds into its page:
+- **A setting changed in the web app.** Run step 4 again, delete `migration.tf` and `betterstack.tf`, and run the migration again.
+- **A value differs from `betterstack.tf`.** Your own variable or expression gives another value than the state held. Compare the planned change with the generated block.
+- **A setting is missing.** The new provider plans its default for every setting your configuration leaves out. Write every setting you want to keep, as `betterstack.tf` does.
+- **A reference still names an old address.** Terraform stops with an error on it. Point it at the new address.
 
-1. Move the `betteruptime_status_page` to `betterstack_status_page` as usual, or import the page as
-   `betterstack_status_page` if the legacy configuration didn't manage it. Its refresh reads the
-   page's sections and their resources, with their ids, into state.
-2. `betterstack terraform migrate` writes the page's `sections` into `betterstack.tf` as the page
-   reads them, with their ids and every resource. To write them by hand instead, list them in
-   display order (each legacy `position`, ascending), with each section's resources nested in their
-   own order. Give each section its legacy `name`, and each
-   resource its `resource_type`, `resource_id`, `public_name` and display settings. Leave out the
-   ids, `position` and `fixed_position`: the list order is the position, and an entry without an id
-   keeps the id of the existing section with the same name, or of the resource with the same
-   `resource_type` and `resource_id` (or else `public_name`), so subscribers and history stay.
-   A legacy resource with `status_page_section_id = 0` goes in the page's first section. Metadata
-   rules become objects with `values`, and a Team or User value is `t123` or `u123`, as v5 reads it.
-   `sections` replaces the page's whole structure, so list every section and resource the refresh
-   read, including ones added in the web app that Terraform never managed: one left out is deleted.
-3. Forget each legacy section and resource address without destroying it. Destroying a legacy
-   section through the old provider deletes it and every resource in it.
+The CLI never replaces a file. To run it again, delete `migration.tf` and `betterstack.tf` first.
+
+## The state doesn't match Better Stack
+
+The CLI migrates every resource type. It skips a resource only when the state doesn't match what's in Better Stack, for example a resource deleted in the web app. It then exits with status 3 instead of 0, and the top of `migration.tf` lists each skipped resource with the reason.
+
+1. Migrate everything else with steps 6 to 9 of the main steps. Leave step 10 for later, since the skipped resources still need the old providers.
+2. Fix the cause. Refresh the state with `terraform apply -refresh-only`, or remove a resource that no longer exists from your configuration.
+3. Delete `migration.tf`, and rename `betterstack.tf`, for example to `main-betterstack.tf`. The CLI never replaces a file.
+4. Run the migration again. It picks up only the resources still on the old providers. Then follow the main steps from step 6, including step 10.
+
+A `for_each` or `count` resource is moved as a whole, so when one instance is skipped, all its instances are.
+
+## The command stops without writing files
+
+When the CLI can't migrate the state safely, it writes nothing and prints `Nothing was migrated and no file was written`, followed by each problem. The most common ones:
+
+- **A team name matches no team.** The old providers never read a team's new name back into the state. Name the team with `--team-id t123`.
+- **The CLI doesn't know a resource type or its fields.** Update the CLI with `betterstack update`.
+- **A team isn't one your sign-in reaches.** Sign in with an account that's a member of the team, or use a global API token of its organization.
+- **The state isn't `terraform show -json` output.** A raw `terraform.tfstate` file or a saved plan doesn't work.
+
+Fix the problem and run the migration again.
+
+## Resources in several teams
+
+The CLI handles a state with resources in several teams of one organization, as written by the old providers' `team_name`. It checks each resource in its own team. `betterstack.tf` sets the provider's `team_id` to the first of the teams, and `team_id` on every resource block, so one provider manages all of them. Use a global API token that reaches every team.
+
+A few resource types can't set `team_id`. For a resource of such a type in another team, the files add a provider with an alias for that team, such as `betterstack.t456`, and set `provider = betterstack.t456` on the resource block. Copy those provider blocks from the top of `betterstack.tf` too.
+
+The CLI stops when one resource block or module call holds resources of such a type from different teams. Split it into one block or module call per team first.
+
+## Resources inside modules
+
+The `moved`, `removed` and `import` blocks for resources in modules go into `migration.tf` at the root, and work from there.
+
+In `betterstack.tf`, the resource blocks of a module are commented out, once per module call, with the module's inputs written as literal values. For each module:
+
+1. Copy the blocks into the module's source, replacing its old resource blocks.
+2. Put the module's variables back in place of the literal values.
+3. Add `betterstack` to the module's `required_providers`.
+4. Where a `module` block passes providers, rename them, such as `providers = { betterstack = betterstack.ops }` instead of `providers = { betteruptime = betteruptime.ops }`.
+
+A module source that other configurations use changes for them too. Migrate those configurations at the same time, or give this one its own copy of the module.
+
+Terraform can't tell which module calls share a source. When a resource in a module is skipped, the same resource is skipped in every module call.
+
+## Resources with count or for_each
+
+The state keeps each instance but not the `count` or `for_each` expression that made them. `betterstack.tf` writes `count` or `for_each` from the instances in the state, with values that differ per instance indexed by `count.index` or `each.key`. Put your own expression back, such as `for_each = local.services`.
+
+## Several workspaces
+
+Run the migration once per workspace, with `terraform workspace select` first, and delete the two files between runs. The files differ only in `team_id`, the import IDs and values from each workspace's state, so write those per workspace:
 
 ```hcl
-moved {
-  from = betteruptime_status_page.main
-  to   = betterstack_status_page.main
+locals {
+  team_id = { default = "t123", staging = "t456" }[terraform.workspace]
 }
 
-removed {
-  from = betteruptime_status_page_section.services
-  lifecycle { destroy = false }
+provider "betterstack" {
+  team_id = local.team_id
 }
 
-removed {
-  from = betteruptime_status_page_resource.api
-  lifecycle { destroy = false }
-}
-
-resource "betterstack_status_page" "main" {
-  # ...the page's own attributes...
-  sections = [
-    {
-      name = "Services"
-      resources = [
-        { resource_type = "Monitor", resource_id = betterstack_monitor.api.id, public_name = "API" },
-      ]
-    },
-  ]
+import {
+  to = betterstack_escalation_policy.main
+  id = { default = "131824", staging = "131825" }[terraform.workspace]
 }
 ```
 
-Replace references to a legacy section or resource id with the page's `sections` entry, then
-require a plan with no create, update, delete or replacement.
+An import ID from another workspace's team fails the plan with `Cannot import non-existent remote object`, so a mix-up stops before anything changes.
 
-### State-only credential and request-policy handoff
+## Provider aliases
 
-Imports cannot recover write-only credentials or request-only flags. Do not accept a plan that sends
-the same credential again: that is still a remote update and can reconnect a collector target.
-The generated `scripts/transfer-state.py` carries outgoing webhook integration passwords. It also still merges
-collector inline-target state, but only for a hand migration that must keep those write-only
-values in state: `betterstack terraform migrate` leaves them on the server instead and needs no
-transfer. It is separate from `betterstack terraform migrate`.
+The state doesn't record which provider alias a resource used. With all resources in one team, the generated blocks have no `provider` argument. Add `provider = betterstack.<alias>` back where the old block had one, and give the `betterstack` provider the same aliases.
 
-1. Set `umask 077`, stop concurrent runs and save an original raw backup with
-   `terraform state pull > before.tfstate` before moving, forgetting or importing anything.
-2. Follow the address-specific recipe to move the owner with refresh-only state operations and
-   import existing target IDs or forget virtual facet addresses. Do not run a normal apply.
-   Pull the resulting raw state to `current.tfstate`.
-3. Run the offline handoff with the exact verified addresses and current serial. For example:
+## Data sources and references
 
-   ```sh
-   python3 scripts/transfer-state.py \
-     --backup before.tfstate --current current.tfstate \
-     --source betteruptime_outgoing_webhook.receiver \
-     --target betterstack_incidents_outgoing_webhook_integration.receiver \
-     --expected-serial 12 --output candidate.tfstate
-   ```
+Data sources hold no state, so nothing moves. Replace each `betteruptime_*` and `logtail_*` data block with the `betterstack_*` type that `migration.tf` names, renaming its arguments as its comment says. Don't import a data source.
 
-   Collector splits also require `--child-id` with the verified existing target ID. The script never
-   calls Terraform or an API, modifies its inputs, or uploads anything. It creates a new private
-   candidate file; conflicting values, mismatched identities and unsupported transfers are errors.
-4. Review the candidate locally as secret-bearing state. Confirm the backend still matches the
-   current snapshot, then use `terraform state push candidate.tfstate` without `-force`. Never push
-   over a concurrent change. Restore the complete equivalent configuration and require a normal
-   no-op plan before resuming applies.
+Outputs, locals and expressions that read an old address need the new one, and `terraform plan` stops on any left behind. Keep output names as they are, so configurations that read them with `terraform_remote_state` keep working.
 
-## Verify and recover
+One reference needs more than a new address:
 
-Run `terraform init` with the reviewed required-provider declarations, then inspect a saved plan. Moves, imports, read-only refreshes and explicit state-only forget operations may appear; the first plan need not be empty. **There must be no migration-induced remote create, update, delete or replacement.** Stop if the plan contains unrelated drift or intended infrastructure changes.
+- **Team members.** A team member's `id` is its e-mail address in both providers. The old `member_id` has no counterpart. `betterstack team-member list` shows a member's user ID if you need it.
 
-After applying only the reviewed state operations, require a second no-op plan. Verify the existing remote IDs, children, ordering, memberships, linkage and behavior remain unchanged. Keep the backup until that verification is complete.
+## Secrets and values the files leave out
 
-On lookup/import failure, stop before remote changes. Check the current backend state before recovering through Terraform/backend-supported operations. Do not overwrite state that another process may have changed, and never hand-edit a backend state file.
+The CLI never copies a secret from the state into either file:
 
-## Source-type migration recipes
+- **Secrets you set**, such as a bucket's secret key, become a sensitive `variable` in `betterstack.tf`. Set it from the same input your old configuration used, so the plan shows no change.
+- **Settings the state doesn't fully record**, such as an outgoing webhook's custom template, are left out with a comment that says so. Leaving them out changes nothing. To keep managing one, copy it from your old block, with its password input.
+- **Write-only values** that Better Stack never returns, such as collector database passwords, are left out with a comment. Better Stack keeps them, and leaving them out doesn't change them.
+- **A source's `data_region`** is left out with a comment when Better Stack names the region differently from the old state. It can't change after the source is created, and leaving it out keeps it.
 
-Minimum target provider version: **0.1.0**. Each entry names its supported state schema versions. Data sources require configuration changes, not state imports.
+## Status page sections and resources
+
+The new provider manages a status page's sections and their resources in `betterstack_status_page`'s `sections` list. There are no separate section or status page resource types.
+
+The CLI moves each `betteruptime_status_page` and writes its `sections` into `betterstack.tf` as Better Stack reads them, with every resource. Each `betteruptime_status_page_section` and `betteruptime_status_page_resource` gets a `removed` block, so Terraform forgets the old address without deleting anything.
+
+`sections` holds the page's whole structure, including sections added in the web app. A section you leave out of the list is deleted, with its resources, so keep every section the file lists.
+
+## Deletion protection
+
+Monitors, heartbeats, sources, applications, collectors, status pages, teams and team members get `deletion_protection = true`, also when moved or imported. The first plan doesn't show it as a change.
+
+`terraform destroy`, or a change that replaces such a resource, then stops with `Deletion protection is on`. To destroy a configuration on purpose, such as a preview environment, set `deletion_protection = false` on its resources and apply that first.
+
+## Undo the migration
+
+Before step 9, nothing has changed. Delete `migration.tf` and `betterstack.tf`, and put your old resource blocks back.
+
+After applying, restore the state you saved in step 3:
+
+1. Put your old configuration back, without `migration.tf` and `betterstack.tf`.
+2. Push the saved state. `-force` is needed, because the saved state is older than the current one. Make sure no other Terraform run changed the state since the migration.
+
+    ```sh
+    terraform init
+    terraform state push -force before-migration.tfstate
+    ```
+
+3. Run `terraform plan`. It should say `No changes`.
+
+## Reference for each resource type
+
+What changes for each `better-uptime` and `logtail` resource and data source type. Minimum target provider version: **0.1.0**. Data sources need configuration changes, not state imports.
 
 ### Data source: `betteruptime_amazon_sns_integration`
 
@@ -517,12 +569,9 @@ Back up state and stop other applies. Run `betterstack on-call-schedule get ID` 
 - Source provider: `registry.terraform.io/BetterStackHQ/better-uptime`.
 - Destination: `betterstack_incidents_outgoing_webhook_integration`.
 - Supported state schema versions: `0`.
-- Handling: guided configuration; `betterstack terraform migrate` verifies the current ID and emits `removed` (state-only) plus `import` blocks.
+- Handling: one-to-one moved state, subject to whole-state and ownership validation.
 - Conversion: `{"op":"singleton","path":"custom_webhook_template_attributes"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
 - Keep the NativeWebhook id, trigger_type, destination URL, notify_alongside_primary_responder and every event toggle explicitly. Unwrap the single custom_webhook_template_attributes block into an object, preserving method, ordered headers, body template and basic-auth input expressions. Preserve body_template as its stored string, including JSON encoding and template variables; do not drop non-JSON template strings. Move team_name to the provider's team_id, or to the resource's own team_id for an object in another team.
-- Keep any custom_webhook_template_attributes auth_password in HCL as its existing sensitive input expression; never copy it from state or show-JSON. A webhook whose legacy state holds a template password is not auto-imported and needs the state-transfer recipe.
-
-Stop other applies and privately save the ORIGINAL state with `terraform state pull` before removing any address. Run `betterstack incidents-outgoing-webhook-integration get ID` and compare every event toggle and request-template value. Keep the original sensitive auth_password expression in HCL, so an ordinary apply does not set a different password. Review `terraform state rm` of the legacy address, then run `terraform import` for the new resource at the existing ID (never apply an import block for this one). Save the CURRENT state with `terraform state pull`. For a configured legacy template password, run python3 scripts/transfer-state.py --backup ORIGINAL_RAW_PULL.json --current CURRENT_RAW_PULL.json --source EXACT_LEGACY_ADDRESS --target EXACT_TARGET_ADDRESS --expected-serial INTEGER --output NEW_CANDIDATE.json. It copies only the original template auth_password into the imported template and marks its state path sensitive. It refuses missing original credentials, changed identities and conflicting target values. Review the candidate privately, pull the state again and compare its lineage and serial, then install the candidate with `terraform state push`, which keeps locking, and never with -force. Require an ordinary plan with no changes before any apply. The script never contacts Better Stack or writes to the backend. The plan must not create, update or destroy the webhook or set its password again.
 
 ### Resource: `betteruptime_pagerduty_integration`
 
@@ -636,7 +685,7 @@ A section becomes an entry of its page's sections list: betterstack_status_page 
 - Source provider: `registry.terraform.io/BetterStackHQ/better-uptime`.
 - Destination: `betterstack_team_member`.
 - Supported state schema versions: `0`.
-- Handling: guided configuration/state transition.
+- Handling: guided configuration; `betterstack terraform migrate` verifies the current ID and emits `removed` (state-only) plus `import` blocks.
 - Change the resource type to betterstack_team_member and keep email, role and role_id. Remove member_id: `betterstack team-member list` shows the member's user ID if you need it. Move team_name to the provider's team_id (or a provider alias for that team).
 
 Back up state and stop concurrent applies. Remove the old resource from state without destroying it (a removed block with lifecycle { destroy = false }), then import betterstack_team_member by the same e-mail address, the id both providers use. Never apply a destroy of the old resource: it removes the member or cancels the invitation. Require a no-op plan afterward, apart from deletion_protection, which starts true.

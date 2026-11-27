@@ -13,23 +13,20 @@ A member of a team, or a pending invitation to join it, with the role they hold 
 
 ```terraform
 data "betterstack_team_member" "example" {
-  id = "12345"
+  email = "alice@example.com"
 }
 ```
 
 ## Schema
 
-### Required
-
-- `id` (String) The ID of the team member to look up.
-
 ### Optional
 
+- `email` (String) The e-mail address of the team member to look up. Set it, or `id` to the same value.
+- `id` (String) The same value as `email`.
 - `team_id` (String) Team the membership is in, such as `t123`. Defaults to the provider's `team_id`. Set it to look the object up in another team.
 
 ### Read-Only
 
-- `email` (String) E-mail address.
 - `first_name` (String) The member's first name, or `null` when they haven't set one. Absent on a pending invitation.
 - `last_name` (String) The member's last name, or `null` when they haven't set one. Absent on a pending invitation.
 - `role` (String) The member's built-in role in this team. A user can have a different role in each team. `null` on an invitation to a custom role. With neither `role` nor `role_id`, an invitation gets the responder role.

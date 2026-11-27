@@ -23,21 +23,26 @@ resource "betterstack_incidents_prometheus_integration" "example" {
 }
 ```
 
-### In an escalation policy
+### Alert through an escalation policy
 
 ```terraform
-resource "betterstack_escalation_policy" "escalation_policy" {
-  name         = "Standard Escalation Policy"
-  repeat_count = 3
-  repeat_delay = 1800
-  steps        = [{ type = "escalation", wait_before = 0, severity_id = "$SEVERITY_ID", step_members = [{ type = "current_on_call" }] }, { type = "escalation", wait_before = 600, severity_id = "$SEVERITY_ID", step_members = [{ type = "entire_team" }] }]
+data "betterstack_severity" "high" {
+  name = "High severity"
 }
 
-resource "betterstack_incidents_prometheus_integration" "in_escalation_policy" {
+resource "betterstack_escalation_policy" "on_call" {
+  name = "On-call, then the whole team"
+  steps = [
+    { type = "escalation", wait_before = 0, severity_id = data.betterstack_severity.high.id, step_members = [{ type = "current_on_call" }] },
+    { type = "escalation", wait_before = 600, severity_id = data.betterstack_severity.high.id, step_members = [{ type = "entire_team" }] },
+  ]
+}
+
+resource "betterstack_incidents_prometheus_integration" "alert_through_an_escalation_policy" {
   name                 = "Prometheus alerts"
   sms                  = true
   team_wait            = 180
-  escalation_policy_id = betterstack_escalation_policy.escalation_policy.id
+  escalation_policy_id = betterstack_escalation_policy.on_call.id
 }
 ```
 

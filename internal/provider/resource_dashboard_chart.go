@@ -2988,6 +2988,9 @@ func populateDashboardChart(ctx context.Context, m *DashboardChartModel, attrs m
 	if attrs == nil {
 		return
 	}
+	if v, ok := stringFromAPI(attrs["dashboard_id"]); ok {
+		m.DashboardId = types.StringValue(v)
+	}
 	if v, ok := stringFromAPI(attrs["chart_type"]); ok {
 		m.ChartType = types.StringValue(v)
 	}
@@ -3060,16 +3063,6 @@ func populateDashboardChart(ctx context.Context, m *DashboardChartModel, attrs m
 	}
 }
 
-func (r *DashboardChartResource) mergeResponse(ctx context.Context, m DashboardChartModel, attrs map[string]interface{}) {
-	if raw, ok := attrs["dashboard_id"]; ok && !m.DashboardId.IsNull() && !m.DashboardId.IsUnknown() {
-		if tv, err := m.DashboardId.ToTerraformValue(ctx); err == nil {
-			if prior, err := tftypesToAPI(tv); err == nil {
-				attrs["dashboard_id"] = mergeAPIRead(raw, prior, apiValueShape{WriteOnly: true})
-			}
-		}
-	}
-}
-
 func (r *DashboardChartResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	defer func() { syncIdentity(ctx, resp.State, resp.Identity, dashboardChartIdentityNames, &resp.Diagnostics) }()
@@ -3118,7 +3111,6 @@ func (r *DashboardChartResource) Update(ctx context.Context, req resource.Update
 	if out == nil {
 		out = map[string]interface{}{}
 	}
-	r.mergeResponse(ctx, state, out)
 	resp.State.Raw = stateFromPlan(req.Plan.Raw, req.State.Raw, out)
 }
 

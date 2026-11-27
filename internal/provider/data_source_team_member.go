@@ -4,6 +4,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -31,10 +32,10 @@ func (d *TeamMemberDataSource) Schema(ctx context.Context, req datasource.Schema
 		Description:         "A member of a team, or a pending invitation to join it, with the role they hold or would land on.",
 		MarkdownDescription: "A member of a team, or a pending invitation to join it, with the role they hold or would land on.",
 		Attributes: map[string]schema.Attribute{
-			"id":                   schema.StringAttribute{Required: true, Description: "The e-mail address of the team member to look up."},
+			"id":                   schema.StringAttribute{Optional: true, Computed: true, Description: "The e-mail address of the team member to look up, the same value as email. Set one of them.", MarkdownDescription: "The e-mail address of the team member to look up, the same value as `email`. Set one of them."},
 			"created_at":           schema.StringAttribute{Computed: true, Description: "When the user account was created. Absent on a pending invitation."},
 			"deletion_protection":  schema.BoolAttribute{Computed: true, Description: "Always null: deletion protection is a setting of the managed resource."},
-			"email":                schema.StringAttribute{Computed: true, Description: "E-mail address."},
+			"email":                schema.StringAttribute{Optional: true, Computed: true, Description: "E-mail address."},
 			"first_name":           schema.StringAttribute{Computed: true, Description: "The member's first name, or null when they haven't set one. Absent on a pending invitation.", MarkdownDescription: "The member's first name, or `null` when they haven't set one. Absent on a pending invitation."},
 			"invited_at":           schema.StringAttribute{Computed: true, Description: "When the invitation was created. Present only on a pending invitation."},
 			"last_name":            schema.StringAttribute{Computed: true, Description: "The member's last name, or null when they haven't set one. Absent on a pending invitation.", MarkdownDescription: "The member's last name, or `null` when they haven't set one. Absent on a pending invitation."},
@@ -61,6 +62,18 @@ func (d *TeamMemberDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		return
 	}
 	ctx = inTeam(ctx, data.TeamId.ValueString())
+	// The key field and the id hold the same value: either one names the object.
+	configuredEmail := data.Email
+	if data.Id.IsNull() || data.Id.IsUnknown() || data.Id.ValueString() == "" {
+		data.Id = data.Email
+	} else if !data.Email.IsNull() && !data.Email.IsUnknown() && !strings.EqualFold(data.Email.ValueString(), data.Id.ValueString()) {
+		resp.Diagnostics.AddError("team_member lookup conflicts with id", "Set email or id, or the same value in both.")
+		return
+	}
+	if data.Id.IsNull() || data.Id.IsUnknown() || data.Id.ValueString() == "" {
+		resp.Diagnostics.AddError("missing team_member lookup", "Set email.")
+		return
+	}
 	vars := map[string]string{}
 	vars["email"] = data.Id.ValueString()
 	out, found, err := d.client.GetDataSource(ctx, teamMemberBinding, vars)
@@ -73,5 +86,9 @@ func (d *TeamMemberDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		return
 	}
 	populateTeamMember(ctx, &data, out)
+	// Keep the configured spelling: the API ignores letter case in it.
+	if !configuredEmail.IsNull() && !configuredEmail.IsUnknown() {
+		data.Email = configuredEmail
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

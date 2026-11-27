@@ -737,8 +737,7 @@
         "team_name"
       ],
       "instructions": [
-        "Keep the NativeWebhook id, trigger_type, destination URL, notify_alongside_primary_responder and every event toggle explicitly. Unwrap the single custom_webhook_template_attributes block into an object, preserving method, ordered headers, body template and basic-auth input expressions. Preserve body_template as its stored string, including JSON encoding and template variables; do not drop non-JSON template strings. Move team_name to the provider's team_id, or to the resource's own team_id for an object in another team.",
-        "Keep any custom_webhook_template_attributes auth_password in HCL as its existing sensitive input expression; never copy it from state or show-JSON. A webhook whose legacy state holds a template password is not auto-imported and needs the state-transfer recipe."
+        "Keep the NativeWebhook id, trigger_type, destination URL, notify_alongside_primary_responder and every event toggle explicitly. Unwrap the single custom_webhook_template_attributes block into an object, preserving method, ordered headers, body template and basic-auth input expressions. Preserve body_template as its stored string, including JSON encoding and template variables; do not drop non-JSON template strings. Move team_name to the provider's team_id, or to the resource's own team_id for an object in another team."
       ],
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
       "source_type": "betteruptime_outgoing_webhook",
@@ -746,13 +745,8 @@
       "schema_versions": [
         0
       ],
-      "handling": "guided",
-      "auto_import": true,
-      "guided_if_nonempty": [
-        "custom_webhook_template_attributes[].auth_password"
-      ],
+      "handling": "move",
       "identity": "preserve",
-      "recipe": "Stop other applies and privately save the ORIGINAL state with `terraform state pull` before removing any address. Run `betterstack incidents-outgoing-webhook-integration get ID` and compare every event toggle and request-template value. Keep the original sensitive auth_password expression in HCL, so an ordinary apply does not set a different password. Review `terraform state rm` of the legacy address, then run `terraform import` for the new resource at the existing ID (never apply an import block for this one). Save the CURRENT state with `terraform state pull`. For a configured legacy template password, run python3 scripts/transfer-state.py --backup ORIGINAL_RAW_PULL.json --current CURRENT_RAW_PULL.json --source EXACT_LEGACY_ADDRESS --target EXACT_TARGET_ADDRESS --expected-serial INTEGER --output NEW_CANDIDATE.json. It copies only the original template auth_password into the imported template and marks its state path sensitive. It refuses missing original credentials, changed identities and conflicting target values. Review the candidate privately, pull the state again and compare its lineage and serial, then install the candidate with `terraform state push`, which keeps locking, and never with -force. Require an ordinary plan with no changes before any apply. The script never contacts Better Stack or writes to the backend. The plan must not create, update or destroy the webhook or set its password again.",
       "target_type": "betterstack_incidents_outgoing_webhook_integration"
     },
     {
@@ -1153,6 +1147,11 @@
       ],
       "handling": "guided",
       "identity": "preserve",
+      "auto_import": true,
+      "lookup": {
+        "action": "list",
+        "key": "email"
+      },
       "recipe": "Back up state and stop concurrent applies. Remove the old resource from state without destroying it (a removed block with lifecycle { destroy = false }), then import betterstack_team_member by the same e-mail address, the id both providers use. Never apply a destroy of the old resource: it removes the member or cancels the invitation. Require a no-op plan afterward, apart from deletion_protection, which starts true.",
       "target_type": "betterstack_team_member"
     },
@@ -2663,6 +2662,14 @@
         0
       ],
       "target_type": "betterstack_incidents_outgoing_pagerduty_integration"
+    },
+    {
+      "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
+      "source_type": "betteruptime_outgoing_webhook",
+      "schema_versions": [
+        0
+      ],
+      "target_type": "betterstack_incidents_outgoing_webhook_integration"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",

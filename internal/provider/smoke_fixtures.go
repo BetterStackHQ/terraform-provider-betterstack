@@ -164,7 +164,7 @@ var SmokeFixtures = []SmokeFixture{
 		Update:             map[string]interface{}{"dashboard_id": "12345", "chart_type": "line_chart", "queries": []interface{}{map[string]interface{}{"query_type": "example"}}, "name": "example-updated"},
 		ComputedItemFields: map[string]map[string]interface{}{},
 		ComputedChecks:     map[string]string{},
-		WriteOnly:          []string{"dashboard_id"},
+		WriteOnly:          []string{},
 		DynamicInputs:      []string{},
 		ImportParts:        []string{"dashboard_id", "id"},
 	},

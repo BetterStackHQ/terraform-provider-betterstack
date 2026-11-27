@@ -30,6 +30,12 @@ provider "betterstack" {
   api_token = var.betterstack_api_token
 }
 
+variable "betterstack_api_token" {
+  type      = string
+  sensitive = true
+  default   = null
+}
+
 resource "betterstack_monitor" "example" {
   url = "https://uptime.betterstack.com"
 }

@@ -15,28 +15,28 @@ A telemetry source, a stream of logs, metrics, or traces ingested into Better St
 
 ## Example Usage
 
-### Create a source
+### Collect logs from Ubuntu servers and keep them for 30 days
 
 ```terraform
-resource "betterstack_source" "example" {
-  name        = "My new HTTP source"
-  platform    = "http"
-  data_region = "us"
+resource "betterstack_source" "servers" {
+  name              = "Production servers"
+  platform          = "ubuntu"
+  logs_retention    = 30
+  metrics_retention = 90
 }
 ```
 
-### In a source group
+### Receive OpenTelemetry data in a source group
 
 ```terraform
-resource "betterstack_source_group" "example" {
-  name = "Backend sources"
+resource "betterstack_source_group" "backend" {
+  name = "Backend"
 }
 
-resource "betterstack_source" "in_source_group" {
-  name            = "My new HTTP source"
-  platform        = "http"
-  data_region     = "us"
-  source_group_id = betterstack_source_group.example.id
+resource "betterstack_source" "otel" {
+  name            = "Checkout service"
+  platform        = "open_telemetry"
+  source_group_id = betterstack_source_group.backend.id
 }
 ```
 

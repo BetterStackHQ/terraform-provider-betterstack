@@ -15,44 +15,51 @@ An uptime monitor that periodically checks a URL, host, or service and alerts on
 
 ## Example Usage
 
-### Create a monitor
+### Check a website every 30 seconds
 
 ```terraform
-resource "betterstack_monitor" "example" {
-  monitor_type       = "status"
-  url                = "https://facebook.com"
-  pronounceable_name = "Facebook homepage"
-  email              = true
-  sms                = true
-  call               = true
-  check_frequency    = 30
-  request_headers    = [{ name = "X-Custom-Header", value = "custom header value" }]
+resource "betterstack_monitor" "website" {
+  url                 = "https://uptime.betterstack.com"
+  monitor_type        = "status"
+  pronounceable_name  = "Uptime homepage"
+  check_frequency     = 30
+  confirmation_period = 60
+  regions             = ["us", "eu"]
+  ssl_expiration      = 14
+  domain_expiration   = 14
+  email               = true
+  push                = true
+  team_wait           = 180
 }
 ```
 
-### With metadata
+### Look for a keyword, alert through an escalation policy and pause at night
 
 ```terraform
-resource "betterstack_monitor" "with_metadata" {
-  monitor_type       = "status"
-  url                = "https://facebook.com"
-  pronounceable_name = "Facebook homepage"
-  metadata           = { Environment = { values = [{ value = "production" }] }, Owner = { values = [{ type = "Team", name = "Platform" }] } }
+data "betterstack_severity" "high" {
+  name = "High severity"
 }
-```
 
-### Two custom headers
+resource "betterstack_escalation_policy" "on_call" {
+  name = "On-call, then the whole team"
+  steps = [
+    { type = "escalation", wait_before = 0, severity_id = data.betterstack_severity.high.id, step_members = [{ type = "current_on_call" }] },
+    { type = "escalation", wait_before = 600, severity_id = data.betterstack_severity.high.id, step_members = [{ type = "entire_team" }] },
+  ]
+}
 
-```terraform
-resource "betterstack_monitor" "two_custom_headers" {
-  monitor_type       = "status"
-  url                = "https://facebook.com"
-  pronounceable_name = "Facebook homepage"
-  email              = true
-  sms                = true
-  call               = true
-  check_frequency    = 30
-  request_headers    = [{ name = "Content-Type", value = "application/json" }, { name = "X-Api-Key", value = "secret" }]
+resource "betterstack_monitor" "pricing" {
+  url                  = "https://betterstack.com/pricing"
+  monitor_type         = "keyword"
+  required_keyword     = "Pricing"
+  pronounceable_name   = "Pricing page"
+  check_frequency      = 60
+  recovery_period      = 300
+  request_headers      = [{ name = "Accept-Language", value = "en" }]
+  escalation_policy_id = betterstack_escalation_policy.on_call.id
+  maintenance_from     = "02:00:00"
+  maintenance_to       = "05:00:00"
+  maintenance_timezone = "UTC"
 }
 ```
 
