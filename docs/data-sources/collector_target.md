@@ -22,36 +22,47 @@ data "betterstack_collector_target" "example" {
 
 ### Address
 
-- `collector_id` (String, Required) Id of the parent this collector belongs to. Changing it replaces the resource.
+- `collector_id` (String, Required) The ID of the parent this collector belongs to. Changing it replaces the resource.
 
 ### Required
 
-- `id` (String) The id of the collector_target to look up.
+- `id` (String) The ID of the collector target to look up.
+
+### Optional
+
+- `team_id` (String) Team that owns the collector's source, such as `t123`. Defaults to the provider's `team_id`. Set it to look the object up in another team.
 
 ### Read-Only
 
-- `kind` (String) Target type. Can't be changed after the target is created. Valid values: `postgres`, `pgbouncer`, `mysql`, `redis`, `mongodb`, `memcached`, `elasticsearch`, `nginx`, `apache`, `kafka`, `prometheus`, `traefik`.
+- `kind` (String) Target type. Reads can also return `pgcat`, `node_exporter` and `kube_state_metrics`, which the collector finds by itself and the API doesn't accept on create. Valid values: `postgres`, `pgbouncer`, `mysql`, `redis`, `mongodb`, `memcached`, `elasticsearch`, `nginx`, `apache`, `kafka`, `prometheus`, `traefik`.
 - `host` (String) Target host. For the process kinds this is the host the collector runs on.
-- `enabled` (Boolean) Whether the collector scrapes this target. Disabling it sets `status` to `disabled`. Enabling it again checks the target again.
-- `port` (Number) Target port (databases, nginx, apache, kafka, traefik).
-- `service` (String) Service name (nginx, apache, kafka, traefik, prometheus).
-- `listen_ip` (String) Listen IP (nginx, apache, kafka, traefik).
-- `endpoint` (String) Scrape endpoint (prometheus).
-- `scheme` (String) Scheme (elasticsearch). Valid values: `http`, `https`.
-- `username` (String) Auth username (databases, elasticsearch).
-- `password` (String, Sensitive) Auth password (databases, elasticsearch). Never returned by any read.
-- `api_key` (String, Sensitive) API key (elasticsearch). Never returned by any read.
-- `ssl_mode` (String) SSL mode (postgres, pgbouncer). Valid values: `disable`, `require`, `verify-ca`.
-- `tls` (String) TLS mode (mysql). Valid values: `false`, `true`, `skip-verify`, `preferred`.
-- `status` (String) Connection status. An update that sends `host`, `port`, `service`, `listen_ip`, `endpoint`, `scheme`, `username`, `password`, `api_key`, `ssl_mode` or `tls` sets it back to `pending`.
+- `enabled` (Boolean) Whether the collector scrapes this target. A new target is enabled unless it's set to `false`. Disabling it sets `status` to `disabled`, and enabling it again checks the target again.
+- `port` (Number) The target's port. `null` when a target is found by its `listen_ip` or `service` instead. Applies only when `kind` is `postgres` or `pgbouncer` or `mysql` or `redis` or `mongodb` or `memcached` or `elasticsearch` or `nginx` or `apache` or `kafka` or `traefik`.
+- `service` (String) The service name. Required for `nginx`, `apache`, `kafka`, `prometheus` and `traefik` targets, and accepted and returned only for those. Applies only when `kind` is `nginx` or `apache` or `kafka` or `prometheus` or `traefik`.
+- `listen_ip` (String) The IP address the process listens on. Accepted and returned only for `nginx`, `apache`, `kafka` and `traefik`, and `null` when not set. Applies only when `kind` is `nginx` or `apache` or `kafka` or `traefik`.
+- `endpoint` (String) The full scrape URL, like `http://10.0.0.5:9090/metrics`. Required for `prometheus` targets and returned only for them. Applies only when `kind` is `prometheus`.
+- `scheme` (String) The connection scheme. Accepted and returned only for `elasticsearch`. Valid values: `http`, `https`. Applies only when `kind` is `elasticsearch`.
+- `username` (String) The username used to connect, or `null` when not set. Accepted and returned only for `postgres`, `pgbouncer`, `mysql`, `redis`, `mongodb`, `memcached` and `elasticsearch`. Applies only when `kind` is `postgres` or `pgbouncer` or `mysql` or `redis` or `mongodb` or `memcached` or `elasticsearch`.
+- `password` (String, Sensitive) Password for database and `elasticsearch` targets.
+- `api_key` (String, Sensitive) API key for `elasticsearch` targets.
+- `ssl_mode` (String) The SSL mode for the connection. Required for `postgres` and `pgbouncer`, and accepted and returned only for those. Applies only when `kind` is `postgres` or `pgbouncer`.
+  - `disable`: Connects without SSL.
+  - `require`: Connects over SSL without verifying the server's certificate.
+  - `verify-ca`: Connects over SSL and checks that a trusted certificate authority signed the server's certificate.
+- `tls` (String) The TLS mode for the connection. Required for `mysql`, and accepted and returned only for it. Applies only when `kind` is `mysql`.
+  - `false`: Connects without TLS.
+  - `true`: Connects over TLS and verifies the server's certificate.
+  - `skip-verify`: Connects over TLS without verifying the server's certificate.
+  - `preferred`: Uses TLS when the server supports it, without verifying the server's certificate.
+- `status` (String) The connection status. An update that includes `host`, `port`, `service`, `listen_ip`, `endpoint`, `scheme`, `username`, `password`, `api_key`, `ssl_mode` or `tls` sets it back to `pending`.
+  - `pending`: The collector hasn't reported on the target yet.
+  - `up`: The collector collects metrics from the target.
+  - `unreachable`: The collector can't connect to the target or hasn't seen it lately.
+  - `down`: The collector reaches the target, but its check fails.
+  - `invalid_credentials`: The target rejects the credentials.
+  - `configuration_required`: Metrics are collected, but the database needs more setup, such as the `pg_stat_statements` extension.
+  - `disabled`: The target is paused and the collector doesn't check it.
+  - `removed`: The collector no longer finds the target.
 - `container` (String) Detected container.
 - `created_at` (String (RFC 3339)) When the target was created.
 - `updated_at` (String (RFC 3339)) When the target was last updated.
-
-## Endpoints
-
-- `GET /api/v1/collectors/:collector_id/targets`
-- `GET /api/v1/collectors/:collector_id/targets/:id`
-- `POST /api/v1/collectors/:collector_id/targets`
-- `PATCH /api/v1/collectors/:collector_id/targets/:id`
-- `DELETE /api/v1/collectors/:collector_id/targets/:id`

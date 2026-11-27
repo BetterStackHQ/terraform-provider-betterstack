@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -49,6 +48,7 @@ type CollectorTargetModel struct {
 	Service     types.String `tfsdk:"service"`
 	SslMode     types.String `tfsdk:"ssl_mode"`
 	Status      types.String `tfsdk:"status"`
+	TeamId      types.String `tfsdk:"team_id"`
 	Tls         types.String `tfsdk:"tls"`
 	UpdatedAt   types.String `tfsdk:"updated_at"`
 	Username    types.String `tfsdk:"username"`
@@ -60,27 +60,29 @@ func (r *CollectorTargetResource) Metadata(ctx context.Context, req resource.Met
 
 func (r *CollectorTargetResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A database or process a collector scrapes for metrics, for example Postgres, nginx, or a Prometheus endpoint.",
+		Description:         "A database or process a collector scrapes for metrics, for example Postgres, nginx, or a Prometheus endpoint.",
+		MarkdownDescription: "A database or process a collector scrapes for metrics, for example Postgres, nginx, or a Prometheus endpoint.",
 		Attributes: map[string]schema.Attribute{
 			"id":           schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"api_key":      schema.StringAttribute{Optional: true, Description: "API key (elasticsearch). Never returned by any read.", Sensitive: true},
-			"collector_id": schema.StringAttribute{Required: true, Description: "Id of the parent this collector belongs to.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_collector_target"}}},
+			"api_key":      schema.StringAttribute{Optional: true, Description: "API key for elasticsearch targets.", MarkdownDescription: "API key for `elasticsearch` targets.", Sensitive: true},
+			"collector_id": schema.StringAttribute{Required: true, Description: "The ID of the parent this collector belongs to.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_collector_target"}}},
 			"container":    schema.StringAttribute{Computed: true, Description: "Detected container."},
 			"created_at":   schema.StringAttribute{Computed: true, Description: "When the target was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"enabled":      schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether the collector scrapes this target. Disabling it sets `status` to `disabled`. Enabling it again checks the target again."},
-			"endpoint":     schema.StringAttribute{Optional: true, Computed: true, Description: "Scrape endpoint (prometheus).", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"enabled":      schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether the collector scrapes this target. A new target is enabled unless it's set to false. Disabling it sets status to disabled, and enabling it again checks the target again.", MarkdownDescription: "Whether the collector scrapes this target. A new target is enabled unless it's set to `false`. Disabling it sets `status` to `disabled`, and enabling it again checks the target again."},
+			"endpoint":     schema.StringAttribute{Optional: true, Computed: true, Description: "The full scrape URL, like http://10.0.0.5:9090/metrics. Required for prometheus targets and returned only for them.", MarkdownDescription: "The full scrape URL, like `http://10.0.0.5:9090/metrics`. Required for `prometheus` targets and returned only for them.", Validators: []validator.String{appliesWhenConfigString{When: []siblingCond{{Path: "kind", Values: []string{"prometheus"}}}}}, PlanModifiers: []planmodifier.String{appliesWhenPlanString{When: []siblingCond{{Path: "kind", Values: []string{"prometheus"}}}, Default: types.StringNull()}}},
 			"host":         schema.StringAttribute{Required: true, Description: "Target host. For the process kinds this is the host the collector runs on."},
-			"kind":         schema.StringAttribute{Required: true, Description: "Target type. Can't be changed after the target is created.", Validators: []validator.String{stringvalidator.OneOf("postgres", "pgbouncer", "mysql", "redis", "mongodb", "memcached", "elasticsearch", "nginx", "apache", "kafka", "prometheus", "traefik")}, PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_collector_target"}}},
-			"listen_ip":    schema.StringAttribute{Optional: true, Description: "Listen IP (nginx, apache, kafka, traefik)."},
-			"password":     schema.StringAttribute{Optional: true, Description: "Auth password (databases, elasticsearch). Never returned by any read.", Sensitive: true},
-			"port":         schema.Int64Attribute{Optional: true, Computed: true, Description: "Target port (databases, nginx, apache, kafka, traefik).", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
-			"scheme":       schema.StringAttribute{Optional: true, Computed: true, Description: "Scheme (elasticsearch).", Validators: []validator.String{stringvalidator.OneOf("http", "https")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"service":      schema.StringAttribute{Optional: true, Computed: true, Description: "Service name (nginx, apache, kafka, traefik, prometheus).", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"ssl_mode":     schema.StringAttribute{Optional: true, Computed: true, Description: "SSL mode (postgres, pgbouncer).", Validators: []validator.String{stringvalidator.OneOf("disable", "require", "verify-ca")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"status":       schema.StringAttribute{Computed: true, Description: "Connection status. An update that sends `host`, `port`, `service`, `listen_ip`, `endpoint`, `scheme`, `username`, `password`, `api_key`, `ssl_mode` or `tls` sets it back to `pending`."},
-			"tls":          schema.StringAttribute{Optional: true, Computed: true, Description: "TLS mode (mysql).", Validators: []validator.String{stringvalidator.OneOf("false", "true", "skip-verify", "preferred")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"kind":         schema.StringAttribute{Required: true, Description: "Target type. Reads can also return pgcat, node_exporter and kube_state_metrics, which the collector finds by itself and the API doesn't accept on create. Can't be changed after the target is created.", MarkdownDescription: "Target type. Reads can also return `pgcat`, `node_exporter` and `kube_state_metrics`, which the collector finds by itself and the API doesn't accept on create. Can't be changed after the target is created.", Validators: []validator.String{stringvalidator.OneOf("postgres", "pgbouncer", "mysql", "redis", "mongodb", "memcached", "elasticsearch", "nginx", "apache", "kafka", "prometheus", "traefik")}, PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_collector_target"}}},
+			"listen_ip":    schema.StringAttribute{Optional: true, Description: "The IP address the process listens on. Accepted and returned only for nginx, apache, kafka and traefik, and null when not set.", MarkdownDescription: "The IP address the process listens on. Accepted and returned only for `nginx`, `apache`, `kafka` and `traefik`, and `null` when not set.", Validators: []validator.String{appliesWhenConfigString{When: []siblingCond{{Path: "kind", Values: []string{"nginx", "apache", "kafka", "traefik"}}}}}, PlanModifiers: []planmodifier.String{appliesWhenPlanString{When: []siblingCond{{Path: "kind", Values: []string{"nginx", "apache", "kafka", "traefik"}}}, Default: types.StringNull()}}},
+			"password":     schema.StringAttribute{Optional: true, Description: "Password for database and elasticsearch targets.", MarkdownDescription: "Password for database and `elasticsearch` targets.", Sensitive: true},
+			"port":         schema.Int64Attribute{Optional: true, Description: "The target's port. null when a target is found by its listen_ip or service instead. Required for database kinds and accepted for nginx, apache, kafka and traefik.", MarkdownDescription: "The target's port. `null` when a target is found by its `listen_ip` or `service` instead. Required for database kinds and accepted for `nginx`, `apache`, `kafka` and `traefik`.", Validators: []validator.Int64{appliesWhenConfigInt64{When: []siblingCond{{Path: "kind", Values: []string{"postgres", "pgbouncer", "mysql", "redis", "mongodb", "memcached", "elasticsearch", "nginx", "apache", "kafka", "traefik"}}}}}, PlanModifiers: []planmodifier.Int64{appliesWhenPlanInt64{When: []siblingCond{{Path: "kind", Values: []string{"postgres", "pgbouncer", "mysql", "redis", "mongodb", "memcached", "elasticsearch", "nginx", "apache", "kafka", "traefik"}}}, Default: types.Int64Null()}}},
+			"scheme":       schema.StringAttribute{Optional: true, Computed: true, Description: "The connection scheme. Accepted and returned only for elasticsearch. Defaults to http.", MarkdownDescription: "The connection scheme. Accepted and returned only for `elasticsearch`. Defaults to `http`.", Validators: []validator.String{stringvalidator.OneOf("http", "https"), appliesWhenConfigString{When: []siblingCond{{Path: "kind", Values: []string{"elasticsearch"}}}}}, PlanModifiers: []planmodifier.String{appliesWhenPlanString{When: []siblingCond{{Path: "kind", Values: []string{"elasticsearch"}}}, Default: types.StringNull()}}},
+			"service":      schema.StringAttribute{Optional: true, Computed: true, Description: "The service name. Required for nginx, apache, kafka, prometheus and traefik targets, and accepted and returned only for those.", MarkdownDescription: "The service name. Required for `nginx`, `apache`, `kafka`, `prometheus` and `traefik` targets, and accepted and returned only for those.", Validators: []validator.String{appliesWhenConfigString{When: []siblingCond{{Path: "kind", Values: []string{"nginx", "apache", "kafka", "prometheus", "traefik"}}}}}, PlanModifiers: []planmodifier.String{appliesWhenPlanString{When: []siblingCond{{Path: "kind", Values: []string{"nginx", "apache", "kafka", "prometheus", "traefik"}}}, Default: types.StringNull()}}},
+			"ssl_mode":     schema.StringAttribute{Optional: true, Computed: true, Description: "The SSL mode for the connection. Required for postgres and pgbouncer, and accepted and returned only for those.\n\n- disable: Connects without SSL.\n- require: Connects over SSL without verifying the server's certificate.\n- verify-ca: Connects over SSL and checks that a trusted certificate authority signed the server's certificate.", MarkdownDescription: "The SSL mode for the connection. Required for `postgres` and `pgbouncer`, and accepted and returned only for those.\n\n- `disable`: Connects without SSL.\n- `require`: Connects over SSL without verifying the server's certificate.\n- `verify-ca`: Connects over SSL and checks that a trusted certificate authority signed the server's certificate.", Validators: []validator.String{stringvalidator.OneOf("disable", "require", "verify-ca"), appliesWhenConfigString{When: []siblingCond{{Path: "kind", Values: []string{"postgres", "pgbouncer"}}}}}, PlanModifiers: []planmodifier.String{appliesWhenPlanString{When: []siblingCond{{Path: "kind", Values: []string{"postgres", "pgbouncer"}}}, Default: types.StringNull()}}},
+			"status":       schema.StringAttribute{Computed: true, Description: "The connection status. An update that includes host, port, service, listen_ip, endpoint, scheme, username, password, api_key, ssl_mode or tls sets it back to pending.\n\n- pending: The collector hasn't reported on the target yet.\n- up: The collector collects metrics from the target.\n- unreachable: The collector can't connect to the target or hasn't seen it lately.\n- down: The collector reaches the target, but its check fails.\n- invalid_credentials: The target rejects the credentials.\n- configuration_required: Metrics are collected, but the database needs more setup, such as the pg_stat_statements extension.\n- disabled: The target is paused and the collector doesn't check it.\n- removed: The collector no longer finds the target.", MarkdownDescription: "The connection status. An update that includes `host`, `port`, `service`, `listen_ip`, `endpoint`, `scheme`, `username`, `password`, `api_key`, `ssl_mode` or `tls` sets it back to `pending`.\n\n- `pending`: The collector hasn't reported on the target yet.\n- `up`: The collector collects metrics from the target.\n- `unreachable`: The collector can't connect to the target or hasn't seen it lately.\n- `down`: The collector reaches the target, but its check fails.\n- `invalid_credentials`: The target rejects the credentials.\n- `configuration_required`: Metrics are collected, but the database needs more setup, such as the `pg_stat_statements` extension.\n- `disabled`: The target is paused and the collector doesn't check it.\n- `removed`: The collector no longer finds the target."},
+			"team_id":      schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns the collector's source, such as t123. Defaults to the provider's team_id. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", MarkdownDescription: "Team that owns the collector's source, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_collector_target"}}},
+			"tls":          schema.StringAttribute{Optional: true, Computed: true, Description: "The TLS mode for the connection. Required for mysql, and accepted and returned only for it.\n\n- false: Connects without TLS.\n- true: Connects over TLS and verifies the server's certificate.\n- skip-verify: Connects over TLS without verifying the server's certificate.\n- preferred: Uses TLS when the server supports it, without verifying the server's certificate.", MarkdownDescription: "The TLS mode for the connection. Required for `mysql`, and accepted and returned only for it.\n\n- `false`: Connects without TLS.\n- `true`: Connects over TLS and verifies the server's certificate.\n- `skip-verify`: Connects over TLS without verifying the server's certificate.\n- `preferred`: Uses TLS when the server supports it, without verifying the server's certificate.", Validators: []validator.String{stringvalidator.OneOf("false", "true", "skip-verify", "preferred"), appliesWhenConfigString{When: []siblingCond{{Path: "kind", Values: []string{"mysql"}}}}}, PlanModifiers: []planmodifier.String{appliesWhenPlanString{When: []siblingCond{{Path: "kind", Values: []string{"mysql"}}}, Default: types.StringNull()}}},
 			"updated_at":   schema.StringAttribute{Computed: true, Description: "When the target was last updated."},
-			"username":     schema.StringAttribute{Optional: true, Description: "Auth username (databases, elasticsearch)."},
+			"username":     schema.StringAttribute{Optional: true, Description: "The username used to connect, or null when not set. Accepted and returned only for postgres, pgbouncer, mysql, redis, mongodb, memcached and elasticsearch.", MarkdownDescription: "The username used to connect, or `null` when not set. Accepted and returned only for `postgres`, `pgbouncer`, `mysql`, `redis`, `mongodb`, `memcached` and `elasticsearch`.", Validators: []validator.String{appliesWhenConfigString{When: []siblingCond{{Path: "kind", Values: []string{"postgres", "pgbouncer", "mysql", "redis", "mongodb", "memcached", "elasticsearch"}}}}}, PlanModifiers: []planmodifier.String{appliesWhenPlanString{When: []siblingCond{{Path: "kind", Values: []string{"postgres", "pgbouncer", "mysql", "redis", "mongodb", "memcached", "elasticsearch"}}}, Default: types.StringNull()}}},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -184,6 +186,9 @@ func (r *CollectorTargetResource) bodyForUpdate(ctx context.Context, m Collector
 // updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
 func (r *CollectorTargetResource) updateBody(ctx context.Context, config, plan, state CollectorTargetModel) map[string]interface{} {
 	body := r.bodyForUpdate(ctx, config)
+	if !state.Port.IsNull() && !state.Port.IsUnknown() && plan.Port.IsNull() {
+		body["port"] = nil
+	}
 	if !state.ListenIp.IsNull() && !state.ListenIp.IsUnknown() && plan.ListenIp.IsNull() {
 		body["listen_ip"] = nil
 	}
@@ -200,18 +205,33 @@ func (r *CollectorTargetResource) updateBody(ctx context.Context, config, plan, 
 }
 
 func (r *CollectorTargetResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	defer rememberConfigured(ctx, req.Config, resp.Private, collectorTargetKeptOnRemoval, &resp.Diagnostics)
 	var plan CollectorTargetModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request CollectorTargetModel
 	resp.Diagnostics.Append(configWithPlannedUnknowns(ctx, req.Config, req.Plan, nullValue(req.Plan.Raw.Type()), &request)...)
-	request.Enabled = plan.Enabled // its schema default travels when unset, so removing the line resets it
+	request.Enabled = plan.Enabled   // its schema default travels when unset, so removing the line resets it
+	request.Endpoint = plan.Endpoint // its schema default travels when unset, so removing the line resets it
+	request.ListenIp = plan.ListenIp // its schema default travels when unset, so removing the line resets it
+	request.Port = plan.Port         // its schema default travels when unset, so removing the line resets it
+	request.Scheme = plan.Scheme     // its schema default travels when unset, so removing the line resets it
+	request.Service = plan.Service   // its schema default travels when unset, so removing the line resets it
+	request.SslMode = plan.SslMode   // its schema default travels when unset, so removing the line resets it
+	request.Tls = plan.Tls           // its schema default travels when unset, so removing the line resets it
+	request.Username = plan.Username // its schema default travels when unset, so removing the line resets it
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["collector_id"] = plan.CollectorId.ValueString()
 	out, err := r.client.Create(ctx, collectorTargetBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating collector_target", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating collector_target", err, req.Plan.Raw.Type())
 		return
@@ -236,10 +256,23 @@ func (r *CollectorTargetResource) Read(ctx context.Context, req resource.ReadReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["collector_id"] = state.CollectorId.ValueString()
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, collectorTargetBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), collectorTargetBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading collector_target", err, req.State.Raw.Type())
 		return
@@ -267,8 +300,14 @@ func populateCollectorTarget(ctx context.Context, m *CollectorTargetModel, attrs
 	if v, ok := boolFromAPI(attrs["enabled"]); ok {
 		m.Enabled = types.BoolValue(v)
 	}
-	if v, ok := int64FromAPI(attrs["port"]); ok {
-		m.Port = types.Int64Value(v)
+	if rawValue, exists := attrs["port"]; exists {
+		if rawValue == nil {
+			m.Port = types.Int64Null()
+		} else {
+			if v, ok := int64FromAPI(attrs["port"]); ok {
+				m.Port = types.Int64Value(v)
+			}
+		}
 	}
 	if v, ok := stringFromAPI(attrs["service"]); ok {
 		m.Service = types.StringValue(v)
@@ -321,6 +360,9 @@ func populateCollectorTarget(ctx context.Context, m *CollectorTargetModel, attrs
 	if v, ok := stringFromAPI(attrs["updated_at"]); ok {
 		m.UpdatedAt = datetimeValue(m.UpdatedAt, v)
 	}
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
 }
 
 func (r *CollectorTargetResource) mergeResponse(ctx context.Context, m CollectorTargetModel, attrs map[string]interface{}) {
@@ -341,7 +383,7 @@ func (r *CollectorTargetResource) mergeResponse(ctx context.Context, m Collector
 }
 
 func (r *CollectorTargetResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	defer rememberConfigured(ctx, req.Config, resp.Private, collectorTargetKeptOnRemoval, &resp.Diagnostics)
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	var plan CollectorTargetModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request CollectorTargetModel
@@ -356,6 +398,31 @@ func (r *CollectorTargetResource) Update(ctx context.Context, req resource.Updat
 	if !plan.Enabled.Equal(state.Enabled) {
 		request.Enabled = plan.Enabled
 	}
+	if !plan.Endpoint.Equal(state.Endpoint) {
+		request.Endpoint = plan.Endpoint
+	}
+	if !plan.ListenIp.Equal(state.ListenIp) {
+		request.ListenIp = plan.ListenIp
+	}
+	if !plan.Port.Equal(state.Port) {
+		request.Port = plan.Port
+	}
+	if !plan.Scheme.Equal(state.Scheme) {
+		request.Scheme = plan.Scheme
+	}
+	if !plan.Service.Equal(state.Service) {
+		request.Service = plan.Service
+	}
+	if !plan.SslMode.Equal(state.SslMode) {
+		request.SslMode = plan.SslMode
+	}
+	if !plan.Tls.Equal(state.Tls) {
+		request.Tls = plan.Tls
+	}
+	if !plan.Username.Equal(state.Username) {
+		request.Username = plan.Username
+	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
 	vars["collector_id"] = plan.CollectorId.ValueString()
 	vars["id"] = plan.Id.ValueString()
@@ -377,6 +444,7 @@ func (r *CollectorTargetResource) Delete(ctx context.Context, req resource.Delet
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["collector_id"] = state.CollectorId.ValueString()
 	vars["id"] = state.Id.ValueString()
@@ -385,16 +453,14 @@ func (r *CollectorTargetResource) Delete(ctx context.Context, req resource.Delet
 	}
 }
 
-// Attributes whose removal from the configuration keeps the server's value (no default, no null).
-var collectorTargetKeptOnRemoval = []string{"endpoint", "port", "scheme", "service", "ssl_mode", "tls"}
-
 func (r *CollectorTargetResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	warnKeptOnRemoval(ctx, "betterstack_collector_target", req, resp, collectorTargetKeptOnRemoval)
+	refuseUnnamedTeam(ctx, req, resp, r.client, "collector target")
 }
 
 // The object hangs off a parent collection, so its address is composite:
 // collector_id/id.
 func (r *CollectorTargetResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	parts := strings.Split(req.ID, "/")
 	if len(parts) != 2 {
 		resp.Diagnostics.AddError("importing collector_target",
@@ -403,6 +469,7 @@ func (r *CollectorTargetResource) ImportState(ctx context.Context, req resource.
 	}
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("collector_id"), parts[0])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("enabled"), true)...)
 }
 
 var _ resource.ResourceWithMoveState = &CollectorTargetResource{}
@@ -411,6 +478,6 @@ var _ resource.ResourceWithMoveState = &CollectorTargetResource{}
 // logtail_collector_target (registry.terraform.io/BetterStackHQ/logtail).
 func (r *CollectorTargetResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"sentinel_null\",\"path\":\"host\",\"value\":\"\"},{\"op\":\"sentinel_null\",\"path\":\"collector_host\",\"value\":\"\"},{\"op\":\"rename\",\"path\":\"collector_host\",\"to\":\"host\"}],\"ignored_fields\":[],\"instructions\":[\"Verify GET /api/v1/collectors/:collector_id/targets/:id under the authoritative team and confirm kind before moving. Keep collector_id, kind, enabled, port, service, listen_ip, endpoint, scheme, username, password, api_key, SSL/TLS, status and container. For nginx/apache/kafka/traefik/prometheus rename collector_host to host; database host stays host. Move existing state to retain write-only credentials and never recreate a target or duplicate one already split from a collector's inline databases.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_collector_target\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"description\":\"API key for authentication. Used by elasticsearch.\",\"name\":\"api_key\",\"optional\":true,\"sensitive\":true,\"type\":\"string\",\"note\":\"preserved from state on read\"},{\"description\":\"Hostname of the collector host running this process. Use this for process kinds (nginx, apache, kafka, prometheus, traefik). Must match the hostname of a `collector_host` reporting to this collector. For database kinds use `host` instead.\",\"name\":\"collector_host\",\"optional\":true,\"type\":\"string\",\"note\":\"required for process kinds - TWO TF attributes multiplex onto the SAME JSON key, selected by `kind`\",\"json\":\"host\"},{\"description\":\"The ID of the collector this target belongs to.\",\"force_new\":true,\"name\":\"collector_id\",\"required\":true,\"type\":\"string\",\"json\":\"(URL path)\"},{\"computed\":true,\"description\":\"Container the target was detected in, if any.\",\"name\":\"container\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this target was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether the collector should scrape this target. Defaults to `true` server-side. Setting to `false` puts the target into `disabled` status - it remains configured but is not scraped.\",\"name\":\"enabled\",\"optional\":true,\"type\":\"bool\"},{\"description\":\"Full scrape URL. Required for prometheus.\",\"name\":\"endpoint\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Hostname or IP of the database server. Use this for database kinds (postgres, pgbouncer, mysql, redis, mongodb, memcached, elasticsearch). For process kinds use `collector_host` instead.\",\"name\":\"host\",\"optional\":true,\"type\":\"string\",\"note\":\"required for database kinds\",\"json\":\"host\"},{\"computed\":true,\"description\":\"The ID of this target.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"The target kind. One of: postgres, pgbouncer, mysql, redis, mongodb, memcached, elasticsearch, nginx, apache, kafka, prometheus, traefik.\",\"force_new\":true,\"name\":\"kind\",\"required\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func38\"},{\"description\":\"IP address the process listens on, as seen from the collector host. Used for nginx, apache, kafka, traefik.\",\"name\":\"listen_ip\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Password for authentication. Used by database kinds.\",\"name\":\"password\",\"optional\":true,\"sensitive\":true,\"type\":\"string\",\"note\":\"preserved from state on read\"},{\"description\":\"Port the target listens on. Required for database kinds and most process kinds; not used by prometheus (use `endpoint` instead).\",\"name\":\"port\",\"optional\":true,\"type\":\"int\"},{\"description\":\"URL scheme. Required for elasticsearch. Valid values: `http`, `https`.\",\"name\":\"scheme\",\"optional\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func39\"},{\"description\":\"Friendly name for the target. Required for process kinds.\",\"name\":\"service\",\"optional\":true,\"type\":\"string\"},{\"description\":\"SSL mode. Required for postgres-family kinds. Valid values: `disable`, `require`, `verify-ca`.\",\"name\":\"ssl_mode\",\"optional\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func40\"},{\"computed\":true,\"description\":\"Current status of the target as reported by the collector.\",\"name\":\"status\",\"type\":\"string\"},{\"description\":\"TLS mode. Required for mysql. Valid values: `false`, `true`, `skip-verify`, `preferred`.\",\"name\":\"tls\",\"optional\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func41\"},{\"computed\":true,\"description\":\"The time when this target was last updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"description\":\"Username for authentication. Used by database kinds.\",\"name\":\"username\",\"optional\":true,\"type\":\"string\"}],\"response_projections\":[]}"),
+		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"sentinel_null\",\"path\":\"host\",\"value\":\"\"},{\"op\":\"sentinel_null\",\"path\":\"collector_host\",\"value\":\"\"},{\"op\":\"rename\",\"path\":\"collector_host\",\"to\":\"host\"}],\"ignored_fields\":[],\"instructions\":[\"Before moving, check the target with `betterstack collector-target get ID --collector-id COLLECTOR_ID` and confirm its kind. Keep collector_id, kind, enabled, port, service, listen_ip, endpoint, scheme, username, password, api_key, SSL and TLS settings, status and container. For nginx, apache, kafka, traefik and prometheus targets, rename collector_host to host. A database target keeps host. Move the existing state to keep the write-only credentials, and never recreate a target or duplicate one already split from a collector's inline databases.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_collector_target\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"defaults\":{\"enabled\":true},\"source_attributes\":[{\"description\":\"API key for authentication. Used by elasticsearch.\",\"name\":\"api_key\",\"optional\":true,\"sensitive\":true,\"type\":\"string\",\"note\":\"preserved from state on read\"},{\"description\":\"Hostname of the collector host running this process. Use this for process kinds (nginx, apache, kafka, prometheus, traefik). Must match the hostname of a `collector_host` reporting to this collector. For database kinds use `host` instead.\",\"name\":\"collector_host\",\"optional\":true,\"type\":\"string\",\"note\":\"required for process kinds - TWO TF attributes multiplex onto the SAME JSON key, selected by `kind`\",\"json\":\"host\"},{\"description\":\"The ID of the collector this target belongs to.\",\"force_new\":true,\"name\":\"collector_id\",\"required\":true,\"type\":\"string\",\"json\":\"(URL path)\"},{\"computed\":true,\"description\":\"Container the target was detected in, if any.\",\"name\":\"container\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this target was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether the collector should scrape this target. Defaults to `true` server-side. Setting to `false` puts the target into `disabled` status - it remains configured but is not scraped.\",\"name\":\"enabled\",\"optional\":true,\"type\":\"bool\"},{\"description\":\"Full scrape URL. Required for prometheus.\",\"name\":\"endpoint\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Hostname or IP of the database server. Use this for database kinds (postgres, pgbouncer, mysql, redis, mongodb, memcached, elasticsearch). For process kinds use `collector_host` instead.\",\"name\":\"host\",\"optional\":true,\"type\":\"string\",\"note\":\"required for database kinds\",\"json\":\"host\"},{\"computed\":true,\"description\":\"The ID of this target.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"The target kind. One of: postgres, pgbouncer, mysql, redis, mongodb, memcached, elasticsearch, nginx, apache, kafka, prometheus, traefik.\",\"force_new\":true,\"name\":\"kind\",\"required\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func38\"},{\"description\":\"IP address the process listens on, as seen from the collector host. Used for nginx, apache, kafka, traefik.\",\"name\":\"listen_ip\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Password for authentication. Used by database kinds.\",\"name\":\"password\",\"optional\":true,\"sensitive\":true,\"type\":\"string\",\"note\":\"preserved from state on read\"},{\"description\":\"Port the target listens on. Required for database kinds and most process kinds; not used by prometheus (use `endpoint` instead).\",\"name\":\"port\",\"optional\":true,\"type\":\"int\"},{\"description\":\"URL scheme. Required for elasticsearch. Valid values: `http`, `https`.\",\"name\":\"scheme\",\"optional\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func39\"},{\"description\":\"Friendly name for the target. Required for process kinds.\",\"name\":\"service\",\"optional\":true,\"type\":\"string\"},{\"description\":\"SSL mode. Required for postgres-family kinds. Valid values: `disable`, `require`, `verify-ca`.\",\"name\":\"ssl_mode\",\"optional\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func40\"},{\"computed\":true,\"description\":\"Current status of the target as reported by the collector.\",\"name\":\"status\",\"type\":\"string\"},{\"description\":\"TLS mode. Required for mysql. Valid values: `false`, `true`, `skip-verify`, `preferred`.\",\"name\":\"tls\",\"optional\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func41\"},{\"computed\":true,\"description\":\"The time when this target was last updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"description\":\"Username for authentication. Used by database kinds.\",\"name\":\"username\",\"optional\":true,\"type\":\"string\"}],\"response_projections\":[]}"),
 	}
 }

@@ -21,44 +21,50 @@ data "betterstack_connection" "example" {
 
 ### Required
 
-- `id` (String) The id of the connection to look up.
+- `id` (String) The ID of the connection to look up.
 
 ### Read-Only
 
 - `client_type` (String) Client protocol. Valid values: `clickhouse`, `grafana`.
-- `data_region` (String) Cluster name or region ID to limit the connection to. Leave it out to reach every cluster where the connection's teams store data, which is returned as `null`. Otherwise it's returned as the cluster's storage backend name.
-- `team_ids` (List of String) Teams whose data this connection reaches, as `t`-prefixed team IDs such as `t123`. Give either `team_ids` or `team_names`, not both.
-- `team_names` (List of String) Names of the teams whose data this connection reaches. Give either `team_ids` or `team_names`, not both.
+- `cluster` (String) Cluster a Grafana connection points at, by its name. [Get a source](https://betterstack.com/docs/logs/api/get-a-single-source/) returns the `cluster` its data is stored on.
+- `clusters` (Attributes List) Every cluster the credential reaches, each with its `name` and the `host` to connect to. (see [below for nested schema](#nestedatt--clusters))
+- `team_ids` (List of String) Teams whose data this connection reaches, as `t`-prefixed team IDs such as `t123`. Get the IDs via [List teams](https://betterstack.com/docs/uptime/api/teams/list/).
+- `team_names` (List of String) Names of the teams whose data this connection reaches.
 - `ip_allowlist` (List of String) Allowed source IPs or CIDRs.
-- `valid_until` (String (RFC 3339)) When the credential expires.
+- `valid_until` (String (RFC 3339)) When the credential expires, or `null` if it never does. Leaving it out clears it, on create too.
 - `note` (String) Free-form note.
 - `host` (String) Connection host.
 - `port` (Number) Connection port.
-- `username` (String) Connection username.
+- `username` (String) The username to connect with.
 - `password` (String, Sensitive) Connection password. Returned only when the connection is created and never again, so save it then.
-- `created_by` (Attributes, see [nested schema](#nestedatt--created_by)) User who created the connection in the web UI. Always `null` for a connection created through the API or MCP.
-- `sample_query` (String) An example query to get started. Not returned when listing connections.
-- `data_sources` (Attributes List, see [nested schema](#nestedatt--data_sources)) Sources this connection can query. Not returned when listing connections.
+- `created_by` (Attributes) User who created the connection in the web UI. Always `null` for a connection created through the API or MCP. (see [below for nested schema](#nestedatt--created_by))
+- `sample_query` (String, Sensitive) An example `curl` query to get started. The response that creates the connection includes its password here, and later reads show `INSERT_PASSWORD` instead. Not returned when listing connections.
+- `data_sources` (Attributes List) Sources this connection can query. Not returned when listing connections. (see [below for nested schema](#nestedatt--data_sources))
 - `created_at` (String (RFC 3339)) When the connection was created.
+
+<a id="nestedatt--clusters"></a>
+### Nested Schema for `clusters`
+
+Read-Only:
+
+- `name` (String) The cluster's name.
+- `host` (String) Host to connect to the cluster on.
 
 <a id="nestedatt--created_by"></a>
 ### Nested Schema for `created_by`
 
-- `id` (String)
-- `email` (String)
+Read-Only:
+
+- `id` (String) The creator's user ID, such as `u123`.
+- `email` (String) The creator's e-mail.
 
 <a id="nestedatt--data_sources"></a>
 ### Nested Schema for `data_sources`
 
-- `source_id` (String)
-- `source_name` (String)
-- `team_name` (String)
-- `connection_url` (String)
-- `data_sources` (List of String) ClickHouse collection names exposed for this source.
+Read-Only:
 
-## Endpoints
-
-- `GET /api/v2/connections`
-- `GET /api/v2/connections/:id`
-- `POST /api/v2/connections`
-- `DELETE /api/v2/connections/:id`
+- `source_id` (String) The source's ID.
+- `source_name` (String) The source's name.
+- `team_name` (String) The name of the team the source belongs to.
+- `connection_url` (String) The URL to connect to for this source's data.
+- `data_sources` (List of String) ClickHouse collection names you can query for this source.

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -33,6 +34,16 @@ type endpoint struct {
 	Envelope     *envelope
 	// Query is fixed query-string values every call to the endpoint sends.
 	Query map[string]string
+	// QueryVars maps a query param to the variable that fills it on each call: a natural key
+	// (?email=) travels there, not in the path.
+	QueryVars map[string]string
+	// KeyField is the attribute a keyed-by endpoint addresses the object by, carried in the
+	// variable of the same name; PathFields are path variables that carry attribute values.
+	KeyField   string
+	PathFields []string
+	// NoSelector marks an endpoint that refuses the binding's tenant selector, such as a release
+	// list where the same parameter names the team an SDK reports for: the provider's team isn't sent there.
+	NoSelector bool
 }
 
 // envelope is a set of key paths into a payload. An EMPTY path means "at the root"; a NIL path means
@@ -59,6 +70,10 @@ type pagination struct {
 	Via   string
 	Path  []string
 	Param string
+	// Numbered pages ("increment"): Path is where a page says how many records the whole list holds,
+	// Size the query parameter for how many to answer, and Max the most it answers.
+	Size string
+	Max  int
 }
 
 // errorShape locates the human message and any attribute-scoped detail in a failure body.
@@ -84,12 +99,6 @@ type tenantSelector struct {
 	Name string
 }
 
-// versionHeader pins every request to the API version the binding was generated against.
-type versionHeader struct {
-	Name  string
-	Value string
-}
-
 // apiBinding is one resource's complete wire description.
 type apiBinding struct {
 	Resource string
@@ -97,7 +106,6 @@ type apiBinding struct {
 	IDKey    string
 	BaseURL  string
 	Auth     authScheme
-	Version  *versionHeader
 	Selector *tenantSelector
 	Envelope envelope
 	// Fields the schema declares as sideloaded; nothing else is lifted out of a relationship map.
@@ -115,6 +123,26 @@ type apiBinding struct {
 	MapList         *mapListProjection
 	Reads           []supplementalRead
 	DataSourceReads []supplementalRead
+	// Waits are the conditions a create, update or delete settles on, as JSON (wait.go): the API
+	// accepts the write at once and finishes the work later.
+	Waits map[string]string
+	// InPlace are the fields the API changes through actions of their own, not the update (in_place.go).
+	InPlace []inPlaceChange
+	// DeleteRetryCodes are the refusals of a delete that end by themselves, when what held the object
+	// is gone (a destroyed server's reserved IP).
+	DeleteRetryCodes []string
+	// GoneField and GoneValues say which read means the object is gone for good, though the API still
+	// answers it for a while (a server whose status is destroyed).
+	GoneField  string
+	GoneValues []string
+	// GoneParent is the resource the object sits under, named by the path variable GoneParentVar, when
+	// that resource's reads say it is gone: the object is gone with it.
+	GoneParent    string
+	GoneParentVar string
+	// ReservedField is the attribute whose value a deleted object keeps for a while, so that creating one
+	// with the same value is refused with ReservedMessage ({value} stands for it) until the delete is done (reserved.go).
+	ReservedField   string
+	ReservedMessage string
 }
 
 type supplementalRead struct {
@@ -351,7 +379,8 @@ func (e envelope) flattenRecord(record interface{}, idKey string, rels []string,
 			}
 		}
 	}
-	if id := digPath(record, e.IDPath); id != nil {
+	// A list-only record has no path to its id: one of its attributes is the id.
+	if id := digPath(record, e.IDPath); e.IDPath != nil && id != nil {
 		out[idKey] = id
 	}
 	return out
@@ -613,19 +642,22 @@ func attributeMessages(v interface{}) map[string]string {
 // 5xx responses are retried only for idempotent methods. A 429 is safe to replay for every method
 // because the server did not admit the request.
 type Client struct {
-	token      string
-	endpoint   string
-	tenants    map[string]string
-	http       *http.Client
-	userAgent  string
-	maxRetries int
-	maxBackoff time.Duration
-	minBackoff time.Duration
-	rateMu     sync.Mutex
-	rate       float64
-	burst      float64
-	tokens     float64
-	refilled   time.Time
+	reserved reservedValues
+	token    string
+	endpoint string
+	tenants  map[string]string
+	// baseURLVars fill a templated base URL's {variables}, from the provider settings.
+	baseURLVars map[string]string
+	http        *http.Client
+	userAgent   string
+	maxRetries  int
+	maxBackoff  time.Duration
+	minBackoff  time.Duration
+	rateMu      sync.Mutex
+	rate        float64
+	burst       float64
+	tokens      float64
+	refilled    time.Time
 }
 
 // NewClient takes the complete User-Agent so a bridge built on this provider can name itself
@@ -689,7 +721,35 @@ func (c *Client) baseURL(b *apiBinding) string {
 	if c.endpoint != "" {
 		return c.endpoint
 	}
-	return b.BaseURL
+	out := b.BaseURL
+	for name, value := range c.baseURLVars {
+		out = strings.ReplaceAll(out, "{"+name+"}", value)
+	}
+	return out
+}
+
+var baseURLVariable = regexp.MustCompile(`\{([a-z0-9_]+)\}`)
+
+// baseURLVariableValue is one host label: nothing that could point a request, and its token, elsewhere.
+var baseURLVariableValue = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
+
+// checkBaseURL refuses, before any request, a base URL whose variable has no valid value.
+func (c *Client) checkBaseURL(b *apiBinding) error {
+	if c.endpoint != "" {
+		return nil
+	}
+	for _, match := range baseURLVariable.FindAllStringSubmatch(b.BaseURL, -1) {
+		name := match[1]
+		value, ok := c.baseURLVars[name]
+		env := "BETTERSTACK_" + strings.ToUpper(name)
+		if !ok || value == "" {
+			return fmt.Errorf("%s: set %s in the provider block or the %s environment variable", b.Resource, name, env)
+		}
+		if !baseURLVariableValue.MatchString(value) {
+			return fmt.Errorf("%s: %s %q must be one host label, such as the value the API's docs show", b.Resource, name, value)
+		}
+	}
+	return nil
 }
 
 // expandPath substitutes the endpoint's named path variables. A variable with no value is left in
@@ -702,13 +762,59 @@ func expandPath(path string, vars map[string]string) string {
 	return out
 }
 
-func (c *Client) requestURL(b *apiBinding, ep *endpoint, vars map[string]string, query url.Values) string {
+// teamOverride is a resource's own team, which its requests select instead of the provider's.
+// fromState marks a team read back from the API rather than configured: it only steers requests
+// away from a provider team that points elsewhere, so with no provider team it selects nothing.
+type teamOverride struct {
+	team      string
+	fromState bool
+}
+
+type teamKey struct{}
+
+// inTeam makes the requests under ctx select team instead of the provider's. An empty team keeps
+// the provider's.
+func inTeam(ctx context.Context, team string) context.Context {
+	if team == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, teamKey{}, teamOverride{team: team})
+}
+
+// inStateTeam makes the requests under ctx, which reach an existing object by its ID, select the team
+// the object was read in, but only instead of the provider's team. Without one they select no team: the
+// ID already fixes the team, and a team token refuses any team selector.
+func inStateTeam(ctx context.Context, team string) context.Context {
+	if team == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, teamKey{}, teamOverride{team: team, fromState: true})
+}
+
+// refusedWithoutTeam says the API refused a request for selecting no team (a token that reaches
+// several teams must name one): a client error short of not found. Every other failure is reported.
+func refusedWithoutTeam(err error) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) && (apiErr.Status == http.StatusBadRequest || apiErr.Status == http.StatusForbidden || apiErr.Status == http.StatusUnprocessableEntity)
+}
+
+// inNoTeam makes the requests under ctx select no team, so a read by ID finds the object in
+// whichever team the token reaches.
+func inNoTeam(ctx context.Context) context.Context {
+	return context.WithValue(ctx, teamKey{}, teamOverride{})
+}
+
+func (c *Client) requestURL(ctx context.Context, b *apiBinding, ep *endpoint, vars map[string]string, query url.Values) string {
 	q := url.Values{}
 	for k, v := range query {
 		q[k] = v
 	}
-	if b.Selector != nil && b.Selector.In == "query" {
-		if v := c.tenants[b.Selector.Name]; v != "" {
+	if b.Selector != nil && b.Selector.In == "query" && !ep.NoSelector {
+		v := c.tenants[b.Selector.Name]
+		if o, ok := ctx.Value(teamKey{}).(teamOverride); ok && !(o.fromState && v == "") {
+			v = o.team
+		}
+		if v != "" {
 			q.Set(b.Selector.Name, v)
 		}
 	}
@@ -767,6 +873,9 @@ func (c *Client) do(ctx context.Context, b *apiBinding, method, reqURL string, p
 	if b.Auth.Scheme != "" && b.Auth.Scheme != "none" && c.token == "" {
 		return nil, 0, errors.New("set api_token or BETTERSTACK_API_TOKEN before calling authenticated endpoints")
 	}
+	if err := c.checkBaseURL(b); err != nil {
+		return nil, 0, err
+	}
 	var lastErr error
 	retryable := retryableMethod(method)
 	for attempt := 0; ; attempt++ {
@@ -782,9 +891,6 @@ func (c *Client) do(ctx context.Context, b *apiBinding, method, reqURL string, p
 			return nil, 0, err
 		}
 		c.applyAuth(b, req)
-		if b.Version != nil {
-			req.Header.Set(b.Version.Name, b.Version.Value)
-		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("User-Agent", c.userAgent)
 		resp, err := c.http.Do(req)
@@ -885,13 +991,16 @@ func (c *Client) call(ctx context.Context, b *apiBinding, ep *endpoint, vars map
 		}
 	}
 	var query url.Values
-	if len(ep.Query) > 0 {
+	if len(ep.Query) > 0 || len(ep.QueryVars) > 0 {
 		query = url.Values{}
 		for k, v := range ep.Query {
 			query.Set(k, v)
 		}
+		for k, name := range ep.QueryVars {
+			query.Set(k, vars[name])
+		}
 	}
-	reqURL := c.requestURL(b, ep, vars, query)
+	reqURL := c.requestURL(ctx, b, ep, vars, query)
 	raw, status, err := c.do(ctx, b, ep.Method, reqURL, payload)
 	if err != nil {
 		return nil, status, err
@@ -911,7 +1020,13 @@ func (c *Client) call(ctx context.Context, b *apiBinding, ep *endpoint, vars map
 		}
 		out = items[0]
 	} else {
-		if _, ok := digPath(doc, e.ItemPath).(map[string]interface{}); !ok {
+		item := digPath(doc, e.ItemPath)
+		// A keyed create can answer with no object at all (someone already in the organization joins
+		// the team at once, with no invitation to return): the caller reads it by its key.
+		if item == nil && ep == b.Create && b.Read != nil && b.Read.KeyField != "" {
+			return nil, status, nil
+		}
+		if _, ok := item.(map[string]interface{}); !ok {
 			return nil, status, errors.New("expected an object response")
 		}
 		out = e.decodeItem(doc, b.IDKey, b.Relationships)
@@ -938,8 +1053,11 @@ func (c *Client) call(ctx context.Context, b *apiBinding, ep *endpoint, vars map
 }
 
 func (c *Client) Create(ctx context.Context, b *apiBinding, vars map[string]string, attrs map[string]interface{}) (map[string]interface{}, error) {
-	out, _, err := c.call(ctx, b, b.Create, vars, attrs)
-	return out, err
+	out, _, err := c.callCreate(ctx, b, vars, attrs)
+	if err != nil {
+		return out, err
+	}
+	return c.settle(ctx, b, "create", vars, attrs, out)
 }
 
 func (c *Client) Get(ctx context.Context, b *apiBinding, vars map[string]string) (map[string]interface{}, bool, error) {
@@ -986,15 +1104,53 @@ func (c *Client) supplement(ctx context.Context, b *apiBinding, vars map[string]
 
 func (c *Client) Update(ctx context.Context, b *apiBinding, vars map[string]string, attrs map[string]interface{}) (map[string]interface{}, error) {
 	out, _, err := c.call(ctx, b, b.Update, vars, attrs)
-	return out, err
+	if err != nil {
+		return out, err
+	}
+	return c.settle(ctx, b, "update", vars, attrs, out)
+}
+
+// gone is true when the object answered is one that no longer exists.
+func (b *apiBinding) gone(row map[string]interface{}) bool {
+	value, ok := row[b.GoneField].(string)
+	return b.GoneField != "" && ok && containsString(b.GoneValues, value)
+}
+
+func notFound(err error) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) && apiErr.Status == http.StatusNotFound
+}
+
+// parentGone is true only on a definite answer: the parent isn't found, or its status says it is gone. A
+// parent that can't be read leaves its child as it is.
+func (c *Client) parentGone(ctx context.Context, b *apiBinding, vars map[string]string) bool {
+	parent := bindingFor(b.GoneParent)
+	if b.GoneParent == "" || parent == nil || vars[b.GoneParentVar] == "" {
+		return false
+	}
+	row, found, err := c.Get(ctx, parent, map[string]string{recordVar(parent.Read): vars[b.GoneParentVar]})
+	return err == nil && (!found || parent.gone(row))
 }
 
 // Delete treats 404 as success: the object is already gone, which is the desired end state.
 func (c *Client) Delete(ctx context.Context, b *apiBinding, vars map[string]string) error {
-	_, status, err := c.call(ctx, b, b.Delete, vars, nil)
+	out, status, err := c.callDelete(ctx, b, vars)
 	if status == http.StatusNotFound {
 		return nil
 	}
+	if err != nil {
+		// Refused because it is gone already, though it still answers.
+		if conflicts(err) && b.GoneField != "" {
+			if row, found, readErr := c.Get(ctx, b, vars); readErr == nil && (!found || b.gone(row)) {
+				return nil
+			}
+		}
+		if conflicts(err) && c.parentGone(ctx, b, vars) {
+			return nil
+		}
+		return err
+	}
+	_, err = c.settle(ctx, b, "delete", vars, nil, out)
 	return err
 }
 
@@ -1002,7 +1158,7 @@ func (c *Client) Query(ctx context.Context, b *apiBinding, filters []string) (ma
 	if b.Read == nil || b.MapList == nil {
 		return nil, errors.New("query projection is not configured")
 	}
-	raw, _, err := c.do(ctx, b, b.Read.Method, c.requestURL(b, b.Read, nil, nil), nil)
+	raw, _, err := c.do(ctx, b, b.Read.Method, c.requestURL(ctx, b, b.Read, nil, nil), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1069,8 +1225,18 @@ func (c *Client) List(ctx context.Context, b *apiBinding, vars map[string]string
 	if b.List == nil {
 		return nil, fmt.Errorf("%s: the API describes no list endpoint", b.Resource)
 	}
-	reqURL := c.requestURL(b, b.List, vars, query)
+	if b.Pagination.Via == "increment" {
+		paged := url.Values{}
+		for k, v := range query {
+			paged[k] = v
+		}
+		paged.Set(b.Pagination.Param, "1")
+		paged.Set(b.Pagination.Size, strconv.Itoa(b.Pagination.Max))
+		query = paged
+	}
+	reqURL := c.requestURL(ctx, b, b.List, vars, query)
 	var out []map[string]interface{}
+	read := 0
 	for page := 0; page < 100; page++ {
 		raw, _, err := c.do(ctx, b, b.List.Method, reqURL, nil)
 		if err != nil {
@@ -1084,10 +1250,33 @@ func (c *Client) List(ctx context.Context, b *apiBinding, vars map[string]string
 		if b.List.Envelope != nil {
 			e = *b.List.Envelope
 		}
-		if _, ok := digPath(doc, e.ListPath).([]interface{}); !ok {
+		rows, ok := digPath(doc, e.ListPath).([]interface{})
+		if !ok {
 			return nil, errors.New("expected a list response")
 		}
+		read += len(rows)
 		out = append(out, e.decodeList(doc, b.IDKey, b.Relationships)...)
+		if b.Pagination.Via == "increment" {
+			total, known := waitNumber(digPath(doc, b.Pagination.Path))
+			if !known {
+				return nil, fmt.Errorf("GET %s: the response doesn't say how many there are; refusing incomplete results", reqURL)
+			}
+			if float64(read) >= total {
+				return out, nil
+			}
+			if len(rows) == 0 {
+				return nil, fmt.Errorf("GET %s: read %d of %v; refusing incomplete results", reqURL, read, total)
+			}
+			next, err := url.Parse(reqURL)
+			if err != nil {
+				return nil, err
+			}
+			q := next.Query()
+			q.Set(b.Pagination.Param, strconv.Itoa(page+2))
+			next.RawQuery = q.Encode()
+			reqURL = next.String()
+			continue
+		}
 		next, ok, err := nextPageURL(b, doc, reqURL, c.baseURL(b))
 		if err != nil {
 			return nil, err
@@ -1102,10 +1291,11 @@ func (c *Client) List(ctx context.Context, b *apiBinding, vars map[string]string
 
 func nextPageURL(b *apiBinding, doc interface{}, current, endpointBase string) (string, bool, error) {
 	token := stringifyScalar(digPath(doc, b.Pagination.Path))
-	if token == "" {
+	via := b.Pagination.Via
+	if token == "" && (via == "url" || via == "param") {
 		return "", false, nil
 	}
-	switch b.Pagination.Via {
+	switch via {
 	case "url":
 		currentURL, err := url.Parse(current)
 		if err != nil {
@@ -1147,8 +1337,10 @@ func nextPageURL(b *apiBinding, doc interface{}, current, endpointBase string) (
 		q.Set(b.Pagination.Param, token)
 		parsed.RawQuery = q.Encode()
 		return parsed.String(), true, nil
-	default:
+	case "", "none":
 		return "", false, nil
+	default:
+		return "", false, fmt.Errorf("%s: lists page by %q, which the provider doesn't follow", b.Resource, b.Pagination.Via)
 	}
 }
 

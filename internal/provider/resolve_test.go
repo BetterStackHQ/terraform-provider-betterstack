@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"math/big"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 )
@@ -374,5 +376,206 @@ func TestMatchPlannedListKeepsIdsThroughReordersAndMoves(t *testing.T) {
 	withPlannedIDs(ctx, config, matchList(matchParent(s("2"), "B"), matchParent(s("1"), "A")), matchSpec, &diags)
 	if !diags.HasError() {
 		t.Fatal("an unpaired request was sent without an error")
+	}
+}
+
+// A read list drops the API's own items unless configured, and follows the configured order.
+func TestKeyedAPIReadDropsBuiltInsAndKeepsTheConfiguredOrder(t *testing.T) {
+	item := func(name string) interface{} { return map[string]interface{}{"name": name} }
+	raw := []interface{}{item("end_time"), item("env"), item("source"), item("start_time"), item("svc"), item("time")}
+	names := func(items []interface{}) []string {
+		out := []string{}
+		for _, i := range items {
+			out = append(out, i.(map[string]interface{})["name"].(string))
+		}
+		return out
+	}
+	builtIns := []string{"time", "start_time", "end_time", "source"}
+	got := names(keyedAPIRead(raw, "name", []string{"svc", "source", "env"}, true, builtIns))
+	want := []string{"svc", "source", "env"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	}
+	if got := names(keyedAPIRead(raw, "name", nil, true, builtIns)); len(got) != 2 || got[0] != "env" || got[1] != "svc" {
+		t.Fatalf("an import keeps only the user's items in API order, got %v", got)
+	}
+	twice := append([]interface{}{item("env")}, raw...)
+	if got := names(keyedAPIRead(twice, "name", []string{"env"}, true, builtIns)); len(got) != 3 || got[0] != "env" || got[1] != "env" || got[2] != "svc" {
+		t.Fatalf("a second item with a configured name must stay, got %v", got)
+	}
+	if got := names(keyedAPIRead(raw, "name", []string{"svc"}, false, builtIns)); len(got) != 2 || got[0] != "env" || got[1] != "svc" {
+		t.Fatalf("with an unknown planned name the read keeps the API order, got %v", got)
+	}
+}
+
+func TestSameJSONIgnoresSpacingAndKeyOrder(t *testing.T) {
+	if !sameJSON(`{ "b": 1, "a": [1, 2] }`, `{"a":[1,2],"b":1}`) {
+		t.Fatal("the same value spelled differently is the same JSON")
+	}
+	if sameJSON(`{"a":1}`, `{"a":2}`) || sameJSON(`not json`, `not json`) {
+		t.Fatal("different values, or text that isn't JSON, are not the same JSON")
+	}
+}
+
+// A camelCase wire key answers to its snake_case Terraform name.
+// A renamed top-level item keeps the id of the prior item at its position, which nothing else took; an
+// added one stays unknown, and a prior item another item took by name is never taken by position.
+func TestMatchPlannedListKeepsARenamedItemsIdByPosition(t *testing.T) {
+	ctx := context.Background()
+	s, unknown := types.StringValue, types.StringUnknown()
+	prior := matchList(matchParent(s("1"), "A"), matchParent(s("2"), "B"))
+	var diags diag.Diagnostics
+	renamed := matchList(matchParent(unknown, "A"), matchParent(unknown, "Bee"))
+	if got := rowIDs(t, matchPlannedList(ctx, renamed, prior, matchSpec, &diags)); got[0][0] != `"1"` || got[1][0] != `"2"` {
+		t.Fatalf("rename: got %v", got)
+	}
+	added := matchList(matchParent(unknown, "New"), matchParent(unknown, "A"), matchParent(unknown, "B"))
+	if got := rowIDs(t, matchPlannedList(ctx, added, prior, matchSpec, &diags)); got[0][0] != `<unknown>` || got[1][0] != `"1"` || got[2][0] != `"2"` {
+		t.Fatalf("an added item took a prior id: got %v", got)
+	}
+}
+
+func TestAPIFieldMatchesTheSnakeCaseName(t *testing.T) {
+	m := map[string]interface{}{"canonicalSourceIds": []interface{}{"a"}, "selected_label": "x"}
+	if v, ok := apiField(m, "canonical_source_ids"); !ok || v == nil {
+		t.Fatal("canonicalSourceIds did not answer to canonical_source_ids")
+	}
+	if v, ok := apiField(m, "selected_label"); !ok || v != "x" {
+		t.Fatal("a snake_case key must match itself")
+	}
+	if _, ok := apiField(m, "service_ids"); ok {
+		t.Fatal("a missing key matched")
+	}
+}
+
+// An object configured with no field set plans every field empty, and only then.
+func TestEmptyConfiguredObjectPlansEveryFieldEmpty(t *testing.T) {
+	ctx := context.Background()
+	types_ := map[string]attr.Type{"policy_id": types.StringType, "team_id": types.StringType}
+	empty := types.ObjectValueMust(types_, map[string]attr.Value{"policy_id": types.StringNull(), "team_id": types.StringNull()})
+	prior := types.ObjectValueMust(types_, map[string]attr.Value{"policy_id": types.StringValue("1"), "team_id": types.StringNull()})
+	resp := &planmodifier.ObjectResponse{PlanValue: prior}
+	emptyConfiguredObject{}.PlanModifyObject(ctx, planmodifier.ObjectRequest{ConfigValue: empty, PlanValue: prior}, resp)
+	if !resp.PlanValue.Equal(empty) {
+		t.Fatalf("an empty object kept the current fields: %v", resp.PlanValue)
+	}
+	team := types.ObjectValueMust(types_, map[string]attr.Value{"policy_id": types.StringNull(), "team_id": types.StringValue("2")})
+	resp = &planmodifier.ObjectResponse{PlanValue: team}
+	emptyConfiguredObject{}.PlanModifyObject(ctx, planmodifier.ObjectRequest{ConfigValue: team, PlanValue: team}, resp)
+	if !resp.PlanValue.Equal(team) {
+		t.Fatalf("a configured field changed the plan: %v", resp.PlanValue)
+	}
+}
+
+// Resolving a plan against prior state without an attribute takes it from the API response alone.
+func TestWithoutAttributesNullsOnlyTheNamedOnes(t *testing.T) {
+	typ := tftypes.Object{AttributeTypes: map[string]tftypes.Type{"a": tftypes.String, "b": tftypes.String}}
+	v := tftypes.NewValue(typ, map[string]tftypes.Value{"a": tftypes.NewValue(tftypes.String, "x"), "b": tftypes.NewValue(tftypes.String, "y")})
+	var attrs map[string]tftypes.Value
+	if err := withoutAttributes(v, "a").As(&attrs); err != nil {
+		t.Fatal(err)
+	}
+	if !attrs["a"].IsNull() || attrs["b"].IsNull() {
+		t.Fatalf("got %v", attrs)
+	}
+}
+
+func TestAMalformedTeamOrUserIDSaysHowToGetOne(t *testing.T) {
+	cases := map[string]string{
+		teamIDPattern:     "must be a team ID such as t123 (get it via List teams)",
+		userIDPattern:     "must be a user ID such as u123, or an e-mail (get the user ID via List team members)",
+		userIDOnlyPattern: "must be a user ID such as u123 (get it via List team members)",
+		"^[a-z]+$":        "must match ^[a-z]+$",
+	}
+	for pattern, want := range cases {
+		if got := idFormMessage(pattern); got != want {
+			t.Errorf("idFormMessage(%q) = %q, want %q", pattern, got, want)
+		}
+	}
+	// The patterns are the ones the schema emits, so a value is refused or kept exactly as the API does.
+	for value, pattern := range map[string]string{"t552385": teamIDPattern, "u913": userIDPattern, "ana@example.com": userIDPattern} {
+		if !regexp.MustCompile(pattern).MatchString(value) {
+			t.Errorf("%q must match %s", value, pattern)
+		}
+	}
+	for value, pattern := range map[string]string{"552385": teamIDPattern, "913": userIDPattern} {
+		if regexp.MustCompile(pattern).MatchString(value) {
+			t.Errorf("%q must not match %s", value, pattern)
+		}
+	}
+}
+
+func TestASpellingTheAPIReadsBackAsAnotherKeepsThePriorValue(t *testing.T) {
+	methods := map[string]string{"GET": "get", "POST": "post"}
+	if got := aliasedValue(methods, types.StringValue("GET"), "get"); got.ValueString() != "GET" {
+		t.Fatalf("the spelling as written must stay: %v", got)
+	}
+	if got := aliasedValue(methods, types.StringValue("GET"), "post"); got.ValueString() != "post" {
+		t.Fatalf("a changed value must refresh: %v", got)
+	}
+	if got := aliasedValue(methods, types.StringNull(), "get"); got.ValueString() != "get" {
+		t.Fatalf("an import must read the API's value: %v", got)
+	}
+}
+
+func TestAListReadBackWithMoreItemsKeepsThePriorValueWhileItHoldsThemAll(t *testing.T) {
+	ids := func(v ...string) types.List {
+		elems := make([]attr.Value, 0, len(v))
+		for _, s := range v {
+			elems = append(elems, types.StringValue(s))
+		}
+		return types.ListValueMust(types.StringType, elems)
+	}
+	if got := supersetRead(ids("2"), ids("1", "2", "3")); !got.Equal(ids("2")) {
+		t.Fatalf("the listed ids must stay while the read holds them: %v", got)
+	}
+	if got := supersetRead(ids("2", "4"), ids("1", "2")); !got.Equal(ids("2")) {
+		t.Fatalf("a listed id the read lacks must be planned again, without the extra ids: %v", got)
+	}
+	if got := supersetRead(ids("4"), ids()); !got.Equal(ids()) {
+		t.Fatalf("an empty read must refresh: %v", got)
+	}
+	if got := supersetRead(ids(), ids("1")); !got.Equal(ids("1")) {
+		t.Fatalf("an empty list holds no items, so a read with some must refresh: %v", got)
+	}
+	if got := supersetRead(types.ListNull(types.StringType), ids("1")); !got.Equal(ids("1")) {
+		t.Fatalf("an import must read the API's list: %v", got)
+	}
+}
+
+func TestAVRLProgramReadBackWithoutItsClosingLineKeepsThePriorValue(t *testing.T) {
+	written := types.StringValue(".service = \"cart\"\n.")
+	if got := vrlValue(written, ".service = \"cart\""); !got.Equal(written) {
+		t.Fatalf("the program as written must stay: %v", got)
+	}
+	if got := vrlValue(types.StringValue(".a = 1"), ".a = 1\n."); got.ValueString() != ".a = 1" {
+		t.Fatalf("the program as written must stay: %v", got)
+	}
+	if got := vrlValue(written, ".service = \"checkout\""); got.ValueString() != ".service = \"checkout\"" {
+		t.Fatalf("a changed program must refresh: %v", got)
+	}
+	if got := vrlValue(types.StringNull(), ".a = 1"); got.ValueString() != ".a = 1" {
+		t.Fatalf("an import must read the API's program: %v", got)
+	}
+}
+
+func TestATimeZoneReadBackUnderItsOtherNameKeepsThePriorValue(t *testing.T) {
+	written := types.StringValue("Europe/Prague")
+	if got := timeZoneValue(written, "Prague"); !got.Equal(written) {
+		t.Fatalf("the IANA ID as written must stay: %v", got)
+	}
+	if got := timeZoneValue(types.StringValue("Prague"), "Europe/Prague"); got.ValueString() != "Prague" {
+		t.Fatalf("the Rails name as written must stay: %v", got)
+	}
+	if got := timeZoneValue(written, "Tokyo"); got.ValueString() != "Tokyo" {
+		t.Fatalf("a changed zone must refresh: %v", got)
+	}
+	if got := timeZoneValue(types.StringNull(), "Prague"); got.ValueString() != "Prague" {
+		t.Fatalf("an import must read the API's zone: %v", got)
 	}
 }

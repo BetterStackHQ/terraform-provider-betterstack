@@ -9,12 +9,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var _ resource.Resource = &DashboardGroupResource{}
 var _ resource.ResourceWithConfigure = &DashboardGroupResource{}
 var _ resource.ResourceWithImportState = &DashboardGroupResource{}
+var _ resource.ResourceWithModifyPlan = &DashboardGroupResource{}
 
 type DashboardGroupResource struct {
 	client *Client
@@ -28,6 +30,7 @@ type DashboardGroupModel struct {
 	Id        types.String `tfsdk:"id"`
 	CreatedAt types.String `tfsdk:"created_at"`
 	Name      types.String `tfsdk:"name"`
+	TeamId    types.String `tfsdk:"team_id"`
 	TeamName  types.String `tfsdk:"team_name"`
 	UpdatedAt types.String `tfsdk:"updated_at"`
 }
@@ -38,12 +41,14 @@ func (r *DashboardGroupResource) Metadata(ctx context.Context, req resource.Meta
 
 func (r *DashboardGroupResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A group that organizes related dashboards together.",
+		Description:         "A group that organizes related dashboards together.",
+		MarkdownDescription: "A group that organizes related dashboards together.",
 		Attributes: map[string]schema.Attribute{
 			"id":         schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"created_at": schema.StringAttribute{Computed: true, Description: "When the group was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"name":       schema.StringAttribute{Required: true, Description: "Group name."},
-			"team_name":  schema.StringAttribute{Computed: true, Description: "Name of the team that owns the group."},
+			"team_id":    schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns the group, such as t123. Defaults to the provider's team_id. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", MarkdownDescription: "Team that owns the group, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_dashboard_group"}}},
+			"team_name":  schema.StringAttribute{Computed: true, Description: "Name of the team that owns the group.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"updated_at": schema.StringAttribute{Computed: true, Description: "When the group was last updated."},
 		},
 	}
@@ -75,8 +80,16 @@ func (r *DashboardGroupResource) Create(ctx context.Context, req resource.Create
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
 	out, err := r.client.Create(ctx, dashboardGroupBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating dashboard_group", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating dashboard_group", err, req.Plan.Raw.Type())
 		return
@@ -101,9 +114,22 @@ func (r *DashboardGroupResource) Read(ctx context.Context, req resource.ReadRequ
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, dashboardGroupBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), dashboardGroupBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading dashboard_group", err, req.State.Raw.Type())
 		return
@@ -122,9 +148,6 @@ func populateDashboardGroup(ctx context.Context, m *DashboardGroupModel, attrs m
 	if attrs == nil {
 		return
 	}
-	if v, ok := stringFromAPI(attrs["team_name"]); ok {
-		m.TeamName = types.StringValue(v)
-	}
 	if v, ok := stringFromAPI(attrs["name"]); ok {
 		m.Name = types.StringValue(v)
 	}
@@ -134,9 +157,16 @@ func populateDashboardGroup(ctx context.Context, m *DashboardGroupModel, attrs m
 	if v, ok := stringFromAPI(attrs["updated_at"]); ok {
 		m.UpdatedAt = datetimeValue(m.UpdatedAt, v)
 	}
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(attrs["team_name"]); ok {
+		m.TeamName = types.StringValue(v)
+	}
 }
 
 func (r *DashboardGroupResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	var plan DashboardGroupModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request DashboardGroupModel
@@ -146,6 +176,7 @@ func (r *DashboardGroupResource) Update(ctx context.Context, req resource.Update
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, err := r.client.Update(ctx, dashboardGroupBinding, vars, r.body(ctx, request))
@@ -165,6 +196,7 @@ func (r *DashboardGroupResource) Delete(ctx context.Context, req resource.Delete
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	if err := r.client.Delete(ctx, dashboardGroupBinding, vars); err != nil {
@@ -172,7 +204,12 @@ func (r *DashboardGroupResource) Delete(ctx context.Context, req resource.Delete
 	}
 }
 
+func (r *DashboardGroupResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseUnnamedTeam(ctx, req, resp, r.client, "dashboard group")
+}
+
 func (r *DashboardGroupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
@@ -182,6 +219,6 @@ var _ resource.ResourceWithMoveState = &DashboardGroupResource{}
 // logtail_dashboard_group (registry.terraform.io/BetterStackHQ/logtail).
 func (r *DashboardGroupResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[],\"ignored_fields\":[\"team_name\"],\"instructions\":[\"Keep every attribute: the legacy provider wrote the same /api/v2/dashboard-groups fields. Move team_name to the provider's team_id (or a provider alias for that team). Import uses the existing id.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_dashboard_group\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"computed\":true,\"description\":\"The time when this dashboard group was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this dashboard group.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"The name of this dashboard group.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.init.teamNameSchema.func46\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this dashboard group was updated.\",\"name\":\"updated_at\",\"type\":\"string\"}],\"response_projections\":[]}"),
+		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[],\"ignored_fields\":[\"team_name\"],\"instructions\":[\"Keep every attribute. Move team_name to the provider's team_id, or to the resource's own team_id for an object in another team. Import uses the existing id.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_dashboard_group\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"defaults\":{},\"source_attributes\":[{\"computed\":true,\"description\":\"The time when this dashboard group was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this dashboard group.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"The name of this dashboard group.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.init.teamNameSchema.func46\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this dashboard group was updated.\",\"name\":\"updated_at\",\"type\":\"string\"}],\"response_projections\":[]}"),
 	}
 }

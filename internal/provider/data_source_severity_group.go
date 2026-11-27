@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 )
 
 var _ datasource.DataSource = &SeverityGroupDataSource{}
@@ -26,12 +27,14 @@ func (d *SeverityGroupDataSource) Metadata(ctx context.Context, req datasource.M
 
 func (d *SeverityGroupDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A severity group: a set of related severities.",
+		Description:         "A severity group, a set of related severities.",
+		MarkdownDescription: "A severity group, a set of related severities.",
 		Attributes: map[string]schema.Attribute{
-			"id":         schema.StringAttribute{Required: true, Description: "Id of the severity_group to look up."},
+			"id":         schema.StringAttribute{Required: true, Description: "The ID of the severity group to look up."},
 			"created_at": schema.StringAttribute{Computed: true, Description: "When the group was created."},
 			"name":       schema.StringAttribute{Computed: true, Description: "Group name."},
-			"sort_index": schema.Int64Attribute{Computed: true, Description: "Display order of the group among the team's severity groups."},
+			"sort_index": schema.Int64Attribute{Computed: true, Description: "Display order of the group among the team's severity groups. Lower values come first."},
+			"team_id":    schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns this group, such as t123. Defaults to the provider's team_id. Set it to look the object up in another team.", MarkdownDescription: "Team that owns this group, such as `t123`. Defaults to the provider's `team_id`. Set it to look the object up in another team.", Validators: []validator.String{teamIDValidator()}},
 			"team_name":  schema.StringAttribute{Computed: true, Description: "Name of the team that owns this group."},
 			"updated_at": schema.StringAttribute{Computed: true, Description: "When the group was last updated."},
 		},
@@ -52,6 +55,7 @@ func (d *SeverityGroupDataSource) Read(ctx context.Context, req datasource.ReadR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, data.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = data.Id.ValueString()
 	out, found, err := d.client.GetDataSource(ctx, severityGroupBinding, vars)

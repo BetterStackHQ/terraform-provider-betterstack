@@ -39,14 +39,15 @@ func (r *StatusPageGroupResource) Metadata(ctx context.Context, req resource.Met
 
 func (r *StatusPageGroupResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A group of related status pages. It belongs to the organization, not to a team.",
+		Description:         "A group of related status pages. It belongs to the whole organization.",
+		MarkdownDescription: "A group of related status pages. It belongs to the whole organization.",
 		Attributes: map[string]schema.Attribute{
 			"id":              schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"created_at":      schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"created_at":      schema.StringAttribute{Computed: true, Description: "When the status page group was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"name":            schema.StringAttribute{Required: true, Description: "Group name."},
-			"organization_id": schema.StringAttribute{Optional: true, Computed: true, Description: "Organization the group belongs to, as its Better Stack organization id. Defaults to the first organization the token can access. An organization the token can't access returns a 422 error that lists the ones it can. Not returned in responses.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_status_page_group"}}},
-			"sort_index":      schema.Int64Attribute{Optional: true, Description: "Display order among the organization's status page groups. Writes also accept it as position."},
-			"updated_at":      schema.StringAttribute{Computed: true},
+			"organization_id": schema.StringAttribute{Optional: true, Computed: true, Description: "Organization the group belongs to, such as 123. Required when you sign in with OAuth and can access more than one organization, otherwise the token's own organization. Not returned in responses.", MarkdownDescription: "Organization the group belongs to, such as `123`. Required when you sign in with OAuth and can access more than one organization, otherwise the token's own organization. Not returned in responses.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_status_page_group"}}},
+			"sort_index":      schema.Int64Attribute{Optional: true, Description: "Display order among the organization's status page groups. Lower values come first. Writes also accept it as position.", MarkdownDescription: "Display order among the organization's status page groups. Lower values come first. Writes also accept it as `position`."},
+			"updated_at":      schema.StringAttribute{Computed: true, Description: "When the status page group was last updated."},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -106,6 +107,13 @@ func (r *StatusPageGroupResource) Create(ctx context.Context, req resource.Creat
 	}
 	vars := map[string]string{}
 	out, err := r.client.Create(ctx, statusPageGroupBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating status_page_group", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating status_page_group", err, req.Plan.Raw.Type())
 		return
@@ -182,6 +190,7 @@ func (r *StatusPageGroupResource) mergeResponse(ctx context.Context, m StatusPag
 }
 
 func (r *StatusPageGroupResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	var plan StatusPageGroupModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request StatusPageGroupModel
@@ -219,5 +228,6 @@ func (r *StatusPageGroupResource) Delete(ctx context.Context, req resource.Delet
 }
 
 func (r *StatusPageGroupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

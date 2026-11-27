@@ -61,7 +61,7 @@ func TestAccOfflineStateHandoff(t *testing.T) {
 	api.readOnly = true
 	api.mu.Unlock()
 	// Forget only the guided legacy owners. Their Delete is not called.
-	migrationCommand(t, work, env, terraform, "state", "rm", "logtail_source_aws_account.link", "logtail_source_gcp_project.link", "betteruptime_outgoing_webhook.receiver")
+	migrationCommand(t, work, env, terraform, "state", "rm", "betteruptime_outgoing_webhook.receiver")
 	migrationWrite(t, config, fmt.Sprintf(targetHandoffConfig, server.URL))
 	migrationCommand(t, work, env, terraform, "init", "-input=false", "-no-color")
 	// Refresh-only applies address moves and reads, not configured credential differences.
@@ -69,18 +69,16 @@ func TestAccOfflineStateHandoff(t *testing.T) {
 	migrationCommand(t, work, env, terraform, "apply", "-input=false", "-no-color", "owners.plan")
 	// CLI import reads the existing child. An ordinary import-block apply could also PATCH.
 	migrationCommand(t, work, env, terraform, "import", "-input=false", "-no-color", "betterstack_collector_target.database", "9007199254740993")
-	migrationCommand(t, work, env, terraform, "import", "-input=false", "-no-color", "betterstack_outgoing_webhook_integration.receiver", "507")
+	migrationCommand(t, work, env, terraform, "import", "-input=false", "-no-color", "betterstack_incidents_outgoing_webhook_integration.receiver", "507")
 	imported := migrationShowState(t, work, env, terraform)
-	assertMigrationValue(t, imported, "betterstack_outgoing_webhook_integration.receiver", "custom_webhook_template.auth_password", nil)
+	assertMigrationValue(t, imported, "betterstack_incidents_outgoing_webhook_integration.receiver", "custom_webhook_template.auth_password", nil)
 	current := filepath.Join(dir, "current-pull.json")
 	currentBytes := migrationCommand(t, work, env, terraform, "state", "pull")
 	migrationWrite(t, current, string(currentBytes))
 	script := filepath.Join(root, "scripts", "transfer-state.py")
 	for index, handoff := range []struct{ source, target, child string }{
-		{"logtail_source_aws_account.link", "betterstack_source.aws", ""},
-		{"logtail_source_gcp_project.link", "betterstack_source.gcp", ""},
 		{"logtail_collector.main", "betterstack_collector_target.database", "9007199254740993"},
-		{"betteruptime_outgoing_webhook.receiver", "betterstack_outgoing_webhook_integration.receiver", ""},
+		{"betteruptime_outgoing_webhook.receiver", "betterstack_incidents_outgoing_webhook_integration.receiver", ""},
 	} {
 		raw, err := os.ReadFile(current)
 		if err != nil {
@@ -118,14 +116,15 @@ func TestAccOfflineStateHandoff(t *testing.T) {
 	migrationCommand(t, work, env, terraform, "state", "push", current)
 	migrationCommand(t, work, env, terraform, "plan", "-detailed-exitcode", "-input=false", "-no-color")
 	after := migrationShowState(t, work, env, terraform)
-	assertMigrationValue(t, after, "betterstack_source.aws", "aws_external_id", "fixture-aws-secret")
-	assertMigrationValue(t, after, "betterstack_source.aws", "aws_auto_subscribe_log_groups", false)
-	assertMigrationValue(t, after, "betterstack_source.gcp", "gcp_project_number", "9007199254740993")
+	// The connections move with their state, write-only values included: no handoff is needed.
+	assertMigrationValue(t, after, "betterstack_source_aws_account.link", "aws_external_id", "fixture-aws-secret")
+	assertMigrationValue(t, after, "betterstack_source_aws_account.link", "aws_auto_sub_log_groups", false)
+	assertMigrationValue(t, after, "betterstack_source_gcp_project.link", "gcp_project_number", "9007199254740993")
 	assertMigrationValue(t, after, "betterstack_collector_target.database", "password", "fixture-database-secret")
 	assertMigrationValue(t, after, "betterstack_collector_target.database", "id", "9007199254740993")
 	assertMigrationValue(t, after, "betterstack_collector.main", "secret", "fixture-enrollment-secret")
-	assertMigrationValue(t, after, "betterstack_outgoing_webhook_integration.receiver", "custom_webhook_template.auth_password", "fixture-webhook-secret")
-	assertMigrationValue(t, after, "betterstack_outgoing_webhook_integration.receiver", "id", before["betteruptime_outgoing_webhook.receiver"]["id"])
+	assertMigrationValue(t, after, "betterstack_incidents_outgoing_webhook_integration.receiver", "custom_webhook_template.auth_password", "fixture-webhook-secret")
+	assertMigrationValue(t, after, "betterstack_incidents_outgoing_webhook_integration.receiver", "id", before["betteruptime_outgoing_webhook.receiver"]["id"])
 	for _, address := range []string{"betterstack_source.aws", "betterstack_source.gcp", "betterstack_collector.main"} {
 		assertMigrationValue(t, after, address, "data_region", "eu-nbg-2")
 	}
@@ -270,10 +269,6 @@ func (api *handoffFixtureAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 	if r.URL.Path == "/api/v2/outgoing-webhooks/507" {
 		respond("507", "outgoing_webhook", api.webhook)
-		return
-	}
-	if r.Header.Get("Better-Stack-Version") == "" {
-		http.Error(w, "version header missing", 400)
 		return
 	}
 	copyMap := func(source map[string]interface{}) map[string]interface{} {
@@ -422,6 +417,14 @@ moved {
   to = betterstack_source.gcp
 }
 moved {
+  from = logtail_source_aws_account.link
+  to = betterstack_source_aws_account.link
+}
+moved {
+  from = logtail_source_gcp_project.link
+  to = betterstack_source_gcp_project.link
+}
+moved {
   from = logtail_collector.main
   to = betterstack_collector.main
 }
@@ -434,9 +437,12 @@ resource "betterstack_source" "aws" {
   # Retain old SDK empty strings rather than changing these nullable fields to null.
   code_mapping_stack_root = ""
   code_mapping_source_root = ""
+}
+resource "betterstack_source_aws_account" "link" {
+  source_id = betterstack_source.aws.id
   aws_role_arn = "arn:aws:iam::123456789012:role/fixture"
   aws_external_id = "fixture-aws-secret"
-  aws_auto_subscribe_log_groups = false
+  aws_auto_sub_log_groups = false
 }
 resource "betterstack_source" "gcp" {
   name = "Fixture GCP"
@@ -446,6 +452,9 @@ resource "betterstack_source" "gcp" {
   ingesting_paused = false
   code_mapping_stack_root = ""
   code_mapping_source_root = ""
+}
+resource "betterstack_source_gcp_project" "link" {
+  source_id = betterstack_source.gcp.id
   gcp_project_id = "fixture-project"
   gcp_project_number = "9007199254740993"
 }
@@ -466,7 +475,7 @@ resource "betterstack_collector_target" "database" {
   password = "fixture-database-secret"
   ssl_mode = "require"
 }
-resource "betterstack_outgoing_webhook_integration" "receiver" {
+resource "betterstack_incidents_outgoing_webhook_integration" "receiver" {
   name = "Fixture webhook"
   url = "https://receiver.fixture.invalid"
   trigger_type = "incident_change"

@@ -252,23 +252,24 @@ func (r *ErrorsJiraIntegrationResource) Metadata(ctx context.Context, req resour
 
 func (r *ErrorsJiraIntegrationResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "An Error tracking Jira integration: which errors it files as Jira work items, in which space, with which work type and fields.",
+		Description:         "An Error tracking Jira integration. It sets which errors it files as Jira work items, in which space, and with which work type and fields.",
+		MarkdownDescription: "An Error tracking Jira integration. It sets which errors it files as Jira work items, in which space, and with which work type and fields.",
 		Attributes: map[string]schema.Attribute{
 			// The declared lifecycle addresses an existing object, so identity is configured.
-			"id":                             schema.StringAttribute{Required: true, Description: "Existing remote object ID to adopt; no remote object is created.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_errors_jira_integration"}}},
-			"affected_users_threshold_count": schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Total number of affected users for `notifications.affected_users_threshold`."},
-			"applications":                   schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"application_id": schema.StringAttribute{Optional: true, Computed: true, Description: "ID of an Error tracking application in the token's team."}, "environments": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Environments to act on errors from. Empty means every environment."}}}, Description: "Applications this integration acts on, each with its environments. Empty means any application. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"jira_fields":                    schema.DynamicAttribute{Optional: true, Computed: true, Description: "Further Jira fields set on new work items, keyed by Jira field ID.", PlanModifiers: []planmodifier.Dynamic{dynamicplanmodifier.UseStateForUnknown()}},
+			"id":                             schema.StringAttribute{Required: true, Description: "ID of the object in Better Stack this resource takes over. Changing it takes over that object instead. The previous one keeps its settings in Better Stack.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_errors_jira_integration"}}},
+			"affected_users_threshold_count": schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Total number of affected users for notifications.affected_users_threshold. A positive whole number.", MarkdownDescription: "Total number of affected users for `notifications.affected_users_threshold`. A positive whole number."},
+			"applications":                   schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"application_id": schema.StringAttribute{Optional: true, Computed: true, Description: "ID of an Error tracking application in the token's team."}, "environments": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Environments whose errors it files work items for. Empty means every environment."}}}, Description: "Applications this integration files work items for, each with its environments. Empty means any application. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"jira_fields":                    schema.DynamicAttribute{Optional: true, Computed: true, Description: "Further Jira fields set on new work items, keyed by Jira field ID. Each value has the shape of its Jira field type. A list field such as labels accepts a list of {label, value} objects, for example {\"labels\": [{\"label\": \"outage\", \"value\": \"outage\"}]}. A text field accepts a string, for example {\"customfield_10042\": \"Checkout\"}. A user, team or parent field accepts one {label, value} object, and a single-select or priority field the option's ID as a string. A number field accepts a number, and a date picker field an ISO 8601 time such as 2026-12-01T09:00:00Z.", MarkdownDescription: "Further Jira fields set on new work items, keyed by Jira field ID. Each value has the shape of its Jira field type. A list field such as labels accepts a list of `{label, value}` objects, for example `{\"labels\": [{\"label\": \"outage\", \"value\": \"outage\"}]}`. A text field accepts a string, for example `{\"customfield_10042\": \"Checkout\"}`. A user, team or parent field accepts one `{label, value}` object, and a single-select or priority field the option's ID as a string. A number field accepts a number, and a date picker field an ISO 8601 time such as `2026-12-01T09:00:00Z`.", PlanModifiers: []planmodifier.Dynamic{dynamicplanmodifier.UseStateForUnknown()}},
 			"jira_issue_type_id":             schema.StringAttribute{Optional: true, Computed: true, Description: "Jira work type of new work items.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"jira_project_key":               schema.StringAttribute{Optional: true, Computed: true, Description: "Jira space work items are created in. A new space needs `jira_issue_type_id` in the same request and clears `jira_fields` unless they're sent too.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"jira_project_key":               schema.StringAttribute{Optional: true, Computed: true, Description: "Jira space work items are created in. A new space needs jira_issue_type_id in the same request and clears jira_fields unless they're sent too.", MarkdownDescription: "Jira space work items are created in. A new space needs `jira_issue_type_id` in the same request and clears `jira_fields` unless they're sent too.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"jira_site_url":                  schema.StringAttribute{Computed: true, Description: "Jira site the integration is connected to."},
 			"name":                           schema.StringAttribute{Optional: true, Computed: true, Description: "Integration name.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"notifications":                  schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"spikes": schema.BoolAttribute{Optional: true, Computed: true, Description: "Application has a spike in errors."}, "new_errors": schema.BoolAttribute{Optional: true, Computed: true, Description: "New error occurs."}, "automatically_reopened": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error is automatically re-opened."}, "occurrence_milestones": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches an occurrence milestone (10, 100, 200, 500...)."}, "occurrence_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error occurs `occurrence_threshold_count` times within `occurrence_threshold_interval`."}, "affected_users_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches `affected_users_threshold_count` affected users."}}, Description: "\"Create work items when\": which events file a Jira work item. An update changes only the toggles sent.", PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()}},
-			"occurrence_threshold_count":     schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Number of occurrences for `notifications.occurrence_threshold`."},
-			"occurrence_threshold_interval":  schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("minute"), Description: "Time window for `notifications.occurrence_threshold`.", Validators: []validator.String{stringvalidator.OneOf("minute", "hour", "day", "week")}},
-			"tag_filter":                     schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"tag": schema.StringAttribute{Optional: true, Computed: true, Description: "Exception tag, such as environment or level."}, "values": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Matches any of these values."}}}, Description: "Acts on an error only when one of its exceptions has every tag listed, each with one of its values. Empty means every error. At most 10 tags with 50 values each, 200 characters per tag or value, each tag once. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"team_id":                        schema.StringAttribute{Computed: true, Description: "ID of the team that owns the integration, as the web app shows it (t123).", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"team_name":                      schema.StringAttribute{Computed: true, Description: "Name of the team that owns the integration."},
+			"notifications":                  schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"spikes": schema.BoolAttribute{Optional: true, Computed: true, Description: "Application has a spike in errors."}, "new_errors": schema.BoolAttribute{Optional: true, Computed: true, Description: "New error occurs."}, "automatically_reopened": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error is automatically re-opened."}, "occurrence_milestones": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches an occurrence milestone of 10, 100, 200, 500 and so on. When this integration already filed a Jira work item for the error, we comment on it instead."}, "occurrence_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error occurs occurrence_threshold_count times within occurrence_threshold_interval. When this integration already filed a Jira work item for the error, we comment on it instead.", MarkdownDescription: "Error occurs `occurrence_threshold_count` times within `occurrence_threshold_interval`. When this integration already filed a Jira work item for the error, we comment on it instead."}, "affected_users_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches affected_users_threshold_count affected users. When this integration already filed a Jira work item for the error, we comment on it instead.", MarkdownDescription: "Error reaches `affected_users_threshold_count` affected users. When this integration already filed a Jira work item for the error, we comment on it instead."}}, Description: "Which events file a Jira work item, as under Automatic work item creation in the web app. An update changes only the toggles sent.", MarkdownDescription: "Which events file a Jira work item, as under **Automatic work item creation** in the web app. An update changes only the toggles sent.", PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()}},
+			"occurrence_threshold_count":     schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Number of occurrences for notifications.occurrence_threshold. A positive whole number.", MarkdownDescription: "Number of occurrences for `notifications.occurrence_threshold`. A positive whole number."},
+			"occurrence_threshold_interval":  schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("minute"), Description: "Time window for notifications.occurrence_threshold.", MarkdownDescription: "Time window for `notifications.occurrence_threshold`.", Validators: []validator.String{stringvalidator.OneOf("minute", "hour", "day", "week")}},
+			"tag_filter":                     schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"tag": schema.StringAttribute{Optional: true, Computed: true, Description: "Exception tag, such as environment or level."}, "values": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Matches any of these values."}}}, Description: "Files a work item for an error only when one of its exceptions has every tag listed, each with one of its values. Empty means every error. At most 10 tags with 50 values each, 200 characters per tag or value, each tag once. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"team_id":                        schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the team that owns the integration, such as t123. Defaults to the provider's team_id. Set it when the object is in another team. Changing it replaces the resource, which takes over the object in that team instead.", MarkdownDescription: "ID of the team that owns the integration, such as `t123`. Defaults to the provider's `team_id`. Set it when the object is in another team. Changing it replaces the resource, which takes over the object in that team instead.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_errors_jira_integration"}}},
+			"team_name":                      schema.StringAttribute{Computed: true, Description: "Name of the team that owns the integration.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -346,6 +347,7 @@ func (r *ErrorsJiraIntegrationResource) Create(ctx context.Context, req resource
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, found, err := r.client.Get(ctx, errorsJiraIntegrationBinding, vars)
@@ -370,6 +372,13 @@ func (r *ErrorsJiraIntegrationResource) Create(ctx context.Context, req resource
 		return
 	}
 	out, err = r.client.Update(ctx, errorsJiraIntegrationBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating errors_jira_integration", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating errors_jira_integration", err, req.Plan.Raw.Type())
 		return
@@ -390,9 +399,22 @@ func (r *ErrorsJiraIntegrationResource) Read(ctx context.Context, req resource.R
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, errorsJiraIntegrationBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), errorsJiraIntegrationBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading errors_jira_integration", err, req.State.Raw.Type())
 		return
@@ -410,12 +432,6 @@ func (r *ErrorsJiraIntegrationResource) Read(ctx context.Context, req resource.R
 func populateErrorsJiraIntegration(ctx context.Context, m *ErrorsJiraIntegrationModel, attrs map[string]interface{}) {
 	if attrs == nil {
 		return
-	}
-	if v, ok := stringFromAPI(attrs["team_id"]); ok {
-		m.TeamId = types.StringValue(v)
-	}
-	if v, ok := stringFromAPI(attrs["team_name"]); ok {
-		m.TeamName = types.StringValue(v)
 	}
 	if raw, ok := attrs["applications"].([]interface{}); ok {
 		items := make([]types.Object, 0, len(raw))
@@ -481,9 +497,16 @@ func populateErrorsJiraIntegration(ctx context.Context, m *ErrorsJiraIntegration
 			m.JiraFields = dv.(types.Dynamic)
 		}
 	}
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(attrs["team_name"]); ok {
+		m.TeamName = types.StringValue(v)
+	}
 }
 
 func (r *ErrorsJiraIntegrationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	defer rememberConfigured(ctx, req.Config, resp.Private, errorsJiraIntegrationKeptOnRemoval, &resp.Diagnostics)
 	var plan ErrorsJiraIntegrationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -505,6 +528,7 @@ func (r *ErrorsJiraIntegrationResource) Update(ctx context.Context, req resource
 	if !plan.OccurrenceThresholdInterval.Equal(state.OccurrenceThresholdInterval) {
 		request.OccurrenceThresholdInterval = plan.OccurrenceThresholdInterval
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, err := r.client.Update(ctx, errorsJiraIntegrationBinding, vars, r.body(ctx, request))
@@ -527,9 +551,24 @@ func (r *ErrorsJiraIntegrationResource) Delete(ctx context.Context, req resource
 var errorsJiraIntegrationKeptOnRemoval = []string{"applications", "jira_fields", "jira_issue_type_id", "jira_project_key", "name", "notifications", "tag_filter"}
 
 func (r *ErrorsJiraIntegrationResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseUnnamedTeam(ctx, req, resp, r.client, "errors jira integration")
 	warnKeptOnRemoval(ctx, "betterstack_errors_jira_integration", req, resp, errorsJiraIntegrationKeptOnRemoval)
 }
 
 func (r *ErrorsJiraIntegrationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("occurrence_threshold_count"), 10)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("occurrence_threshold_interval"), "minute")...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("affected_users_threshold_count"), 10)...)
+}
+
+var _ resource.ResourceWithMoveState = &ErrorsJiraIntegrationResource{}
+
+// MoveState accepts `moved {}` blocks from the superseded provider resource(s):
+// logtail_errors_jira_integration (registry.terraform.io/BetterStackHQ/logtail).
+func (r *ErrorsJiraIntegrationResource) MoveState(ctx context.Context) []resource.StateMover {
+	return []resource.StateMover{
+		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"singleton\",\"path\":\"notifications\"},{\"op\":\"json_decode\",\"path\":\"jira_fields\"},{\"op\":\"string_id\",\"path\":\"applications[].application_id\"}],\"ignored_fields\":[\"integration_id\",\"team_id\",\"team_name\"],\"instructions\":[\"Rename to betterstack_errors_jira_integration, keeping the integration ID, which the legacy provider stored as both id and integration_id. Drop integration_id, convert the single notifications block to an object, decode the jira_fields JSON string into its object and replace team_name with the provider's team.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_errors_jira_integration\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"defaults\":{\"occurrence_threshold_count\":10,\"occurrence_threshold_interval\":\"minute\",\"affected_users_threshold_count\":10},\"source_attributes\":[{\"computed\":true,\"description\":\"How many affected users trigger the `affected_users_threshold` notification.\",\"name\":\"affected_users_threshold_count\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The Errors applications whose errors reach the integration, each as `{ application_id = …, environments = […] }` with `environments = []` for every environment. Set to `[]` to include every application.\",\"name\":\"applications\",\"optional\":true,\"type\":\"set(object)\"},{\"name\":\"applications.application_id\",\"optional\":true,\"type\":\"int\"},{\"name\":\"applications.environments\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"The ID of the integration, the same as `integration_id`.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"The ID of the existing Jira integration to manage, as in the URL of its Configure page in Error tracking › Integrations, or as listed by `GET /api/v1/jira-integrations`. Changing it adopts a different integration and leaves the previous one as it is.\",\"name\":\"integration_id\",\"required\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"Values of further Jira fields of new work items, as a JSON object of Jira field IDs and their values, e.g. `jsonencode({ customfield_10001 = \\\"value\\\" })`.\",\"name\":\"jira_fields\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of the Jira work type of new work items.\",\"name\":\"jira_issue_type_id\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The key of the Jira space (project) work items are filed in. Changing it needs `jira_issue_type_id` too, and clears the previous space's `jira_fields` unless you set them.\",\"name\":\"jira_project_key\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The Jira site the integration files work items on.\",\"name\":\"jira_site_url\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The name of the integration in Better Stack.\",\"name\":\"name\",\"optional\":true,\"type\":\"string\"},{\"max_items\":1,\"name\":\"notifications\",\"optional\":true,\"type\":\"list(object)\"},{\"computed\":true,\"description\":\"Notify when an error affects more than `affected_users_threshold_count` users.\",\"name\":\"notifications.affected_users_threshold\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when an error is automatically re-opened.\",\"name\":\"notifications.automatically_reopened\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when a new error occurs.\",\"name\":\"notifications.new_errors\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when an error reaches an occurrence milestone (10, 100, 200, 500, …).\",\"name\":\"notifications.occurrence_milestones\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when an error occurs more than `occurrence_threshold_count` times per `occurrence_threshold_interval`.\",\"name\":\"notifications.occurrence_threshold\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when the application has a spike in errors.\",\"name\":\"notifications.spikes\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"How many occurrences per `occurrence_threshold_interval` trigger the `occurrence_threshold` notification.\",\"name\":\"occurrence_threshold_count\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The interval of `occurrence_threshold_count`: `minute`, `hour`, `day` or `week`.\",\"name\":\"occurrence_threshold_interval\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Only errors whose tags match every row reach the integration, each row as `{ tag = \\\"region\\\", values = [\\\"eu\\\"] }`. Set to `[]` to remove the filter.\",\"name\":\"tag_filter\",\"optional\":true,\"type\":\"list(object)\"},{\"name\":\"tag_filter.tag\",\"optional\":true,\"type\":\"string\"},{\"name\":\"tag_filter.values\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"The ID of the team the integration belongs to.\",\"name\":\"team_id\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The name of the team the integration belongs to.\",\"name\":\"team_name\",\"type\":\"string\"}],\"response_projections\":[]}"),
+	}
 }

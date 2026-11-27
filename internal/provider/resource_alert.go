@@ -3,20 +3,16 @@ package provider
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/dynamicplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -24,12 +20,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 )
 
 var _ resource.Resource = &AlertResource{}
 var _ resource.ResourceWithConfigure = &AlertResource{}
 var _ resource.ResourceWithImportState = &AlertResource{}
+var _ resource.ResourceWithIdentity = &AlertResource{}
+var _ resource.ResourceWithConfigValidators = &AlertResource{}
 var _ resource.ResourceWithModifyPlan = &AlertResource{}
 
 type AlertResource struct {
@@ -56,12 +55,12 @@ type AlertModel struct {
 	CriticalAlert            types.Bool    `tfsdk:"critical_alert"`
 	DashboardId              types.String  `tfsdk:"dashboard_id"`
 	Email                    types.Bool    `tfsdk:"email"`
-	EscalationTarget         types.Dynamic `tfsdk:"escalation_target"`
+	EscalationTarget         types.Object  `tfsdk:"escalation_target"`
 	ExplorationId            types.String  `tfsdk:"exploration_id"`
 	IncidentCause            types.String  `tfsdk:"incident_cause"`
 	IncidentName             types.String  `tfsdk:"incident_name"`
 	IncidentPerSeries        types.Bool    `tfsdk:"incident_per_series"`
-	Metadata                 types.Dynamic `tfsdk:"metadata"`
+	Metadata                 types.Map     `tfsdk:"metadata"`
 	Name                     types.String  `tfsdk:"name"`
 	OnMissingData            types.String  `tfsdk:"on_missing_data"`
 	Operator                 types.String  `tfsdk:"operator"`
@@ -72,14 +71,75 @@ type AlertModel struct {
 	RecoveryPeriod           types.Int64   `tfsdk:"recovery_period"`
 	SeriesNames              types.List    `tfsdk:"series_names"`
 	SeriesNamesExcept        types.List    `tfsdk:"series_names_except"`
+	ShownInterval            types.Int64   `tfsdk:"shown_interval"`
 	Sms                      types.Bool    `tfsdk:"sms"`
 	SourceMode               types.String  `tfsdk:"source_mode"`
 	SourcePlatforms          types.List    `tfsdk:"source_platforms"`
 	SourceVariable           types.String  `tfsdk:"source_variable"`
 	StringValue              types.String  `tfsdk:"string_value"`
+	TeamId                   types.String  `tfsdk:"team_id"`
 	UpdatedAt                types.String  `tfsdk:"updated_at"`
 	Value                    types.Float64 `tfsdk:"value"`
 	VariableValues           types.List    `tfsdk:"variable_values"`
+}
+
+type AlertEscalationTargetModel struct {
+	PolicyId   types.String `tfsdk:"policy_id"`
+	PolicyName types.String `tfsdk:"policy_name"`
+	TeamId     types.String `tfsdk:"team_id"`
+	TeamName   types.String `tfsdk:"team_name"`
+}
+
+func alertEscalationTargetAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"policy_id":   types.StringType,
+		"policy_name": types.StringType,
+		"team_id":     types.StringType,
+		"team_name":   types.StringType,
+	}
+}
+
+// expandAlertEscalationTarget marshals a nested AlertEscalationTarget object into its request map.
+func expandAlertEscalationTarget(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m AlertEscalationTargetModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.PolicyId.IsNull() && !m.PolicyId.IsUnknown() {
+		out["policy_id"] = m.PolicyId.ValueString()
+	}
+	if !m.PolicyName.IsNull() && !m.PolicyName.IsUnknown() {
+		out["policy_name"] = m.PolicyName.ValueString()
+	}
+	if !m.TeamId.IsNull() && !m.TeamId.IsUnknown() {
+		out["team_id"] = m.TeamId.ValueString()
+	}
+	return out
+}
+
+// flattenAlertEscalationTarget refreshes a typed AlertEscalationTarget object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenAlertEscalationTarget(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m AlertEscalationTargetModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["policy_id"]); ok {
+		m.PolicyId = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["policy_name"]); ok {
+		m.PolicyName = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["team_name"]); ok {
+		m.TeamName = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, alertEscalationTargetAttrTypes(), m)
+	return obj
 }
 
 type AlertAdditionalConditionsModel struct {
@@ -152,11 +212,23 @@ func flattenAlertAdditionalConditions(ctx context.Context, prior types.Object, r
 	if v, ok := stringFromAPI(raw["operator"]); ok {
 		m.Operator = types.StringValue(v)
 	}
-	if v, ok := float64FromAPI(raw["value"]); ok {
-		m.Value = types.Float64Value(v)
+	if rawValue, exists := raw["value"]; exists {
+		if rawValue == nil {
+			m.Value = types.Float64Null()
+		} else {
+			if v, ok := float64FromAPI(raw["value"]); ok {
+				m.Value = types.Float64Value(v)
+			}
+		}
 	}
-	if v, ok := stringFromAPI(raw["string_value"]); ok {
-		m.StringValue = types.StringValue(v)
+	if rawValue, exists := raw["string_value"]; exists {
+		if rawValue == nil {
+			m.StringValue = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["string_value"]); ok {
+				m.StringValue = types.StringValue(v)
+			}
+		}
 	}
 	if raw, ok := raw["series_names"].([]interface{}); ok {
 		vals := make([]string, 0, len(raw))
@@ -254,50 +326,60 @@ func (r *AlertResource) Metadata(ctx context.Context, req resource.MetadataReque
 
 func (r *AlertResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "An alert on a dashboard chart or a saved exploration that opens an incident when its condition is met.",
+		Description:         "An alert on a dashboard chart or a saved exploration that opens an incident when its condition is met.",
+		MarkdownDescription: "An alert on a dashboard chart or a saved exploration that opens an incident when its condition is met.",
 		Attributes: map[string]schema.Attribute{
 			"id":                          schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"additional_conditions":       schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"alert_type": schema.StringAttribute{Optional: true, Computed: true}, "operator": schema.StringAttribute{Optional: true, Computed: true}, "value": schema.Float64Attribute{Optional: true, Computed: true}, "string_value": schema.StringAttribute{Optional: true, Computed: true}, "series_names": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType}, "series_names_except": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType}}}, Description: "Extra conditions evaluated alongside the alert's own.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"aggregation_interval":        schema.Int64Attribute{Optional: true, Computed: true, Description: "Aggregation interval in seconds. Defaults to `query_period`, then `check_period`, then 60.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
-			"alert_type":                  schema.StringAttribute{Required: true, Description: "Alert type: `threshold` fires when the value crosses a threshold, `relative` compares it with the previous period, and `anomaly_rrcf` uses anomaly detection.", Validators: []validator.String{stringvalidator.OneOf("threshold", "relative", "anomaly_rrcf")}},
-			"anomaly_sensitivity":         schema.Float64Attribute{Optional: true, Computed: true, Default: float64default.StaticFloat64(5.0), Description: "Anomaly sensitivity, for `anomaly_rrcf` alerts only. `null` on threshold and relative alerts."},
-			"anomaly_training_range_days": schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(7), Description: "Days of history the anomaly model is first trained on, from 1 to 30. For `anomaly_rrcf` alerts only. `null` on threshold and relative alerts."},
-			"anomaly_trigger":             schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("any"), Description: "Which direction of anomaly fires the alert, for `anomaly_rrcf` alerts only. `null` on threshold and relative alerts.", Validators: []validator.String{stringvalidator.OneOf("any", "higher", "lower")}},
-			"call":                        schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Trigger phone-call alerts."},
-			"chart_id":                    schema.StringAttribute{Required: true, Description: "Chart this alert watches. It can't be changed after the alert is created. The alert belongs to the chart's dashboard or exploration.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_alert"}}},
-			"check_period":                schema.Int64Attribute{Optional: true, Description: "How often the alert is evaluated, in seconds. Required when creating a threshold or relative alert. Not returned for anomaly alerts. An update that sends `check_period` without `query_period` or `aggregation_interval` sets both to it."},
-			"confirmation_period":         schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(60), Description: "Seconds the condition must hold before the incident opens."},
+			"additional_conditions":       schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"alert_type": schema.StringAttribute{Optional: true, Computed: true, Description: "The type of the condition, threshold or relative.", MarkdownDescription: "The type of the condition, `threshold` or `relative`."}, "operator": schema.StringAttribute{Optional: true, Computed: true, Description: "The comparison the condition makes, from the same values as operator.", MarkdownDescription: "The comparison the condition makes, from the same values as `operator`."}, "value": schema.Float64Attribute{Optional: true, Computed: true, Description: "Threshold value. null when the condition compares string_value.", MarkdownDescription: "Threshold value. `null` when the condition compares `string_value`."}, "string_value": schema.StringAttribute{Optional: true, Computed: true, Description: "Threshold value for a string series. null when the condition compares value.", MarkdownDescription: "Threshold value for a string series. `null` when the condition compares `value`."}, "series_names": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "The series the condition is limited to. An empty list means every series."}, "series_names_except": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "The series the condition ignores while it watches every other series."}}}, Description: "Up to 4 more conditions on top of the alert's own. A series fires only when it breaches the alert's own condition and every other condition that covers it, in the same time bucket. A condition limited to other series is met when one of those series breaches it. Each has an alert_type of threshold or relative, an operator, a value or string_value, and optionally series_names or series_names_except. Anomaly detection can't be an additional condition. An empty list removes them all.", MarkdownDescription: "Up to 4 more conditions on top of the alert's own. A series fires only when it breaches the alert's own condition and every other condition that covers it, in the same time bucket. A condition limited to other series is met when one of those series breaches it. Each has an `alert_type` of `threshold` or `relative`, an `operator`, a `value` or `string_value`, and optionally `series_names` or `series_names_except`. Anomaly detection can't be an additional condition. An empty list removes them all.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"aggregation_interval":        schema.Int64Attribute{Optional: true, Computed: true, Description: "The size of the buckets the data is aggregated into before each bucket is evaluated, in seconds. Defaults to query_period, then check_period, then 60.", MarkdownDescription: "The size of the buckets the data is aggregated into before each bucket is evaluated, in seconds. Defaults to `query_period`, then `check_period`, then 60."},
+			"alert_type":                  schema.StringAttribute{Required: true, Description: "Alert type. An update can change it.\n\n- threshold: Fires when the value crosses a threshold.\n- relative: Compares the value with the previous period as a percentage change.\n- anomaly_rrcf: Uses machine learning anomaly detection. Table charts don't accept it.", MarkdownDescription: "Alert type. An update can change it.\n\n- `threshold`: Fires when the value crosses a threshold.\n- `relative`: Compares the value with the previous period as a percentage change.\n- `anomaly_rrcf`: Uses machine learning anomaly detection. Table charts don't accept it.", Validators: []validator.String{stringvalidator.OneOf("threshold", "relative", "anomaly_rrcf")}},
+			"anomaly_sensitivity":         schema.Float64Attribute{Optional: true, Computed: true, Description: "How far a value must deviate from its prediction to trigger the alert, for anomaly_rrcf alerts only. The app shows it as Significance. A higher value needs a larger deviation, so the alert fires less often. Left out for threshold and relative alerts.", MarkdownDescription: "How far a value must deviate from its prediction to trigger the alert, for `anomaly_rrcf` alerts only. The app shows it as Significance. A higher value needs a larger deviation, so the alert fires less often. Left out for threshold and relative alerts.", Validators: []validator.Float64{appliesWhenConfigFloat64{When: []siblingCond{{Path: "alert_type", Values: []string{"anomaly_rrcf"}}}}}, PlanModifiers: []planmodifier.Float64{appliesWhenPlanFloat64{When: []siblingCond{{Path: "alert_type", Values: []string{"anomaly_rrcf"}}}, Default: types.Float64Value(5.0)}}},
+			"anomaly_training_range_days": schema.Int64Attribute{Optional: true, Computed: true, Description: "Days of history the anomaly model is first trained on, from 1 to 30. For anomaly_rrcf alerts only. Left out of the response on threshold and relative alerts.", MarkdownDescription: "Days of history the anomaly model is first trained on, from 1 to 30. For `anomaly_rrcf` alerts only. Left out of the response on threshold and relative alerts.", Validators: []validator.Int64{appliesWhenConfigInt64{When: []siblingCond{{Path: "alert_type", Values: []string{"anomaly_rrcf"}}}}}, PlanModifiers: []planmodifier.Int64{appliesWhenPlanInt64{When: []siblingCond{{Path: "alert_type", Values: []string{"anomaly_rrcf"}}}, Default: types.Int64Value(7)}}},
+			"anomaly_trigger":             schema.StringAttribute{Optional: true, Computed: true, Description: "Which direction of anomaly fires the alert, for anomaly_rrcf alerts only. Left out of the response on threshold and relative alerts.\n\n- any: Fires on values above or below the prediction.\n- higher: Fires on values above the prediction.\n- lower: Fires on values below the prediction.", MarkdownDescription: "Which direction of anomaly fires the alert, for `anomaly_rrcf` alerts only. Left out of the response on threshold and relative alerts.\n\n- `any`: Fires on values above or below the prediction.\n- `higher`: Fires on values above the prediction.\n- `lower`: Fires on values below the prediction.", Validators: []validator.String{stringvalidator.OneOf("any", "higher", "lower"), appliesWhenConfigString{When: []siblingCond{{Path: "alert_type", Values: []string{"anomaly_rrcf"}}}}}, PlanModifiers: []planmodifier.String{appliesWhenPlanString{When: []siblingCond{{Path: "alert_type", Values: []string{"anomaly_rrcf"}}}, Default: types.StringValue("any")}}},
+			"call":                        schema.BoolAttribute{Optional: true, Computed: true, Description: "Trigger phone-call alerts. Left out of reads when the alert routes to an escalation policy. A plan without phone call alerts refuses true with a 422, unless the alert already has it.", MarkdownDescription: "Trigger phone-call alerts. Left out of reads when the alert routes to an escalation policy. A plan without phone call alerts refuses `true` with a 422, unless the alert already has it.", Validators: []validator.Bool{appliesWhenConfigBool{When: []siblingCond{{Path: "escalation_target.policy_id", Values: []string{}, Absent: true}, {Path: "escalation_target.policy_name", Values: []string{}, Absent: true}}}}, PlanModifiers: []planmodifier.Bool{appliesWhenPlanBool{When: []siblingCond{{Path: "escalation_target.policy_id", Values: []string{}, Absent: true}, {Path: "escalation_target.policy_name", Values: []string{}, Absent: true}}, Default: types.BoolValue(false)}}},
+			"chart_id":                    schema.StringAttribute{Optional: true, Description: "Chart this alert watches, on the dashboard in dashboard_id. null for an alert on an exploration. It can't be changed after the alert is created.", MarkdownDescription: "Chart this alert watches, on the dashboard in `dashboard_id`. `null` for an alert on an exploration. It can't be changed after the alert is created.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_alert"}}},
+			"check_period":                schema.Int64Attribute{Optional: true, Description: "How often the alert is checked, in seconds. Not returned for anomaly_rrcf alerts. An update that includes check_period without query_period or aggregation_interval sets both to it. Required when creating a threshold or relative alert.", MarkdownDescription: "How often the alert is checked, in seconds. Not returned for `anomaly_rrcf` alerts. An update that includes `check_period` without `query_period` or `aggregation_interval` sets both to it. Required when creating a threshold or relative alert."},
+			"confirmation_period":         schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(60), Description: "How long the condition must hold before an incident starts, in seconds, from 0 to 86400. 0 starts it at once.", MarkdownDescription: "How long the condition must hold before an incident starts, in seconds, from `0` to `86400`. `0` starts it at once."},
 			"created_at":                  schema.StringAttribute{Computed: true, Description: "When the alert was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"critical_alert":              schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Trigger critical push alerts that bypass silent mode."},
-			"dashboard_id":                schema.StringAttribute{Required: true, Description: "Dashboard of the chart this alert watches. `null` for an alert on an exploration.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_alert"}}},
-			"email":                       schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Trigger e-mail alerts."},
-			"escalation_target":           schema.DynamicAttribute{Optional: true, Computed: true, Description: "Where the incident is routed: the string `current_team`, which is the default, an object with a numeric `policy_id` and `policy_name`, or an object with `team_id` and `team_name`. Reads return the string `unknown` when the target can't be looked up or no longer exists. When writing, name the policy or team by ID, by name or both. Naming both a policy and a team, an unknown one, or a name several match without an ID returns 422.", PlanModifiers: []planmodifier.Dynamic{dynamicplanmodifier.UseStateForUnknown()}},
-			"exploration_id":              schema.StringAttribute{Computed: true, Description: "Exploration this alert watches. `null` for an alert on a dashboard chart.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"incident_cause":              schema.StringAttribute{Optional: true, Description: "Incident cause text."},
-			"incident_name":               schema.StringAttribute{Optional: true, Description: "Incident name text."},
-			"incident_per_series":         schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Open one incident per series rather than one for the whole alert."},
-			"metadata":                    schema.DynamicAttribute{Optional: true, Description: "Custom incident metadata: arbitrary keys whose values are a string or an array of strings. Sending an empty object clears it."},
+			"critical_alert":              schema.BoolAttribute{Optional: true, Computed: true, Description: "Trigger critical push alerts that bypass silent mode. Left out of reads when the alert routes to an escalation policy. A plan without critical alerts refuses true with a 422, unless the alert already has it.", MarkdownDescription: "Trigger critical push alerts that bypass silent mode. Left out of reads when the alert routes to an escalation policy. A plan without critical alerts refuses `true` with a 422, unless the alert already has it.", Validators: []validator.Bool{appliesWhenConfigBool{When: []siblingCond{{Path: "escalation_target.policy_id", Values: []string{}, Absent: true}, {Path: "escalation_target.policy_name", Values: []string{}, Absent: true}}}}, PlanModifiers: []planmodifier.Bool{appliesWhenPlanBool{When: []siblingCond{{Path: "escalation_target.policy_id", Values: []string{}, Absent: true}, {Path: "escalation_target.policy_name", Values: []string{}, Absent: true}}, Default: types.BoolValue(false)}}},
+			"dashboard_id":                schema.StringAttribute{Optional: true, Description: "Dashboard of the chart this alert watches. null for an alert on an exploration. Set it with chart_id for an alert on a dashboard chart, or set exploration_id instead. It can't be changed after the alert is created. Configure exactly one of these: dashboard_id with chart_id, or exploration_id.", MarkdownDescription: "Dashboard of the chart this alert watches. `null` for an alert on an exploration. Set it with `chart_id` for an alert on a dashboard chart, or set `exploration_id` instead. It can't be changed after the alert is created. Configure exactly one of these: `dashboard_id` with `chart_id`, or `exploration_id`.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_alert"}}},
+			"email":                       schema.BoolAttribute{Optional: true, Computed: true, Description: "Trigger e-mail alerts. Left out of reads when the alert routes to an escalation policy.", Validators: []validator.Bool{appliesWhenConfigBool{When: []siblingCond{{Path: "escalation_target.policy_id", Values: []string{}, Absent: true}, {Path: "escalation_target.policy_name", Values: []string{}, Absent: true}}}}, PlanModifiers: []planmodifier.Bool{appliesWhenPlanBool{When: []siblingCond{{Path: "escalation_target.policy_id", Values: []string{}, Absent: true}, {Path: "escalation_target.policy_name", Values: []string{}, Absent: true}}, Default: types.BoolValue(false)}}},
+			"escalation_target":           schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"policy_id": schema.StringAttribute{Optional: true, Computed: true, Description: "Escalation policy ID."}, "policy_name": schema.StringAttribute{Optional: true, Computed: true, Description: "Escalation policy name."}, "team_id": schema.StringAttribute{Optional: true, Computed: true, Description: "Team ID, such as t123.", MarkdownDescription: "Team ID, such as `t123`."}, "team_name": schema.StringAttribute{Computed: true, Description: "Team name."}}, Description: "Where the incident is routed. It's the string current_team, which is the default, an object with policy_id and policy_name, or an object with team_id and team_name. Reads return the string unknown when the target can't be looked up or no longer exists. A policy is named by ID, by name or both, and a team by team_id. An empty object routes to the current team too. Naming both a policy and a team, an unknown one, or a policy name several match without an ID, is refused.", MarkdownDescription: "Where the incident is routed. It's the string `current_team`, which is the default, an object with `policy_id` and `policy_name`, or an object with `team_id` and `team_name`. Reads return the string `unknown` when the target can't be looked up or no longer exists. A policy is named by ID, by name or both, and a team by `team_id`. An empty object routes to the current team too. Naming both a policy and a team, an unknown one, or a policy name several match without an ID, is refused.", PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown(), emptyConfiguredObject{}}},
+			"exploration_id":              schema.StringAttribute{Optional: true, Description: "Exploration this alert watches. null for an alert on a dashboard chart. Set it instead of dashboard_id and chart_id for an alert on an exploration. It can't be changed after the alert is created. Configure exactly one of these: dashboard_id with chart_id, or exploration_id.", MarkdownDescription: "Exploration this alert watches. `null` for an alert on a dashboard chart. Set it instead of `dashboard_id` and `chart_id` for an alert on an exploration. It can't be changed after the alert is created. Configure exactly one of these: `dashboard_id` with `chart_id`, or `exploration_id`.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_alert"}}},
+			"incident_cause":              schema.StringAttribute{Optional: true, Description: "A custom description for the incidents the alert starts, in Markdown, or null when none is set. It accepts the same template variables as incident_name, such as {{current_value}} and {{threshold_value}}.", MarkdownDescription: "A custom description for the incidents the alert starts, in Markdown, or `null` when none is set. It accepts the same template variables as `incident_name`, such as `{{current_value}}` and `{{threshold_value}}`."},
+			"incident_name":               schema.StringAttribute{Optional: true, Description: "A custom name for the incidents the alert starts, in plain text, or null when none is set. It accepts template variables such as {{alert_name}}, {{series_name}}, {{current_value}}, {{threshold_value}}, {{team_name}}, the chart's variables and the columns its query returns.", MarkdownDescription: "A custom name for the incidents the alert starts, in plain text, or `null` when none is set. It accepts template variables such as `{{alert_name}}`, `{{series_name}}`, `{{current_value}}`, `{{threshold_value}}`, `{{team_name}}`, the chart's variables and the columns its query returns."},
+			"incident_per_series":         schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether each series that breaches the condition starts its own incident, rather than one incident for the whole alert."},
+			"metadata":                    schema.MapAttribute{Optional: true, ElementType: types.ListType{ElemType: types.StringType}, Description: "Custom incident metadata, where each key you choose holds a list of strings. A single string is accepted too and saved as a one-item list. It's added to the alert's incidents. An update replaces all of it. An empty object clears it, and it then reads back as null."},
 			"name":                        schema.StringAttribute{Required: true, Description: "Alert name. Renaming marks the alert as manually named, so it stops tracking the chart's name."},
-			"on_missing_data":             schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("dont_fire"), Description: "What to do when the query returns no data. Anomaly alerts take it from the chart, so it can't be sent for them and is `null`.", Validators: []validator.String{stringvalidator.OneOf("treat_as_zero", "dont_fire", "treat_as_previous", "start_incident")}},
-			"operator":                    schema.StringAttribute{Optional: true, Computed: true, Description: "How the value is compared. Required for threshold and relative alerts. Anomaly alerts don't use it and return `null`.", Validators: []validator.String{stringvalidator.OneOf("equal", "not_equal", "higher_than", "higher_than_or_equal", "lower_than", "lower_than_or_equal", "increases_by", "decreases_by", "changes_by")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"paused":                      schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether the alert is paused. Send it as a JSON boolean: the string `\"true\"` is ignored."},
-			"paused_reason":               schema.StringAttribute{Computed: true, Description: "Why the alert is paused: `manual`, `too_complex`, `query_errors`, `sources_not_eligible`, `anomaly_training_no_data` or `chart_not_alertable`. `null` when the alert isn't paused."},
-			"push":                        schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Trigger mobile push alerts."},
-			"query_period":                schema.Int64Attribute{Optional: true, Computed: true, Description: "Query window in seconds. Defaults to `aggregation_interval`, then `check_period`, then 60.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
-			"recovery_period":             schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(60), Description: "Seconds the value must stay recovered before the incident resolves on its own. Defaults to 60. Send `null` to never resolve it automatically."},
-			"series_names":                schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Evaluate only these series. Can't be combined with `series_names_except`. Sending either one replaces both.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"series_names_except":         schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Evaluate every series except these. Can't be combined with `series_names`. Sending either one replaces both.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"sms":                         schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Trigger SMS alerts."},
-			"source_mode":                 schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("source_variable"), Description: "How the sources under evaluation are selected.", Validators: []validator.String{stringvalidator.OneOf("source_variable", "platforms_single_source", "platforms_all_sources")}},
-			"source_platforms":            schema.ListAttribute{Optional: true, Computed: true, Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})), ElementType: types.StringType, Description: "Platforms to evaluate, for the `platforms_single_source` and `platforms_all_sources` source modes."},
-			"source_variable":             schema.StringAttribute{Optional: true, Computed: true, Description: "Source variable to evaluate, for example `source:table_name`. Defaults to the chart's own source.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"string_value":                schema.StringAttribute{Optional: true, Description: "Threshold value for a string series, for threshold alerts only."},
+			"on_missing_data":             schema.StringAttribute{Optional: true, Computed: true, Description: "What a check does when the query returns no data. It can't be sent for anomaly_rrcf alerts and is left out of their responses.\n\n- treat_as_zero: Checks the missing data as if the value were 0.\n- dont_fire: Starts no incident for missing data.\n- treat_as_previous: Checks the missing data as if it had the previous value.\n- start_incident: Starts an incident when the query returns no data.", MarkdownDescription: "What a check does when the query returns no data. It can't be sent for `anomaly_rrcf` alerts and is left out of their responses.\n\n- `treat_as_zero`: Checks the missing data as if the value were 0.\n- `dont_fire`: Starts no incident for missing data.\n- `treat_as_previous`: Checks the missing data as if it had the previous value.\n- `start_incident`: Starts an incident when the query returns no data.", Validators: []validator.String{stringvalidator.OneOf("treat_as_zero", "dont_fire", "treat_as_previous", "start_incident"), appliesWhenConfigString{When: []siblingCond{{Path: "alert_type", Values: []string{"threshold", "relative"}}}}}, PlanModifiers: []planmodifier.String{appliesWhenPlanString{When: []siblingCond{{Path: "alert_type", Values: []string{"threshold", "relative"}}}, Default: types.StringValue("dont_fire")}}},
+			"operator":                    schema.StringAttribute{Optional: true, Computed: true, Description: "How the value is compared. Required for threshold and relative alerts. anomaly_rrcf alerts don't use it, and it's left out of their responses.\n\n- equal: A threshold alert fires when the value equals value or string_value.\n- not_equal: A threshold alert fires when the value differs from value or string_value.\n- higher_than: A threshold alert fires when the value is above value.\n- higher_than_or_equal: A threshold alert fires when the value is at or above value.\n- lower_than: A threshold alert fires when the value is below value.\n- lower_than_or_equal: A threshold alert fires when the value is at or below value.\n- increases_by: A relative alert fires when the value rises by value percent or more.\n- decreases_by: A relative alert fires when the value falls by value percent or more.\n- changes_by: A relative alert fires when the value rises or falls by value percent or more.", MarkdownDescription: "How the value is compared. Required for threshold and relative alerts. `anomaly_rrcf` alerts don't use it, and it's left out of their responses.\n\n- `equal`: A `threshold` alert fires when the value equals `value` or `string_value`.\n- `not_equal`: A `threshold` alert fires when the value differs from `value` or `string_value`.\n- `higher_than`: A `threshold` alert fires when the value is above `value`.\n- `higher_than_or_equal`: A `threshold` alert fires when the value is at or above `value`.\n- `lower_than`: A `threshold` alert fires when the value is below `value`.\n- `lower_than_or_equal`: A `threshold` alert fires when the value is at or below `value`.\n- `increases_by`: A `relative` alert fires when the value rises by `value` percent or more.\n- `decreases_by`: A `relative` alert fires when the value falls by `value` percent or more.\n- `changes_by`: A `relative` alert fires when the value rises or falls by `value` percent or more.", Validators: []validator.String{stringvalidator.OneOf("equal", "not_equal", "higher_than", "higher_than_or_equal", "lower_than", "lower_than_or_equal", "increases_by", "decreases_by", "changes_by")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"paused":                      schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether the alert is paused."},
+			"paused_reason":               schema.StringAttribute{Computed: true, Description: "Why the alert is paused. It's Manually paused for an alert paused by hand, or a sentence that says Better Stack paused it and why. null when the alert isn't paused.", MarkdownDescription: "Why the alert is paused. It's `Manually paused` for an alert paused by hand, or a sentence that says Better Stack paused it and why. `null` when the alert isn't paused."},
+			"push":                        schema.BoolAttribute{Optional: true, Computed: true, Description: "Trigger mobile push alerts. Left out of reads when the alert routes to an escalation policy. A plan without push notifications refuses true with a 422, unless the alert already has it.", MarkdownDescription: "Trigger mobile push alerts. Left out of reads when the alert routes to an escalation policy. A plan without push notifications refuses `true` with a 422, unless the alert already has it.", Validators: []validator.Bool{appliesWhenConfigBool{When: []siblingCond{{Path: "escalation_target.policy_id", Values: []string{}, Absent: true}, {Path: "escalation_target.policy_name", Values: []string{}, Absent: true}}}}, PlanModifiers: []planmodifier.Bool{appliesWhenPlanBool{When: []siblingCond{{Path: "escalation_target.policy_id", Values: []string{}, Absent: true}, {Path: "escalation_target.policy_name", Values: []string{}, Absent: true}}, Default: types.BoolValue(false)}}},
+			"query_period":                schema.Int64Attribute{Optional: true, Computed: true, Description: "The time window of data each check looks at, in seconds. Defaults to aggregation_interval, then check_period, then 60.", MarkdownDescription: "The time window of data each check looks at, in seconds. Defaults to `aggregation_interval`, then `check_period`, then 60."},
+			"recovery_period":             schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(60), Description: "Seconds the value must stay recovered before the incident resolves on its own, or null to never resolve it automatically.", MarkdownDescription: "Seconds the value must stay recovered before the incident resolves on its own, or `null` to never resolve it automatically."},
+			"series_names":                schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "The series the alert is limited to. An empty list means every series. Can't be combined with series_names_except. Setting either one replaces both.", MarkdownDescription: "The series the alert is limited to. An empty list means every series. Can't be combined with `series_names_except`. Setting either one replaces both.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"series_names_except":         schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "The series the alert ignores while it watches every other series. Can't be combined with series_names, so it's empty when series_names is used. Setting either one replaces both.", MarkdownDescription: "The series the alert ignores while it watches every other series. Can't be combined with `series_names`, so it's empty when `series_names` is used. Setting either one replaces both.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"shown_interval":              schema.Int64Attribute{Optional: true, Computed: true, Description: "Interval in seconds the anomaly chart shows, for anomaly_rrcf alerts only. It's one of 30, 60, 120, 300, 600, 1800, 3600, 7200, 10800, 21600, 43200 or 86400. Left out of the response on threshold and relative alerts. Defaults to 10800 when an anomaly alert is created.", MarkdownDescription: "Interval in seconds the anomaly chart shows, for `anomaly_rrcf` alerts only. It's one of 30, 60, 120, 300, 600, 1800, 3600, 7200, 10800, 21600, 43200 or 86400. Left out of the response on threshold and relative alerts. Defaults to 10800 when an anomaly alert is created."},
+			"sms":                         schema.BoolAttribute{Optional: true, Computed: true, Description: "Trigger SMS alerts. Left out of reads when the alert routes to an escalation policy. A plan without SMS alerts refuses true with a 422, unless the alert already has it.", MarkdownDescription: "Trigger SMS alerts. Left out of reads when the alert routes to an escalation policy. A plan without SMS alerts refuses `true` with a 422, unless the alert already has it.", Validators: []validator.Bool{appliesWhenConfigBool{When: []siblingCond{{Path: "escalation_target.policy_id", Values: []string{}, Absent: true}, {Path: "escalation_target.policy_name", Values: []string{}, Absent: true}}}}, PlanModifiers: []planmodifier.Bool{appliesWhenPlanBool{When: []siblingCond{{Path: "escalation_target.policy_id", Values: []string{}, Absent: true}, {Path: "escalation_target.policy_name", Values: []string{}, Absent: true}}, Default: types.BoolValue(false)}}},
+			"source_mode":                 schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("source_variable"), Description: "How the alert picks its sources.\n\n- source_variable: Runs on the sources in source_variable.\n- platforms_single_source: Runs on the one source in source_variable, limited to source_platforms.\n- platforms_all_sources: Runs on every source that matches source_platforms.", MarkdownDescription: "How the alert picks its sources.\n\n- `source_variable`: Runs on the sources in `source_variable`.\n- `platforms_single_source`: Runs on the one source in `source_variable`, limited to `source_platforms`.\n- `platforms_all_sources`: Runs on every source that matches `source_platforms`.", Validators: []validator.String{stringvalidator.OneOf("source_variable", "platforms_single_source", "platforms_all_sources")}},
+			"source_platforms":            schema.ListAttribute{Optional: true, Computed: true, Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})), ElementType: types.StringType, Description: "Platforms that limit the sources and services the alert runs on, for the platforms_single_source and platforms_all_sources source modes.", MarkdownDescription: "Platforms that limit the sources and services the alert runs on, for the `platforms_single_source` and `platforms_all_sources` source modes."},
+			"source_variable":             schema.StringAttribute{Optional: true, Computed: true, Description: "The sources the alert runs on, as source: followed by comma-separated source table names, or null when none is set. With the source_variable and platforms_single_source modes, the value must start with source:.", MarkdownDescription: "The sources the alert runs on, as `source:` followed by comma-separated source table names, or `null` when none is set. With the `source_variable` and `platforms_single_source` modes, the value must start with `source:`."},
+			"string_value":                schema.StringAttribute{Optional: true, Description: "The exact text a threshold alert compares, instead of value, with equal or not_equal only. When it's set, value isn't needed and reads back as null. Returned for threshold alerts only.", MarkdownDescription: "The exact text a `threshold` alert compares, instead of `value`, with `equal` or `not_equal` only. When it's set, `value` isn't needed and reads back as `null`. Returned for threshold alerts only."},
+			"team_id":                     schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns the alert, the team of its chart's dashboard or exploration, such as t123. Defaults to the provider's team_id. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", MarkdownDescription: "Team that owns the alert, the team of its chart's dashboard or exploration, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_alert"}}},
 			"updated_at":                  schema.StringAttribute{Computed: true, Description: "When the alert was last updated."},
-			"value":                       schema.Float64Attribute{Optional: true, Description: "Threshold value. Creating a threshold or relative alert needs `value` or `string_value`. `null` on anomaly alerts."},
-			"variable_values":             schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true}, "selected_label": schema.StringAttribute{Optional: true, Computed: true}, "values": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType}}}, Description: "Values this alert sets for the template variables of its dashboard or exploration. Each `name` must be a variable defined there. Source variables aren't accepted: use `source_mode` and `source_variable` instead.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"value":                       schema.Float64Attribute{Optional: true, Description: "The threshold for threshold alerts, or the percentage change for relative alerts. 0 is a valid value. null when the alert compares string_value. Creating a threshold or relative alert needs value or string_value. Left out for anomaly_rrcf alerts.", MarkdownDescription: "The threshold for `threshold` alerts, or the percentage change for `relative` alerts. `0` is a valid value. `null` when the alert compares `string_value`. Creating a threshold or relative alert needs `value` or `string_value`. Left out for `anomaly_rrcf` alerts."},
+			"variable_values":             schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name of a variable on the alert's dashboard or exploration."}, "selected_label": schema.StringAttribute{Optional: true, Computed: true, Description: "For a select_predefined_sql variable, the label of the filter the alert uses.", MarkdownDescription: "For a `select_predefined_sql` variable, the label of the filter the alert uses."}, "values": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "The values the alert uses for the variable, as strings."}}}, Description: "Values this alert sets for the template variables of its dashboard or exploration. Each name must be a variable defined there. Source variables aren't accepted, so use source_mode and source_variable instead.", MarkdownDescription: "Values this alert sets for the template variables of its dashboard or exploration. Each `name` must be a variable defined there. Source variables aren't accepted, so use `source_mode` and `source_variable` instead.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
+}
+
+func (r *AlertResource) ConfigValidators(context.Context) []resource.ConfigValidator {
+	return []resource.ConfigValidator{
+		resourcevalidator.ExactlyOneOf(path.MatchRoot("dashboard_id"), path.MatchRoot("exploration_id")),
+		resourcevalidator.RequiredTogether(path.MatchRoot("dashboard_id"), path.MatchRoot("chart_id")),
+	}
 }
 
 func (r *AlertResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -310,6 +392,144 @@ func (r *AlertResource) Configure(ctx context.Context, req resource.ConfigureReq
 // body marshals the writable attributes into the request. The envelope decides whether they travel
 // flat or wrapped; that is the binding's job, not this function's.
 func (r *AlertResource) body(ctx context.Context, m AlertModel) map[string]interface{} {
+	body := map[string]interface{}{}
+	if !m.DashboardId.IsNull() && !m.DashboardId.IsUnknown() {
+		body["dashboard_id"] = m.DashboardId.ValueString()
+	}
+	if !m.ChartId.IsNull() && !m.ChartId.IsUnknown() {
+		body["chart_id"] = m.ChartId.ValueString()
+	}
+	if !m.ExplorationId.IsNull() && !m.ExplorationId.IsUnknown() {
+		body["exploration_id"] = m.ExplorationId.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		body["name"] = m.Name.ValueString()
+	}
+	if !m.AlertType.IsNull() && !m.AlertType.IsUnknown() {
+		body["alert_type"] = m.AlertType.ValueString()
+	}
+	if !m.Operator.IsNull() && !m.Operator.IsUnknown() {
+		body["operator"] = m.Operator.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		body["value"] = m.Value.ValueFloat64()
+	}
+	if !m.StringValue.IsNull() && !m.StringValue.IsUnknown() {
+		body["string_value"] = m.StringValue.ValueString()
+	}
+	if !m.Paused.IsNull() && !m.Paused.IsUnknown() {
+		body["paused"] = m.Paused.ValueBool()
+	}
+	if !m.QueryPeriod.IsNull() && !m.QueryPeriod.IsUnknown() {
+		body["query_period"] = m.QueryPeriod.ValueInt64()
+	}
+	if !m.ConfirmationPeriod.IsNull() && !m.ConfirmationPeriod.IsUnknown() {
+		body["confirmation_period"] = m.ConfirmationPeriod.ValueInt64()
+	}
+	if !m.RecoveryPeriod.IsNull() && !m.RecoveryPeriod.IsUnknown() {
+		if m.RecoveryPeriod.ValueInt64() == -1 {
+			body["recovery_period"] = nil
+		} else {
+			body["recovery_period"] = m.RecoveryPeriod.ValueInt64()
+		}
+	}
+	if !m.AggregationInterval.IsNull() && !m.AggregationInterval.IsUnknown() {
+		body["aggregation_interval"] = m.AggregationInterval.ValueInt64()
+	}
+	if !m.CheckPeriod.IsNull() && !m.CheckPeriod.IsUnknown() {
+		body["check_period"] = m.CheckPeriod.ValueInt64()
+	}
+	if !m.SeriesNames.IsNull() && !m.SeriesNames.IsUnknown() {
+		var vals []string
+		m.SeriesNames.ElementsAs(ctx, &vals, false)
+		body["series_names"] = vals
+	}
+	if !m.SeriesNamesExcept.IsNull() && !m.SeriesNamesExcept.IsUnknown() {
+		var vals []string
+		m.SeriesNamesExcept.ElementsAs(ctx, &vals, false)
+		body["series_names_except"] = vals
+	}
+	if !m.SourceVariable.IsNull() && !m.SourceVariable.IsUnknown() {
+		body["source_variable"] = m.SourceVariable.ValueString()
+	}
+	if !m.SourceMode.IsNull() && !m.SourceMode.IsUnknown() {
+		body["source_mode"] = m.SourceMode.ValueString()
+	}
+	if !m.SourcePlatforms.IsNull() && !m.SourcePlatforms.IsUnknown() {
+		var vals []string
+		m.SourcePlatforms.ElementsAs(ctx, &vals, false)
+		body["source_platforms"] = vals
+	}
+	if !m.EscalationTarget.IsNull() && !m.EscalationTarget.IsUnknown() {
+		body["escalation_target"] = expandAlertEscalationTarget(ctx, m.EscalationTarget)
+	}
+	if !m.IncidentCause.IsNull() && !m.IncidentCause.IsUnknown() {
+		body["incident_cause"] = m.IncidentCause.ValueString()
+	}
+	if !m.IncidentName.IsNull() && !m.IncidentName.IsUnknown() {
+		body["incident_name"] = m.IncidentName.ValueString()
+	}
+	if !m.IncidentPerSeries.IsNull() && !m.IncidentPerSeries.IsUnknown() {
+		body["incident_per_series"] = m.IncidentPerSeries.ValueBool()
+	}
+	if !m.AdditionalConditions.IsNull() && !m.AdditionalConditions.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.AdditionalConditions.Elements()))
+		for _, el := range m.AdditionalConditions.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandAlertAdditionalConditions(ctx, obj))
+			}
+		}
+		body["additional_conditions"] = items
+	}
+	if !m.VariableValues.IsNull() && !m.VariableValues.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.VariableValues.Elements()))
+		for _, el := range m.VariableValues.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandAlertVariableValues(ctx, obj))
+			}
+		}
+		body["variable_values"] = items
+	}
+	if !m.OnMissingData.IsNull() && !m.OnMissingData.IsUnknown() {
+		body["on_missing_data"] = m.OnMissingData.ValueString()
+	}
+	if !m.AnomalySensitivity.IsNull() && !m.AnomalySensitivity.IsUnknown() {
+		body["anomaly_sensitivity"] = m.AnomalySensitivity.ValueFloat64()
+	}
+	if !m.AnomalyTrigger.IsNull() && !m.AnomalyTrigger.IsUnknown() {
+		body["anomaly_trigger"] = m.AnomalyTrigger.ValueString()
+	}
+	if !m.ShownInterval.IsNull() && !m.ShownInterval.IsUnknown() {
+		body["shown_interval"] = m.ShownInterval.ValueInt64()
+	}
+	if !m.AnomalyTrainingRangeDays.IsNull() && !m.AnomalyTrainingRangeDays.IsUnknown() {
+		body["anomaly_training_range_days"] = m.AnomalyTrainingRangeDays.ValueInt64()
+	}
+	if !m.Call.IsNull() && !m.Call.IsUnknown() {
+		body["call"] = m.Call.ValueBool()
+	}
+	if !m.Sms.IsNull() && !m.Sms.IsUnknown() {
+		body["sms"] = m.Sms.ValueBool()
+	}
+	if !m.Email.IsNull() && !m.Email.IsUnknown() {
+		body["email"] = m.Email.ValueBool()
+	}
+	if !m.Push.IsNull() && !m.Push.IsUnknown() {
+		body["push"] = m.Push.ValueBool()
+	}
+	if !m.CriticalAlert.IsNull() && !m.CriticalAlert.IsUnknown() {
+		body["critical_alert"] = m.CriticalAlert.ValueBool()
+	}
+	if !m.Metadata.IsNull() && !m.Metadata.IsUnknown() {
+		vals := map[string][]string{}
+		m.Metadata.ElementsAs(ctx, &vals, false)
+		body["metadata"] = vals
+	}
+	return body
+}
+
+// bodyForUpdate excludes create-only fields, which require replacement rather than PATCH.
+func (r *AlertResource) bodyForUpdate(ctx context.Context, m AlertModel) map[string]interface{} {
 	body := map[string]interface{}{}
 	if !m.Name.IsNull() && !m.Name.IsUnknown() {
 		body["name"] = m.Name.ValueString()
@@ -369,12 +589,8 @@ func (r *AlertResource) body(ctx context.Context, m AlertModel) map[string]inter
 		m.SourcePlatforms.ElementsAs(ctx, &vals, false)
 		body["source_platforms"] = vals
 	}
-	if !m.EscalationTarget.IsNull() && !m.EscalationTarget.IsUnknown() && !m.EscalationTarget.IsUnderlyingValueNull() && !m.EscalationTarget.IsUnderlyingValueUnknown() {
-		if tv, err := m.EscalationTarget.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-			if av, err := tftypesToAPI(tv); err == nil {
-				body["escalation_target"] = projectAPIWrite(av, apiValueShape{})
-			}
-		}
+	if !m.EscalationTarget.IsNull() && !m.EscalationTarget.IsUnknown() {
+		body["escalation_target"] = expandAlertEscalationTarget(ctx, m.EscalationTarget)
 	}
 	if !m.IncidentCause.IsNull() && !m.IncidentCause.IsUnknown() {
 		body["incident_cause"] = m.IncidentCause.ValueString()
@@ -384,13 +600,6 @@ func (r *AlertResource) body(ctx context.Context, m AlertModel) map[string]inter
 	}
 	if !m.IncidentPerSeries.IsNull() && !m.IncidentPerSeries.IsUnknown() {
 		body["incident_per_series"] = m.IncidentPerSeries.ValueBool()
-	}
-	if !m.Metadata.IsNull() && !m.Metadata.IsUnknown() && !m.Metadata.IsUnderlyingValueNull() && !m.Metadata.IsUnderlyingValueUnknown() {
-		if tv, err := m.Metadata.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-			if av, err := tftypesToAPI(tv); err == nil {
-				body["metadata"] = projectAPIWrite(av, apiValueShape{})
-			}
-		}
 	}
 	if !m.AdditionalConditions.IsNull() && !m.AdditionalConditions.IsUnknown() {
 		items := make([]map[string]interface{}, 0, len(m.AdditionalConditions.Elements()))
@@ -419,6 +628,9 @@ func (r *AlertResource) body(ctx context.Context, m AlertModel) map[string]inter
 	if !m.AnomalyTrigger.IsNull() && !m.AnomalyTrigger.IsUnknown() {
 		body["anomaly_trigger"] = m.AnomalyTrigger.ValueString()
 	}
+	if !m.ShownInterval.IsNull() && !m.ShownInterval.IsUnknown() {
+		body["shown_interval"] = m.ShownInterval.ValueInt64()
+	}
 	if !m.AnomalyTrainingRangeDays.IsNull() && !m.AnomalyTrainingRangeDays.IsUnknown() {
 		body["anomaly_training_range_days"] = m.AnomalyTrainingRangeDays.ValueInt64()
 	}
@@ -437,12 +649,17 @@ func (r *AlertResource) body(ctx context.Context, m AlertModel) map[string]inter
 	if !m.CriticalAlert.IsNull() && !m.CriticalAlert.IsUnknown() {
 		body["critical_alert"] = m.CriticalAlert.ValueBool()
 	}
+	if !m.Metadata.IsNull() && !m.Metadata.IsUnknown() {
+		vals := map[string][]string{}
+		m.Metadata.ElementsAs(ctx, &vals, false)
+		body["metadata"] = vals
+	}
 	return body
 }
 
 // updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
 func (r *AlertResource) updateBody(ctx context.Context, config, plan, state AlertModel) map[string]interface{} {
-	body := r.body(ctx, config)
+	body := r.bodyForUpdate(ctx, config)
 	if !state.Value.IsNull() && !state.Value.IsUnknown() && plan.Value.IsNull() {
 		body["value"] = nil
 	}
@@ -458,13 +675,14 @@ func (r *AlertResource) updateBody(ctx context.Context, config, plan, state Aler
 	if !state.IncidentName.IsNull() && !state.IncidentName.IsUnknown() && plan.IncidentName.IsNull() {
 		body["incident_name"] = nil
 	}
-	if !state.Metadata.IsNull() && !state.Metadata.IsUnknown() && !state.Metadata.IsUnderlyingValueNull() && !state.Metadata.IsUnderlyingValueUnknown() && plan.Metadata.IsNull() {
+	if !state.Metadata.IsNull() && !state.Metadata.IsUnknown() && plan.Metadata.IsNull() {
 		body["metadata"] = nil
 	}
 	return body
 }
 
 func (r *AlertResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer func() { syncIdentity(ctx, resp.State, resp.Identity, alertIdentityNames, &resp.Diagnostics) }()
 	defer rememberConfigured(ctx, req.Config, resp.Private, alertKeptOnRemoval, &resp.Diagnostics)
 	var plan AlertModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -488,10 +706,16 @@ func (r *AlertResource) Create(ctx context.Context, req resource.CreateRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
-	vars["dashboard_id"] = plan.DashboardId.ValueString()
-	vars["chart_id"] = plan.ChartId.ValueString()
 	out, err := r.client.Create(ctx, alertBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating alert", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating alert", err, req.Plan.Raw.Type())
 		return
@@ -511,16 +735,28 @@ func (r *AlertResource) Create(ctx context.Context, req resource.CreateRequest, 
 }
 
 func (r *AlertResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	defer func() { syncIdentity(ctx, resp.State, resp.Identity, alertIdentityNames, &resp.Diagnostics) }()
 	var state AlertModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
-	vars["dashboard_id"] = state.DashboardId.ValueString()
-	vars["chart_id"] = state.ChartId.ValueString()
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, alertBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), alertBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading alert", err, req.State.Raw.Type())
 		return
@@ -605,8 +841,14 @@ func populateAlert(ctx context.Context, m *AlertModel, attrs map[string]interfac
 			}
 		}
 	}
-	if v, ok := int64FromAPI(attrs["query_period"]); ok {
-		m.QueryPeriod = types.Int64Value(v)
+	if rawValue, exists := attrs["query_period"]; exists {
+		if rawValue == nil {
+			m.QueryPeriod = types.Int64Null()
+		} else {
+			if v, ok := int64FromAPI(attrs["query_period"]); ok {
+				m.QueryPeriod = types.Int64Value(v)
+			}
+		}
 	}
 	if v, ok := int64FromAPI(attrs["confirmation_period"]); ok {
 		m.ConfirmationPeriod = types.Int64Value(v)
@@ -620,8 +862,14 @@ func populateAlert(ctx context.Context, m *AlertModel, attrs map[string]interfac
 			}
 		}
 	}
-	if v, ok := int64FromAPI(attrs["aggregation_interval"]); ok {
-		m.AggregationInterval = types.Int64Value(v)
+	if rawValue, exists := attrs["aggregation_interval"]; exists {
+		if rawValue == nil {
+			m.AggregationInterval = types.Int64Null()
+		} else {
+			if v, ok := int64FromAPI(attrs["aggregation_interval"]); ok {
+				m.AggregationInterval = types.Int64Value(v)
+			}
+		}
 	}
 	if rawValue, exists := attrs["check_period"]; exists {
 		if rawValue == nil {
@@ -652,8 +900,14 @@ func populateAlert(ctx context.Context, m *AlertModel, attrs map[string]interfac
 		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
 		m.SeriesNamesExcept = lv
 	}
-	if v, ok := stringFromAPI(attrs["source_variable"]); ok {
-		m.SourceVariable = types.StringValue(v)
+	if rawValue, exists := attrs["source_variable"]; exists {
+		if rawValue == nil {
+			m.SourceVariable = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["source_variable"]); ok {
+				m.SourceVariable = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := stringFromAPI(attrs["source_mode"]); ok {
 		m.SourceMode = types.StringValue(v)
@@ -668,17 +922,10 @@ func populateAlert(ctx context.Context, m *AlertModel, attrs map[string]interfac
 		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
 		m.SourcePlatforms = lv
 	}
-	if raw, ok := attrs["escalation_target"]; ok && raw != nil {
-		var prior interface{}
-		if !m.EscalationTarget.IsNull() && !m.EscalationTarget.IsUnknown() && !m.EscalationTarget.IsUnderlyingValueNull() && !m.EscalationTarget.IsUnderlyingValueUnknown() {
-			if tv, err := m.EscalationTarget.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-				prior, _ = tftypesToAPI(tv)
-			}
-		}
-		raw = mergeAPIRead(raw, prior, apiValueShape{})
-		if dv, err := types.DynamicType.ValueFromTerraform(ctx, dynamicFromAPI(raw)); err == nil {
-			m.EscalationTarget = dv.(types.Dynamic)
-		}
+	if raw, ok := attrs["escalation_target"].(map[string]interface{}); ok {
+		m.EscalationTarget = flattenAlertEscalationTarget(ctx, types.ObjectNull(alertEscalationTargetAttrTypes()), raw)
+	} else if _, ok := attrs["escalation_target"].(string); ok {
+		m.EscalationTarget = flattenAlertEscalationTarget(ctx, types.ObjectNull(alertEscalationTargetAttrTypes()), map[string]interface{}{})
 	}
 	if rawValue, exists := attrs["incident_cause"]; exists {
 		if rawValue == nil {
@@ -700,24 +947,6 @@ func populateAlert(ctx context.Context, m *AlertModel, attrs map[string]interfac
 	}
 	if v, ok := boolFromAPI(attrs["incident_per_series"]); ok {
 		m.IncidentPerSeries = types.BoolValue(v)
-	}
-	if rawValue, exists := attrs["metadata"]; exists {
-		if rawValue == nil {
-			m.Metadata = types.DynamicNull()
-		} else {
-			if raw, ok := attrs["metadata"]; ok && raw != nil {
-				var prior interface{}
-				if !m.Metadata.IsNull() && !m.Metadata.IsUnknown() && !m.Metadata.IsUnderlyingValueNull() && !m.Metadata.IsUnderlyingValueUnknown() {
-					if tv, err := m.Metadata.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-						prior, _ = tftypesToAPI(tv)
-					}
-				}
-				raw = mergeAPIRead(raw, prior, apiValueShape{})
-				if dv, err := types.DynamicType.ValueFromTerraform(ctx, dynamicFromAPI(raw)); err == nil {
-					m.Metadata = dv.(types.Dynamic)
-				}
-			}
-		}
 	}
 	if raw, ok := attrs["additional_conditions"].([]interface{}); ok {
 		items := make([]types.Object, 0, len(raw))
@@ -750,23 +979,42 @@ func populateAlert(ctx context.Context, m *AlertModel, attrs map[string]interfac
 	if v, ok := stringFromAPI(attrs["anomaly_trigger"]); ok {
 		m.AnomalyTrigger = types.StringValue(v)
 	}
+	if rawValue, exists := attrs["shown_interval"]; exists {
+		if rawValue == nil {
+			m.ShownInterval = types.Int64Null()
+		} else {
+			if v, ok := int64FromAPI(attrs["shown_interval"]); ok {
+				m.ShownInterval = types.Int64Value(v)
+			}
+		}
+	}
 	if v, ok := int64FromAPI(attrs["anomaly_training_range_days"]); ok {
 		m.AnomalyTrainingRangeDays = types.Int64Value(v)
 	}
 	if v, ok := boolFromAPI(attrs["call"]); ok {
 		m.Call = types.BoolValue(v)
+	} else if _, present := attrs["call"]; !present {
+		m.Call = types.BoolNull()
 	}
 	if v, ok := boolFromAPI(attrs["sms"]); ok {
 		m.Sms = types.BoolValue(v)
+	} else if _, present := attrs["sms"]; !present {
+		m.Sms = types.BoolNull()
 	}
 	if v, ok := boolFromAPI(attrs["email"]); ok {
 		m.Email = types.BoolValue(v)
+	} else if _, present := attrs["email"]; !present {
+		m.Email = types.BoolNull()
 	}
 	if v, ok := boolFromAPI(attrs["push"]); ok {
 		m.Push = types.BoolValue(v)
+	} else if _, present := attrs["push"]; !present {
+		m.Push = types.BoolNull()
 	}
 	if v, ok := boolFromAPI(attrs["critical_alert"]); ok {
 		m.CriticalAlert = types.BoolValue(v)
+	} else if _, present := attrs["critical_alert"]; !present {
+		m.CriticalAlert = types.BoolNull()
 	}
 	if v, ok := stringFromAPI(attrs["created_at"]); ok {
 		m.CreatedAt = datetimeValue(m.CreatedAt, v)
@@ -774,9 +1022,40 @@ func populateAlert(ctx context.Context, m *AlertModel, attrs map[string]interfac
 	if v, ok := stringFromAPI(attrs["updated_at"]); ok {
 		m.UpdatedAt = datetimeValue(m.UpdatedAt, v)
 	}
+	if rawValue, exists := attrs["metadata"]; exists {
+		if rawValue == nil {
+			if m.Metadata.IsNull() || m.Metadata.IsUnknown() || len(m.Metadata.Elements()) > 0 {
+				m.Metadata = types.MapNull(types.ListType{ElemType: types.StringType})
+			}
+		} else {
+			if raw, ok := attrs["metadata"].(map[string]interface{}); ok {
+				vals := make(map[string][]string, len(raw))
+				for k, e := range raw {
+					items, isList := e.([]interface{})
+					if !isList {
+						items = []interface{}{e}
+					}
+					list := make([]string, 0, len(items))
+					for _, item := range items {
+						if ev, ok := stringFromAPI(item); ok {
+							list = append(list, ev)
+						}
+					}
+					vals[k] = list
+				}
+				mv, _ := types.MapValueFrom(ctx, types.ListType{ElemType: types.StringType}, vals)
+				m.Metadata = mv
+			}
+		}
+	}
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
 }
 
 func (r *AlertResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
+	defer func() { syncIdentity(ctx, resp.State, resp.Identity, alertIdentityNames, &resp.Diagnostics) }()
 	defer rememberConfigured(ctx, req.Config, resp.Private, alertKeptOnRemoval, &resp.Diagnostics)
 	var plan AlertModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -834,9 +1113,8 @@ func (r *AlertResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	if !plan.SourcePlatforms.Equal(state.SourcePlatforms) {
 		request.SourcePlatforms = plan.SourcePlatforms
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
-	vars["dashboard_id"] = plan.DashboardId.ValueString()
-	vars["chart_id"] = plan.ChartId.ValueString()
 	vars["id"] = plan.Id.ValueString()
 	out, err := r.client.Update(ctx, alertBinding, vars, r.updateBody(ctx, request, plan, state))
 	if err != nil {
@@ -846,7 +1124,8 @@ func (r *AlertResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	if out == nil {
 		out = map[string]interface{}{}
 	}
-	resp.State.Raw = stateFromPlan(req.Plan.Raw, req.State.Raw, out)
+	// These attributes read as exactly what the API returned: a part it leaves out is gone, not kept.
+	resp.State.Raw = stateFromPlan(req.Plan.Raw, withoutAttributes(req.State.Raw, "escalation_target"), out)
 }
 
 func (r *AlertResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -855,9 +1134,8 @@ func (r *AlertResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
-	vars["dashboard_id"] = state.DashboardId.ValueString()
-	vars["chart_id"] = state.ChartId.ValueString()
 	vars["id"] = state.Id.ValueString()
 	if err := r.client.Delete(ctx, alertBinding, vars); err != nil {
 		addAPIError(&resp.Diagnostics, "deleting alert", err, req.State.Raw.Type())
@@ -865,22 +1143,25 @@ func (r *AlertResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 }
 
 // Attributes whose removal from the configuration keeps the server's value (no default, no null).
-var alertKeptOnRemoval = []string{"additional_conditions", "aggregation_interval", "escalation_target", "operator", "query_period", "series_names", "series_names_except", "source_variable", "variable_values"}
+var alertKeptOnRemoval = []string{"additional_conditions", "aggregation_interval", "escalation_target", "operator", "query_period", "series_names", "series_names_except", "shown_interval", "source_variable", "variable_values"}
 
 func (r *AlertResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseUnnamedTeam(ctx, req, resp, r.client, "alert")
 	warnKeptOnRemoval(ctx, "betterstack_alert", req, resp, alertKeptOnRemoval)
 }
 
-// The object hangs off a parent collection, so its address is composite:
-// dashboard_id/chart_id/id.
 func (r *AlertResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts := strings.Split(req.ID, "/")
-	if len(parts) != 3 {
-		resp.Diagnostics.AddError("importing alert",
-			fmt.Sprintf("expected an id of the form dashboard_id/chart_id/id, got %q", req.ID))
+	markImported(ctx, resp.Private, &resp.Diagnostics)
+	if req.ID == "" && req.Identity != nil {
+		stateFromIdentity(ctx, req.Identity, &resp.State, alertIdentityNames, &resp.Diagnostics)
 		return
 	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dashboard_id"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("chart_id"), parts[1])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[2])...)
+	defer func() { syncIdentity(ctx, resp.State, resp.Identity, alertIdentityNames, &resp.Diagnostics) }()
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("paused"), false)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("confirmation_period"), 60)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("recovery_period"), 60)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("source_mode"), "source_variable")...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("source_platforms"), types.ListValueMust(types.StringType, []attr.Value{}))...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("incident_per_series"), false)...)
 }

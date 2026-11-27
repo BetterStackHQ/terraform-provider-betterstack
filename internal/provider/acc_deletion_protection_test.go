@@ -27,11 +27,11 @@ func TestAccDeletionProtectionRefusesDestroyAndReplace(t *testing.T) {
 			{Config: config(true, "us_east")},
 			{
 				Config:      providerConfig(mock.URL()),
-				ExpectError: regexp.MustCompile(`(?s)Deletion protection is on for the source "prod-logs".*This plan destroys`),
+				ExpectError: refusal("source", "prod-logs"),
 			},
 			{
 				Config:      config(true, "germany"),
-				ExpectError: regexp.MustCompile(`(?s)Deletion protection is on for "prod-logs".*Changing data_region replaces it`),
+				ExpectError: refusal("source", "prod-logs"),
 			},
 			// Turning it off is its own apply; the replacement and the destroy then go through.
 			{Config: config(false, "us_east")},
@@ -83,7 +83,7 @@ func TestAccDeletionProtectionIsOnAfterImport(t *testing.T) {
 			{Config: imported, PlanOnly: true},
 			{
 				Config:      providerConfig(mock.URL()),
-				ExpectError: regexp.MustCompile(`Deletion protection is on for the source "prod-logs"`),
+				ExpectError: regexp.MustCompile(`Deletion protection is on for source "prod-logs"`),
 			},
 			{Config: providerConfig(mock.URL()) + "removed {\n from = " + addr + "\n lifecycle {\n destroy = false\n }\n}\n"},
 		},
@@ -103,7 +103,7 @@ func TestAccDeletionProtectionRefusesATaintedReplace(t *testing.T) {
 			{
 				Config:      source,
 				Taint:       []string{addr},
-				ExpectError: regexp.MustCompile(`(?s)Deletion protection is on for the source "prod-logs".*so it was not deleted`),
+				ExpectError: regexp.MustCompile(`(?s)Deletion protection is on for source "prod-logs", so it was not deleted`),
 			},
 			{Config: providerConfig(mock.URL()) + "removed {\n from = " + addr + "\n lifecycle {\n destroy = false\n }\n}\n"},
 		},
@@ -114,6 +114,35 @@ func TestAccDeletionProtectionRefusesATaintedReplace(t *testing.T) {
 				}
 			}
 			return nil
+		},
+	})
+}
+
+// refusal matches the plan error for a protected object, word for word: Terraform wraps a long detail
+// across lines, so only the whitespace between words may differ.
+func refusal(noun, name string) *regexp.Regexp {
+	sentence := fmt.Sprintf("This plan destroys %s %q which is an irreversible action. Set deletion_protection = false and apply to allow destroying it.", noun, name)
+	words := strings.Fields(sentence)
+	for i, w := range words {
+		words[i] = regexp.QuoteMeta(w)
+	}
+	return regexp.MustCompile(fmt.Sprintf(`(?s)Deletion protection is on for %s %q.*`, regexp.QuoteMeta(noun), name) + strings.Join(words, `\s+`))
+}
+
+// A monitor holds no ingested data, but its uptime history goes with it, so it refuses the same way.
+func TestAccDeletionProtectionRefusesMonitorDestroy(t *testing.T) {
+	mock := newMockAPI(t)
+	config := func(protected bool) string {
+		return providerConfig(mock.URL()) + fmt.Sprintf(
+			"resource \"betterstack_monitor\" \"test\" {\n monitor_type = \"status\"\n url = \"https://example.com\"\n pronounceable_name = \"api\"\n deletion_protection = %t\n}\n",
+			protected)
+	}
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: config(true)},
+			{Config: providerConfig(mock.URL()), ExpectError: refusal("monitor", "api")},
+			{Config: config(false)},
 		},
 	})
 }

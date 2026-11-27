@@ -36,55 +36,60 @@ func NewCollectorResource() resource.Resource {
 }
 
 type CollectorModel struct {
-	Id                      types.String `tfsdk:"id"`
-	Configuration           types.Object `tfsdk:"configuration"`
-	ConnectedSourceIds      types.List   `tfsdk:"connected_source_ids"`
-	CreatedAt               types.String `tfsdk:"created_at"`
-	CustomBucket            types.Object `tfsdk:"custom_bucket"`
-	DataRegion              types.String `tfsdk:"data_region"`
-	DeletionProtection      types.Bool   `tfsdk:"deletion_protection"`
-	IngestingPaused         types.Bool   `tfsdk:"ingesting_paused"`
-	LiveTailPattern         types.String `tfsdk:"live_tail_pattern"`
-	LogsRetention           types.Int64  `tfsdk:"logs_retention"`
-	MetricsRetention        types.Int64  `tfsdk:"metrics_retention"`
-	Name                    types.String `tfsdk:"name"`
-	Note                    types.String `tfsdk:"note"`
-	PingedAt                types.String `tfsdk:"pinged_at"`
-	Platform                types.String `tfsdk:"platform"`
-	Secret                  types.String `tfsdk:"secret"`
-	ServiceFields           types.List   `tfsdk:"service_fields"`
-	SourceGroupId           types.String `tfsdk:"source_group_id"`
-	SourceId                types.String `tfsdk:"source_id"`
-	SourceVrlTransformation types.String `tfsdk:"source_vrl_transformation"`
-	Status                  types.String `tfsdk:"status"`
-	TeamId                  types.String `tfsdk:"team_id"`
-	TeamName                types.String `tfsdk:"team_name"`
-	UpdatedAt               types.String `tfsdk:"updated_at"`
-	UserVectorConfig        types.String `tfsdk:"user_vector_config"`
+	Id                             types.String `tfsdk:"id"`
+	BlockedMetrics                 types.List   `tfsdk:"blocked_metrics"`
+	CollectorLogsTransformation    types.String `tfsdk:"collector_logs_transformation"`
+	CollectorMetricsTransformation types.String `tfsdk:"collector_metrics_transformation"`
+	CollectorTracesTransformation  types.String `tfsdk:"collector_traces_transformation"`
+	Configuration                  types.Object `tfsdk:"configuration"`
+	ConnectedSourceIds             types.List   `tfsdk:"connected_source_ids"`
+	CreatedAt                      types.String `tfsdk:"created_at"`
+	CustomBucket                   types.Object `tfsdk:"custom_bucket"`
+	DataRegion                     types.String `tfsdk:"data_region"`
+	DeletionProtection             types.Bool   `tfsdk:"deletion_protection"`
+	IngestingPaused                types.Bool   `tfsdk:"ingesting_paused"`
+	IngestionLogsTransformation    types.String `tfsdk:"ingestion_logs_transformation"`
+	IngestionTracesTransformation  types.String `tfsdk:"ingestion_traces_transformation"`
+	InstallationGuideUrl           types.String `tfsdk:"installation_guide_url"`
+	LiveTailPattern                types.String `tfsdk:"live_tail_pattern"`
+	LiveTailPatternSpans           types.String `tfsdk:"live_tail_pattern_spans"`
+	LogsRetention                  types.Int64  `tfsdk:"logs_retention"`
+	MetricsRetention               types.Int64  `tfsdk:"metrics_retention"`
+	Name                           types.String `tfsdk:"name"`
+	Note                           types.String `tfsdk:"note"`
+	PingedAt                       types.String `tfsdk:"pinged_at"`
+	Platform                       types.String `tfsdk:"platform"`
+	Secret                         types.String `tfsdk:"secret"`
+	ServiceFields                  types.List   `tfsdk:"service_fields"`
+	SourceGroupId                  types.String `tfsdk:"source_group_id"`
+	SourceId                       types.String `tfsdk:"source_id"`
+	Status                         types.String `tfsdk:"status"`
+	TeamId                         types.String `tfsdk:"team_id"`
+	TeamName                       types.String `tfsdk:"team_name"`
+	UpdatedAt                      types.String `tfsdk:"updated_at"`
+	UserVectorConfig               types.String `tfsdk:"user_vector_config"`
 }
 
 type CollectorConfigurationModel struct {
-	Components           types.Dynamic `tfsdk:"components"`
-	LogsSampleRate       types.Int64   `tfsdk:"logs_sample_rate"`
-	TracesSampleRate     types.Int64   `tfsdk:"traces_sample_rate"`
-	VrlTransformation    types.String  `tfsdk:"vrl_transformation"`
-	MergeLogs            types.Bool    `tfsdk:"merge_logs"`
-	MergeLogsConfig      types.String  `tfsdk:"merge_logs_config"`
-	DiskBatchSizeMb      types.Int64   `tfsdk:"disk_batch_size_mb"`
-	MemoryBatchSizeMb    types.Int64   `tfsdk:"memory_batch_size_mb"`
-	BufferMaxEvents      types.Int64   `tfsdk:"buffer_max_events"`
-	WhenFull             types.String  `tfsdk:"when_full"`
-	LogLineLengthLimitKb types.Int64   `tfsdk:"log_line_length_limit_kb"`
-	NamespacesOptions    types.Dynamic `tfsdk:"namespaces_options"`
-	ServicesOptions      types.Dynamic `tfsdk:"services_options"`
+	Components           types.Object `tfsdk:"components"`
+	LogsSampleRate       types.Int64  `tfsdk:"logs_sample_rate"`
+	TracesSampleRate     types.Int64  `tfsdk:"traces_sample_rate"`
+	MergeLogs            types.Bool   `tfsdk:"merge_logs"`
+	MergeLogsConfig      types.String `tfsdk:"merge_logs_config"`
+	DiskBatchSizeMb      types.Int64  `tfsdk:"disk_batch_size_mb"`
+	MemoryBatchSizeMb    types.Int64  `tfsdk:"memory_batch_size_mb"`
+	BufferMaxEvents      types.Int64  `tfsdk:"buffer_max_events"`
+	WhenFull             types.String `tfsdk:"when_full"`
+	LogLineLengthLimitKb types.Int64  `tfsdk:"log_line_length_limit_kb"`
+	NamespacesOptions    types.Map    `tfsdk:"namespaces_options"`
+	ServicesOptions      types.Map    `tfsdk:"services_options"`
 }
 
 func collectorConfigurationAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"components":               types.DynamicType,
+		"components":               types.ObjectType{AttrTypes: collectorConfigurationComponentsAttrTypes()},
 		"logs_sample_rate":         types.Int64Type,
 		"traces_sample_rate":       types.Int64Type,
-		"vrl_transformation":       types.StringType,
 		"merge_logs":               types.BoolType,
 		"merge_logs_config":        types.StringType,
 		"disk_batch_size_mb":       types.Int64Type,
@@ -92,8 +97,8 @@ func collectorConfigurationAttrTypes() map[string]attr.Type {
 		"buffer_max_events":        types.Int64Type,
 		"when_full":                types.StringType,
 		"log_line_length_limit_kb": types.Int64Type,
-		"namespaces_options":       types.DynamicType,
-		"services_options":         types.DynamicType,
+		"namespaces_options":       types.MapType{ElemType: types.ObjectType{AttrTypes: collectorConfigurationNamespacesOptionsAttrTypes()}},
+		"services_options":         types.MapType{ElemType: types.ObjectType{AttrTypes: collectorConfigurationServicesOptionsAttrTypes()}},
 	}
 }
 
@@ -105,21 +110,14 @@ func expandCollectorConfiguration(ctx context.Context, o types.Object) map[strin
 	var m CollectorConfigurationModel
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
-	if !m.Components.IsNull() && !m.Components.IsUnknown() && !m.Components.IsUnderlyingValueNull() && !m.Components.IsUnderlyingValueUnknown() {
-		if tv, err := m.Components.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-			if av, err := tftypesToAPI(tv); err == nil {
-				out["components"] = projectAPIWrite(av, apiValueShape{})
-			}
-		}
+	if !m.Components.IsNull() && !m.Components.IsUnknown() {
+		out["components"] = expandCollectorConfigurationComponents(ctx, m.Components)
 	}
 	if !m.LogsSampleRate.IsNull() && !m.LogsSampleRate.IsUnknown() {
 		out["logs_sample_rate"] = m.LogsSampleRate.ValueInt64()
 	}
 	if !m.TracesSampleRate.IsNull() && !m.TracesSampleRate.IsUnknown() {
 		out["traces_sample_rate"] = m.TracesSampleRate.ValueInt64()
-	}
-	if !m.VrlTransformation.IsNull() && !m.VrlTransformation.IsUnknown() {
-		out["vrl_transformation"] = m.VrlTransformation.ValueString()
 	}
 	if !m.MergeLogs.IsNull() && !m.MergeLogs.IsUnknown() {
 		out["merge_logs"] = m.MergeLogs.ValueBool()
@@ -142,19 +140,23 @@ func expandCollectorConfiguration(ctx context.Context, o types.Object) map[strin
 	if !m.LogLineLengthLimitKb.IsNull() && !m.LogLineLengthLimitKb.IsUnknown() {
 		out["log_line_length_limit_kb"] = m.LogLineLengthLimitKb.ValueInt64()
 	}
-	if !m.NamespacesOptions.IsNull() && !m.NamespacesOptions.IsUnknown() && !m.NamespacesOptions.IsUnderlyingValueNull() && !m.NamespacesOptions.IsUnderlyingValueUnknown() {
-		if tv, err := m.NamespacesOptions.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-			if av, err := tftypesToAPI(tv); err == nil {
-				out["namespaces_options"] = projectAPIWrite(av, apiValueShape{})
+	if !m.NamespacesOptions.IsNull() && !m.NamespacesOptions.IsUnknown() {
+		items := make(map[string]interface{}, len(m.NamespacesOptions.Elements()))
+		for k, el := range m.NamespacesOptions.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items[k] = expandCollectorConfigurationNamespacesOptions(ctx, obj)
 			}
 		}
+		out["namespaces_options"] = items
 	}
-	if !m.ServicesOptions.IsNull() && !m.ServicesOptions.IsUnknown() && !m.ServicesOptions.IsUnderlyingValueNull() && !m.ServicesOptions.IsUnderlyingValueUnknown() {
-		if tv, err := m.ServicesOptions.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-			if av, err := tftypesToAPI(tv); err == nil {
-				out["services_options"] = projectAPIWrite(av, apiValueShape{})
+	if !m.ServicesOptions.IsNull() && !m.ServicesOptions.IsUnknown() {
+		items := make(map[string]interface{}, len(m.ServicesOptions.Elements()))
+		for k, el := range m.ServicesOptions.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items[k] = expandCollectorConfigurationServicesOptions(ctx, obj)
 			}
 		}
+		out["services_options"] = items
 	}
 	return out
 }
@@ -165,32 +167,20 @@ func flattenCollectorConfiguration(ctx context.Context, prior types.Object, raw 
 	var m CollectorConfigurationModel
 	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
 	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
-	m.Components = types.DynamicNull()
-	m.NamespacesOptions = types.DynamicNull()
-	m.ServicesOptions = types.DynamicNull()
+	m.Components = types.ObjectNull(collectorConfigurationComponentsAttrTypes())
+	m.NamespacesOptions = types.MapNull(types.ObjectType{AttrTypes: collectorConfigurationNamespacesOptionsAttrTypes()})
+	m.ServicesOptions = types.MapNull(types.ObjectType{AttrTypes: collectorConfigurationServicesOptionsAttrTypes()})
 	if !prior.IsNull() && !prior.IsUnknown() {
 		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
 	}
-	if raw, ok := raw["components"]; ok && raw != nil {
-		var prior interface{}
-		if !m.Components.IsNull() && !m.Components.IsUnknown() && !m.Components.IsUnderlyingValueNull() && !m.Components.IsUnderlyingValueUnknown() {
-			if tv, err := m.Components.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-				prior, _ = tftypesToAPI(tv)
-			}
-		}
-		raw = mergeAPIRead(raw, prior, apiValueShape{})
-		if dv, err := types.DynamicType.ValueFromTerraform(ctx, dynamicFromAPI(raw)); err == nil {
-			m.Components = dv.(types.Dynamic)
-		}
+	if raw, ok := raw["components"].(map[string]interface{}); ok {
+		m.Components = flattenCollectorConfigurationComponents(ctx, m.Components, raw)
 	}
 	if v, ok := int64FromAPI(raw["logs_sample_rate"]); ok {
 		m.LogsSampleRate = types.Int64Value(v)
 	}
 	if v, ok := int64FromAPI(raw["traces_sample_rate"]); ok {
 		m.TracesSampleRate = types.Int64Value(v)
-	}
-	if v, ok := stringFromAPI(raw["vrl_transformation"]); ok {
-		m.VrlTransformation = types.StringValue(v)
 	}
 	if v, ok := boolFromAPI(raw["merge_logs"]); ok {
 		m.MergeLogs = types.BoolValue(v)
@@ -213,31 +203,336 @@ func flattenCollectorConfiguration(ctx context.Context, prior types.Object, raw 
 	if v, ok := int64FromAPI(raw["log_line_length_limit_kb"]); ok {
 		m.LogLineLengthLimitKb = types.Int64Value(v)
 	}
-	if raw, ok := raw["namespaces_options"]; ok && raw != nil {
-		var prior interface{}
-		if !m.NamespacesOptions.IsNull() && !m.NamespacesOptions.IsUnknown() && !m.NamespacesOptions.IsUnderlyingValueNull() && !m.NamespacesOptions.IsUnderlyingValueUnknown() {
-			if tv, err := m.NamespacesOptions.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-				prior, _ = tftypesToAPI(tv)
+	if raw, ok := raw["namespaces_options"].(map[string]interface{}); ok {
+		priorByKey := m.NamespacesOptions.Elements()
+		items := make(map[string]attr.Value, len(raw))
+		for k, e := range raw {
+			mp, ok := e.(map[string]interface{})
+			if !ok {
+				continue
 			}
+			prior := types.ObjectNull(collectorConfigurationNamespacesOptionsAttrTypes())
+			if existing, ok := priorByKey[k].(types.Object); ok {
+				prior = existing
+			}
+			items[k] = flattenCollectorConfigurationNamespacesOptions(ctx, prior, mp)
 		}
-		raw = mergeAPIRead(raw, prior, apiValueShape{})
-		if dv, err := types.DynamicType.ValueFromTerraform(ctx, dynamicFromAPI(raw)); err == nil {
-			m.NamespacesOptions = dv.(types.Dynamic)
-		}
+		mv, _ := types.MapValue(types.ObjectType{AttrTypes: collectorConfigurationNamespacesOptionsAttrTypes()}, items)
+		m.NamespacesOptions = mv
 	}
-	if raw, ok := raw["services_options"]; ok && raw != nil {
-		var prior interface{}
-		if !m.ServicesOptions.IsNull() && !m.ServicesOptions.IsUnknown() && !m.ServicesOptions.IsUnderlyingValueNull() && !m.ServicesOptions.IsUnderlyingValueUnknown() {
-			if tv, err := m.ServicesOptions.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-				prior, _ = tftypesToAPI(tv)
+	if raw, ok := raw["services_options"].(map[string]interface{}); ok {
+		priorByKey := m.ServicesOptions.Elements()
+		items := make(map[string]attr.Value, len(raw))
+		for k, e := range raw {
+			mp, ok := e.(map[string]interface{})
+			if !ok {
+				continue
 			}
+			prior := types.ObjectNull(collectorConfigurationServicesOptionsAttrTypes())
+			if existing, ok := priorByKey[k].(types.Object); ok {
+				prior = existing
+			}
+			items[k] = flattenCollectorConfigurationServicesOptions(ctx, prior, mp)
 		}
-		raw = mergeAPIRead(raw, prior, apiValueShape{})
-		if dv, err := types.DynamicType.ValueFromTerraform(ctx, dynamicFromAPI(raw)); err == nil {
-			m.ServicesOptions = dv.(types.Dynamic)
-		}
+		mv, _ := types.MapValue(types.ObjectType{AttrTypes: collectorConfigurationServicesOptionsAttrTypes()}, items)
+		m.ServicesOptions = mv
 	}
 	obj, _ := types.ObjectValueFrom(ctx, collectorConfigurationAttrTypes(), m)
+	return obj
+}
+
+type CollectorConfigurationComponentsModel struct {
+	LogsHost                 types.Bool `tfsdk:"logs_host"`
+	LogsDocker               types.Bool `tfsdk:"logs_docker"`
+	LogsKubernetes           types.Bool `tfsdk:"logs_kubernetes"`
+	LogsCollectorInternals   types.Bool `tfsdk:"logs_collector_internals"`
+	MetricsCluster           types.Bool `tfsdk:"metrics_cluster"`
+	MetricsDatabases         types.Bool `tfsdk:"metrics_databases"`
+	MetricsOtherDatabases    types.Bool `tfsdk:"metrics_other_databases"`
+	MetricsHostOs            types.Bool `tfsdk:"metrics_host_os"`
+	MetricsPostgres          types.Bool `tfsdk:"metrics_postgres"`
+	MetricsMysql             types.Bool `tfsdk:"metrics_mysql"`
+	MetricsElasticsearch     types.Bool `tfsdk:"metrics_elasticsearch"`
+	MetricsPgbouncer         types.Bool `tfsdk:"metrics_pgbouncer"`
+	MetricsNginx             types.Bool `tfsdk:"metrics_nginx"`
+	MetricsApache            types.Bool `tfsdk:"metrics_apache"`
+	MetricsTraefik           types.Bool `tfsdk:"metrics_traefik"`
+	EbpfMetrics              types.Bool `tfsdk:"ebpf_metrics"`
+	EbpfTracingBasic         types.Bool `tfsdk:"ebpf_tracing_basic"`
+	EbpfTracingFull          types.Bool `tfsdk:"ebpf_tracing_full"`
+	EbpfJavaAgent            types.Bool `tfsdk:"ebpf_java_agent"`
+	TracesOpentelemetry      types.Bool `tfsdk:"traces_opentelemetry"`
+	EbpfRedMetrics           types.Bool `tfsdk:"ebpf_red_metrics"`
+	MetricsProcessStatistics types.Bool `tfsdk:"metrics_process_statistics"`
+}
+
+func collectorConfigurationComponentsAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"logs_host":                  types.BoolType,
+		"logs_docker":                types.BoolType,
+		"logs_kubernetes":            types.BoolType,
+		"logs_collector_internals":   types.BoolType,
+		"metrics_cluster":            types.BoolType,
+		"metrics_databases":          types.BoolType,
+		"metrics_other_databases":    types.BoolType,
+		"metrics_host_os":            types.BoolType,
+		"metrics_postgres":           types.BoolType,
+		"metrics_mysql":              types.BoolType,
+		"metrics_elasticsearch":      types.BoolType,
+		"metrics_pgbouncer":          types.BoolType,
+		"metrics_nginx":              types.BoolType,
+		"metrics_apache":             types.BoolType,
+		"metrics_traefik":            types.BoolType,
+		"ebpf_metrics":               types.BoolType,
+		"ebpf_tracing_basic":         types.BoolType,
+		"ebpf_tracing_full":          types.BoolType,
+		"ebpf_java_agent":            types.BoolType,
+		"traces_opentelemetry":       types.BoolType,
+		"ebpf_red_metrics":           types.BoolType,
+		"metrics_process_statistics": types.BoolType,
+	}
+}
+
+// expandCollectorConfigurationComponents marshals a nested CollectorConfigurationComponents object into its request map.
+func expandCollectorConfigurationComponents(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m CollectorConfigurationComponentsModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.LogsHost.IsNull() && !m.LogsHost.IsUnknown() {
+		out["logs_host"] = m.LogsHost.ValueBool()
+	}
+	if !m.LogsDocker.IsNull() && !m.LogsDocker.IsUnknown() {
+		out["logs_docker"] = m.LogsDocker.ValueBool()
+	}
+	if !m.LogsKubernetes.IsNull() && !m.LogsKubernetes.IsUnknown() {
+		out["logs_kubernetes"] = m.LogsKubernetes.ValueBool()
+	}
+	if !m.LogsCollectorInternals.IsNull() && !m.LogsCollectorInternals.IsUnknown() {
+		out["logs_collector_internals"] = m.LogsCollectorInternals.ValueBool()
+	}
+	if !m.MetricsCluster.IsNull() && !m.MetricsCluster.IsUnknown() {
+		out["metrics_cluster"] = m.MetricsCluster.ValueBool()
+	}
+	if !m.MetricsOtherDatabases.IsNull() && !m.MetricsOtherDatabases.IsUnknown() {
+		out["metrics_other_databases"] = m.MetricsOtherDatabases.ValueBool()
+	}
+	if !m.MetricsHostOs.IsNull() && !m.MetricsHostOs.IsUnknown() {
+		out["metrics_host_os"] = m.MetricsHostOs.ValueBool()
+	}
+	if !m.MetricsPostgres.IsNull() && !m.MetricsPostgres.IsUnknown() {
+		out["metrics_postgres"] = m.MetricsPostgres.ValueBool()
+	}
+	if !m.MetricsMysql.IsNull() && !m.MetricsMysql.IsUnknown() {
+		out["metrics_mysql"] = m.MetricsMysql.ValueBool()
+	}
+	if !m.MetricsElasticsearch.IsNull() && !m.MetricsElasticsearch.IsUnknown() {
+		out["metrics_elasticsearch"] = m.MetricsElasticsearch.ValueBool()
+	}
+	if !m.MetricsPgbouncer.IsNull() && !m.MetricsPgbouncer.IsUnknown() {
+		out["metrics_pgbouncer"] = m.MetricsPgbouncer.ValueBool()
+	}
+	if !m.MetricsNginx.IsNull() && !m.MetricsNginx.IsUnknown() {
+		out["metrics_nginx"] = m.MetricsNginx.ValueBool()
+	}
+	if !m.MetricsApache.IsNull() && !m.MetricsApache.IsUnknown() {
+		out["metrics_apache"] = m.MetricsApache.ValueBool()
+	}
+	if !m.MetricsTraefik.IsNull() && !m.MetricsTraefik.IsUnknown() {
+		out["metrics_traefik"] = m.MetricsTraefik.ValueBool()
+	}
+	if !m.EbpfMetrics.IsNull() && !m.EbpfMetrics.IsUnknown() {
+		out["ebpf_metrics"] = m.EbpfMetrics.ValueBool()
+	}
+	if !m.EbpfTracingBasic.IsNull() && !m.EbpfTracingBasic.IsUnknown() {
+		out["ebpf_tracing_basic"] = m.EbpfTracingBasic.ValueBool()
+	}
+	if !m.EbpfTracingFull.IsNull() && !m.EbpfTracingFull.IsUnknown() {
+		out["ebpf_tracing_full"] = m.EbpfTracingFull.ValueBool()
+	}
+	if !m.EbpfJavaAgent.IsNull() && !m.EbpfJavaAgent.IsUnknown() {
+		out["ebpf_java_agent"] = m.EbpfJavaAgent.ValueBool()
+	}
+	if !m.TracesOpentelemetry.IsNull() && !m.TracesOpentelemetry.IsUnknown() {
+		out["traces_opentelemetry"] = m.TracesOpentelemetry.ValueBool()
+	}
+	if !m.EbpfRedMetrics.IsNull() && !m.EbpfRedMetrics.IsUnknown() {
+		out["ebpf_red_metrics"] = m.EbpfRedMetrics.ValueBool()
+	}
+	if !m.MetricsProcessStatistics.IsNull() && !m.MetricsProcessStatistics.IsUnknown() {
+		out["metrics_process_statistics"] = m.MetricsProcessStatistics.ValueBool()
+	}
+	return out
+}
+
+// flattenCollectorConfigurationComponents refreshes a typed CollectorConfigurationComponents object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenCollectorConfigurationComponents(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m CollectorConfigurationComponentsModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := boolFromAPI(raw["logs_host"]); ok {
+		m.LogsHost = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["logs_docker"]); ok {
+		m.LogsDocker = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["logs_kubernetes"]); ok {
+		m.LogsKubernetes = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["logs_collector_internals"]); ok {
+		m.LogsCollectorInternals = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["metrics_cluster"]); ok {
+		m.MetricsCluster = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["metrics_databases"]); ok {
+		m.MetricsDatabases = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["metrics_other_databases"]); ok {
+		m.MetricsOtherDatabases = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["metrics_host_os"]); ok {
+		m.MetricsHostOs = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["metrics_postgres"]); ok {
+		m.MetricsPostgres = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["metrics_mysql"]); ok {
+		m.MetricsMysql = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["metrics_elasticsearch"]); ok {
+		m.MetricsElasticsearch = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["metrics_pgbouncer"]); ok {
+		m.MetricsPgbouncer = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["metrics_nginx"]); ok {
+		m.MetricsNginx = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["metrics_apache"]); ok {
+		m.MetricsApache = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["metrics_traefik"]); ok {
+		m.MetricsTraefik = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["ebpf_metrics"]); ok {
+		m.EbpfMetrics = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["ebpf_tracing_basic"]); ok {
+		m.EbpfTracingBasic = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["ebpf_tracing_full"]); ok {
+		m.EbpfTracingFull = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["ebpf_java_agent"]); ok {
+		m.EbpfJavaAgent = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["traces_opentelemetry"]); ok {
+		m.TracesOpentelemetry = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["ebpf_red_metrics"]); ok {
+		m.EbpfRedMetrics = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["metrics_process_statistics"]); ok {
+		m.MetricsProcessStatistics = types.BoolValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, collectorConfigurationComponentsAttrTypes(), m)
+	return obj
+}
+
+type CollectorConfigurationNamespacesOptionsModel struct {
+	LogSampling  types.Int64 `tfsdk:"log_sampling"`
+	IngestTraces types.Bool  `tfsdk:"ingest_traces"`
+}
+
+func collectorConfigurationNamespacesOptionsAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"log_sampling":  types.Int64Type,
+		"ingest_traces": types.BoolType,
+	}
+}
+
+// expandCollectorConfigurationNamespacesOptions marshals a nested CollectorConfigurationNamespacesOptions object into its request map.
+func expandCollectorConfigurationNamespacesOptions(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m CollectorConfigurationNamespacesOptionsModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.LogSampling.IsNull() && !m.LogSampling.IsUnknown() {
+		out["log_sampling"] = m.LogSampling.ValueInt64()
+	}
+	if !m.IngestTraces.IsNull() && !m.IngestTraces.IsUnknown() {
+		out["ingest_traces"] = m.IngestTraces.ValueBool()
+	}
+	return out
+}
+
+// flattenCollectorConfigurationNamespacesOptions refreshes a typed CollectorConfigurationNamespacesOptions object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenCollectorConfigurationNamespacesOptions(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m CollectorConfigurationNamespacesOptionsModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := int64FromAPI(raw["log_sampling"]); ok {
+		m.LogSampling = types.Int64Value(v)
+	}
+	if v, ok := boolFromAPI(raw["ingest_traces"]); ok {
+		m.IngestTraces = types.BoolValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, collectorConfigurationNamespacesOptionsAttrTypes(), m)
+	return obj
+}
+
+type CollectorConfigurationServicesOptionsModel struct {
+	LogSampling  types.Int64 `tfsdk:"log_sampling"`
+	IngestTraces types.Bool  `tfsdk:"ingest_traces"`
+}
+
+func collectorConfigurationServicesOptionsAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"log_sampling":  types.Int64Type,
+		"ingest_traces": types.BoolType,
+	}
+}
+
+// expandCollectorConfigurationServicesOptions marshals a nested CollectorConfigurationServicesOptions object into its request map.
+func expandCollectorConfigurationServicesOptions(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m CollectorConfigurationServicesOptionsModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.LogSampling.IsNull() && !m.LogSampling.IsUnknown() {
+		out["log_sampling"] = m.LogSampling.ValueInt64()
+	}
+	if !m.IngestTraces.IsNull() && !m.IngestTraces.IsUnknown() {
+		out["ingest_traces"] = m.IngestTraces.ValueBool()
+	}
+	return out
+}
+
+// flattenCollectorConfigurationServicesOptions refreshes a typed CollectorConfigurationServicesOptions object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenCollectorConfigurationServicesOptions(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m CollectorConfigurationServicesOptionsModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := int64FromAPI(raw["log_sampling"]); ok {
+		m.LogSampling = types.Int64Value(v)
+	}
+	if v, ok := boolFromAPI(raw["ingest_traces"]); ok {
+		m.IngestTraces = types.BoolValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, collectorConfigurationServicesOptionsAttrTypes(), m)
 	return obj
 }
 
@@ -267,9 +562,6 @@ func expandCollectorCustomBucket(ctx context.Context, o types.Object) map[string
 	var m CollectorCustomBucketModel
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
-	if !m.Name.IsNull() && !m.Name.IsUnknown() {
-		out["name"] = m.Name.ValueString()
-	}
 	if !m.Endpoint.IsNull() && !m.Endpoint.IsUnknown() {
 		out["endpoint"] = m.Endpoint.ValueString()
 	}
@@ -281,6 +573,24 @@ func expandCollectorCustomBucket(ctx context.Context, o types.Object) map[string
 	}
 	if !m.KeepDataAfterRetention.IsNull() && !m.KeepDataAfterRetention.IsUnknown() {
 		out["keep_data_after_retention"] = m.KeepDataAfterRetention.ValueBool()
+	}
+	return out
+}
+
+// expandCollectorCustomBucketForUpdate marshals the keys an update takes: a key set on create only
+// replaces the resource when it changes, so an update never sends it.
+func expandCollectorCustomBucketForUpdate(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m CollectorCustomBucketModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.AccessKeyId.IsNull() && !m.AccessKeyId.IsUnknown() {
+		out["access_key_id"] = m.AccessKeyId.ValueString()
+	}
+	if !m.SecretAccessKey.IsNull() && !m.SecretAccessKey.IsUnknown() {
+		out["secret_access_key"] = m.SecretAccessKey.ValueString()
 	}
 	return out
 }
@@ -360,37 +670,45 @@ func (r *CollectorResource) Metadata(ctx context.Context, req resource.MetadataR
 
 func (r *CollectorResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A Better Stack Collector agent that ingests logs, metrics, and traces from a host or cluster.",
+		Description:         "A Better Stack Collector agent that ingests logs, metrics, and traces from a host or cluster.",
+		MarkdownDescription: "A Better Stack Collector agent that ingests logs, metrics, and traces from a host or cluster.",
 		Attributes: map[string]schema.Attribute{
-			"id":                   schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"configuration":        schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"components": schema.DynamicAttribute{Optional: true, Computed: true}, "logs_sample_rate": schema.Int64Attribute{Optional: true, Computed: true}, "traces_sample_rate": schema.Int64Attribute{Optional: true, Computed: true}, "vrl_transformation": schema.StringAttribute{Optional: true, Computed: true}, "merge_logs": schema.BoolAttribute{Optional: true, Computed: true}, "merge_logs_config": schema.StringAttribute{Optional: true, Computed: true}, "disk_batch_size_mb": schema.Int64Attribute{Optional: true, Computed: true}, "memory_batch_size_mb": schema.Int64Attribute{Optional: true, Computed: true}, "buffer_max_events": schema.Int64Attribute{Optional: true, Computed: true}, "when_full": schema.StringAttribute{Optional: true, Computed: true}, "log_line_length_limit_kb": schema.Int64Attribute{Optional: true, Computed: true}, "namespaces_options": schema.DynamicAttribute{Optional: true, Computed: true}, "services_options": schema.DynamicAttribute{Optional: true, Computed: true}}, Description: "Collector configuration: which components are on, as `true` or `false` flags such as `logs_host`, `logs_docker`, `logs_kubernetes`, `metrics_cluster`, `ebpf_metrics` and `traces_opentelemetry`, plus sampling rates, batching and buffering. `when_full` is `drop_newest` or `block`. The per-namespace and per-service options each hold `log_sampling` and `ingest_traces`. An update merges the components you send into the stored ones and keeps the previous configuration in history.", PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()}},
-			"connected_source_ids": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "IDs of the sources connected to this collector's source, for example to link spans and logs. An update replaces all connected sources. A connection goes both ways.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"created_at":           schema.StringAttribute{Computed: true, Description: "When the collector was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"custom_bucket": schema.SingleNestedAttribute{Optional: true, Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_collector"}}}, "endpoint": schema.StringAttribute{Optional: true, Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_collector"}}}, "access_key_id": schema.StringAttribute{Optional: true, Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_collector"}}}, "secret_access_key": schema.StringAttribute{Optional: true, Computed: true, Sensitive: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_collector"}}}, "keep_data_after_retention": schema.BoolAttribute{Optional: true, Computed: true, PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown(), replaceWarningBool{boolplanmodifier.RequiresReplaceIfConfigured(), "betterstack_collector"}}}}, Description: "Your own S3-compatible bucket to archive data in. Set it on create. `secret_access_key` is never returned.", PlanModifiers: []planmodifier.Object{replaceWarningObject{objectplanmodifier.RequiresReplaceIf(func(_ context.Context, req planmodifier.ObjectRequest, resp *objectplanmodifier.RequiresReplaceIfFuncResponse) {
-				resp.RequiresReplace = req.PlanValue.IsNull() || req.StateValue.IsNull() || req.PlanValue.IsUnknown()
-			}, "Changing the presence or size of this immutable container requires replacement.", "Changing the presence or size of this immutable container requires replacement."), "betterstack_collector"}}},
-			"data_region": schema.StringAttribute{Optional: true, Computed: true, Description: "The data region, as the source picker names it: `europe`, `us`, `singapore` or a dedicated cluster's name. It reads back as that name. The older ids `germany`, `us_east` and `us_west` are also accepted. Set on create only. Omit it to use the organization's default.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIf(func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
+			"id":                               schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"blocked_metrics":                  schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Metric names marked as spam, which are dropped when they're ingested. Read more about marking metrics as spam (https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/mark-metrics-as-spam/).", MarkdownDescription: "Metric names marked as spam, which are dropped when they're ingested. Read more about [marking metrics as spam](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/mark-metrics-as-spam/)."},
+			"collector_logs_transformation":    schema.StringAttribute{Optional: true, Description: "VRL program the collector runs on each log line on your hardware, before sending it to Better Stack. Remove the argument to clear it."},
+			"collector_metrics_transformation": schema.StringAttribute{Optional: true, Description: "VRL program the collector runs on each metric on your hardware, before sending it to Better Stack. Remove the argument to clear it."},
+			"collector_traces_transformation":  schema.StringAttribute{Optional: true, Description: "VRL program the collector runs on each span on your hardware, before sending it to Better Stack. Remove the argument to clear it."},
+			"configuration":                    schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"components": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"logs_host": schema.BoolAttribute{Optional: true, Computed: true, Description: "Collect logs from the host's /var/log directory."}, "logs_docker": schema.BoolAttribute{Optional: true, Computed: true, Description: "Collect logs of Docker containers that use the default json-file logging driver."}, "logs_kubernetes": schema.BoolAttribute{Optional: true, Computed: true, Description: "Collect Kubernetes container logs and events."}, "logs_collector_internals": schema.BoolAttribute{Optional: true, Computed: true, Description: "Collect the collector's own logs."}, "metrics_cluster": schema.BoolAttribute{Optional: true, Computed: true, Description: "Collect Kubernetes object state metrics, such as pods, workloads, nodes and volumes."}, "metrics_databases": schema.BoolAttribute{Computed: true, Description: "Former name of metrics_cluster. It reads back as metrics_cluster does. Write metrics_cluster instead.", MarkdownDescription: "Former name of `metrics_cluster`. It reads back as `metrics_cluster` does. Write `metrics_cluster` instead."}, "metrics_other_databases": schema.BoolAttribute{Optional: true, Computed: true, Description: "Collect Redis, MongoDB, Memcached and Kafka metrics."}, "metrics_host_os": schema.BoolAttribute{Optional: true, Computed: true, Description: "Collect CPU, memory, disk, filesystem and network metrics of the host."}, "metrics_postgres": schema.BoolAttribute{Optional: true, Computed: true, Description: "Collect PostgreSQL metrics."}, "metrics_mysql": schema.BoolAttribute{Optional: true, Computed: true, Description: "Collect MySQL metrics."}, "metrics_elasticsearch": schema.BoolAttribute{Optional: true, Computed: true, Description: "Collect Elasticsearch metrics."}, "metrics_pgbouncer": schema.BoolAttribute{Optional: true, Computed: true, Description: "Collect PgBouncer metrics."}, "metrics_nginx": schema.BoolAttribute{Optional: true, Computed: true, Description: "Collect Nginx metrics."}, "metrics_apache": schema.BoolAttribute{Optional: true, Computed: true, Description: "Collect Apache metrics."}, "metrics_traefik": schema.BoolAttribute{Optional: true, Computed: true, Description: "Collect Traefik metrics."}, "ebpf_metrics": schema.BoolAttribute{Optional: true, Computed: true, Description: "Collect host metrics with eBPF."}, "ebpf_tracing_basic": schema.BoolAttribute{Optional: true, Computed: true, Description: "Basic distributed tracing with eBPF."}, "ebpf_tracing_full": schema.BoolAttribute{Optional: true, Computed: true, Description: "Full distributed tracing with eBPF."}, "ebpf_java_agent": schema.BoolAttribute{Optional: true, Computed: true, Description: "Trace Java services with eBPF."}, "traces_opentelemetry": schema.BoolAttribute{Optional: true, Computed: true, Description: "Accept OpenTelemetry traces from your SDKs over OTLP."}, "ebpf_red_metrics": schema.BoolAttribute{Optional: true, Computed: true, Description: "Service map and request rate, error and duration metrics with eBPF."}, "metrics_process_statistics": schema.BoolAttribute{Optional: true, Computed: true, Description: "Collect the host's process and thread counts. It can use significant CPU on a host that runs very many processes."}}, Description: "Which components the collector runs, each true or false.", MarkdownDescription: "Which components the collector runs, each `true` or `false`."}, "logs_sample_rate": schema.Int64Attribute{Optional: true, Computed: true, Description: "Percentage of logs to keep, from 0 to 100. Defaults to 100."}, "traces_sample_rate": schema.Int64Attribute{Optional: true, Computed: true, Description: "Percentage of traces to keep, from 0 to 100. Defaults to 100, and 0 drops every trace."}, "merge_logs": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether the collector merges lines that continue a log entry, such as a stack trace, into the entry before them."}, "merge_logs_config": schema.StringAttribute{Optional: true, Computed: true, Description: "The VRL condition merge_logs uses to tell whether a line starts a new log entry. Any other line joins the entry before it.", MarkdownDescription: "The VRL condition `merge_logs` uses to tell whether a line starts a new log entry. Any other line joins the entry before it."}, "disk_batch_size_mb": schema.Int64Attribute{Optional: true, Computed: true, Description: "Batching on disk, the size of the collector's disk buffer in MB. Defaults to 3000, and it can't be less than 256."}, "memory_batch_size_mb": schema.Int64Attribute{Optional: true, Computed: true, Description: "Batching in memory, how much data the collector batches before sending it, in MB. Defaults to 20."}, "buffer_max_events": schema.Int64Attribute{Optional: true, Computed: true, Description: "How many events the collector's memory buffer holds before it moves them to disk. Defaults to 10000."}, "when_full": schema.StringAttribute{Optional: true, Computed: true, Description: "What the collector does when its disk buffer is full, drop_newest to drop new events or block to wait until there's room.", MarkdownDescription: "What the collector does when its disk buffer is full, `drop_newest` to drop new events or `block` to wait until there's room."}, "log_line_length_limit_kb": schema.Int64Attribute{Optional: true, Computed: true, Description: "Maximum log line length in kB, from 4 to 128. Longer lines are dropped. Defaults to 8."}, "namespaces_options": schema.MapNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"log_sampling": schema.Int64Attribute{Optional: true, Computed: true, Description: "Percentage of the namespace's logs to keep, from 0 to 100."}, "ingest_traces": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether to ingest the namespace's traces."}}}, Description: "Options per namespace, keyed by namespace name. A map replaces the stored one, and an empty map clears it."}, "services_options": schema.MapNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"log_sampling": schema.Int64Attribute{Optional: true, Computed: true, Description: "Percentage of the service's logs to keep, from 0 to 100."}, "ingest_traces": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether to ingest the service's traces."}}}, Description: "Options per service, keyed by service name. A map replaces the stored one, and an empty map clears it."}}, Description: "Collector configuration. It says which components are on, plus sampling rates, batching and buffering. An update merges the components it includes into the stored ones.", PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()}},
+			"connected_source_ids":             schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "IDs of the sources connected to this collector's source to correlate their logs and traces. A connection goes both ways. The collector's source joins the listed sources and the sources they're already connected to. No existing connection is removed, and [] disconnects the collector's source.", MarkdownDescription: "IDs of the sources connected to this collector's source to correlate their logs and traces. A connection goes both ways. The collector's source joins the listed sources and the sources they're already connected to. No existing connection is removed, and `[]` disconnects the collector's source.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"created_at":                       schema.StringAttribute{Computed: true, Description: "When the collector was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"custom_bucket": schema.SingleNestedAttribute{Optional: true, Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Computed: true, Description: "The bucket's name, which Better Stack reads from endpoint.", MarkdownDescription: "The bucket's name, which Better Stack reads from `endpoint`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "endpoint": schema.StringAttribute{Optional: true, Computed: true, Description: "The S3-compatible endpoint URL of the bucket. It can't be changed after the bucket is set.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_collector"}}}, "access_key_id": schema.StringAttribute{Optional: true, Computed: true, Description: "The access key ID Better Stack uses to write to the bucket."}, "secret_access_key": schema.StringAttribute{Optional: true, Computed: true, Description: "The secret access key for access_key_id. Write-only, so it's never returned.", MarkdownDescription: "The secret access key for `access_key_id`. Write-only, so it's never returned.", Sensitive: true}, "keep_data_after_retention": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether data stays in the bucket after the retention period. It can't be changed after the bucket is set.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown(), replaceWarningBool{boolplanmodifier.RequiresReplaceIfConfigured(), "betterstack_collector"}}}}, Description: "Your own S3-compatible bucket to archive data in, or null when the collector uses Better Stack storage. Read more about hosting data in your own bucket (https://betterstack.com/docs/logs/host-data-in-your-own-bucket/). Set it on create. An update that sets only access_key_id and secret_access_key rotates its key pair.", MarkdownDescription: "Your own S3-compatible bucket to archive data in, or `null` when the collector uses Better Stack storage. Read more about [hosting data in your own bucket](https://betterstack.com/docs/logs/host-data-in-your-own-bucket/). Set it on create. An update that sets only `access_key_id` and `secret_access_key` rotates its key pair.", PlanModifiers: []planmodifier.Object{replaceWarningObject{objectplanmodifier.RequiresReplaceIf(func(_ context.Context, req planmodifier.ObjectRequest, resp *objectplanmodifier.RequiresReplaceIfFuncResponse) {
+				resp.RequiresReplace = req.PlanValue.IsNull() != req.StateValue.IsNull()
+			}, "Adding or removing this object requires replacement.", "Adding or removing this object requires replacement."), "betterstack_collector"}}},
+			"data_region": schema.StringAttribute{Optional: true, Computed: true, Description: "The data region, europe, us, singapore or a dedicated cluster's name from List data regions (https://betterstack.com/docs/logs/api/data-regions/). It reads back as that name. It can't be changed after the collector is created. Defaults to the organization's default data region.", MarkdownDescription: "The data region, `europe`, `us`, `singapore` or a dedicated cluster's name from [List data regions](https://betterstack.com/docs/logs/api/data-regions/). It reads back as that name. It can't be changed after the collector is created. Defaults to the organization's default data region.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIf(func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
 				resp.RequiresReplace = !req.ConfigValue.IsNull() && !sameAliasedValue(map[string]string{"germany": "europe", "us_east": "us", "us_west": "us"}, req.StateValue.ValueString(), req.PlanValue.ValueString())
 			}, "Changing this to a value that reads back differently requires replacement.", "Changing this to a value that reads back differently requires replacement."), "betterstack_collector"}}},
-			"deletion_protection":       schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "While true (the default), destroying or replacing this collector fails, in a plan or in a pulumi destroy. Kept in Terraform or Pulumi state only: the API never sees it. Set it to false and apply that before deleting or replacing it on purpose."},
-			"ingesting_paused":          schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Pause ingestion for this collector."},
-			"live_tail_pattern":         schema.StringAttribute{Optional: true, Computed: true, Description: "The pattern Live tail shows each log line with.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"logs_retention":            schema.Int64Attribute{Optional: true, Computed: true, Description: "Days to keep logs. Refused with 422 on a plan with fixed retention, or for a number of days the plan doesn't offer.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
-			"metrics_retention":         schema.Int64Attribute{Optional: true, Computed: true, Description: "Days to keep metrics. Refused with 422 on a plan with fixed retention, or for a number of days the plan doesn't offer.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
-			"name":                      schema.StringAttribute{Required: true, Description: "Collector name."},
-			"note":                      schema.StringAttribute{Optional: true, Description: "A note about the collector. Send `null` to clear it."},
-			"pinged_at":                 schema.StringAttribute{Computed: true, Description: "When the collector last checked in."},
-			"platform":                  schema.StringAttribute{Required: true, Description: "Where the collector runs. Can't be changed after the collector is created.", Validators: []validator.String{stringvalidator.OneOf("docker", "swarm", "kubernetes")}, PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_collector"}}},
-			"secret":                    schema.StringAttribute{Computed: true, Description: "Secret the deployed collector authenticates with. Returned on every read.", Sensitive: true},
-			"service_fields":            schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name_key": schema.StringAttribute{Optional: true, Computed: true}, "type_key": schema.StringAttribute{Optional: true, Computed: true}}}, Description: "Log fields that break data down by service, each with a `name_key` and a `type_key`. An update replaces all of them. `type_key` can be `null`.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"source_group_id":           schema.StringAttribute{Optional: true, Description: "Source group the collector's source belongs to. Send `null` or `\"0\"` to remove it from its group."},
-			"source_id":                 schema.StringAttribute{Computed: true, Description: "ID of the source the collector sends data to."},
-			"source_vrl_transformation": schema.StringAttribute{Optional: true, Description: "VRL program Better Stack runs on each log line of the collector's source as it's ingested."},
-			"status":                    schema.StringAttribute{Computed: true, Description: "Collector status."},
-			"team_id":                   schema.StringAttribute{Computed: true, Description: "Team that owns the collector, as its `t`-prefixed Better Stack team ID, such as `t123`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"team_name":                 schema.StringAttribute{Computed: true, Description: "Name of the team that owns the collector."},
-			"updated_at":                schema.StringAttribute{Computed: true, Description: "When the collector was last updated."},
-			"user_vector_config":        schema.StringAttribute{Optional: true, Description: "Your own Vector configuration in YAML, merged into the configuration the collector runs with."},
+			"deletion_protection":             schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether destroying or replacing this collector is refused. Defaults to true. Set it to false and apply before you delete or replace it on purpose. It's kept in state and never sent to Better Stack.", MarkdownDescription: "Whether destroying or replacing this collector is refused. Defaults to `true`. Set it to `false` and apply before you delete or replace it on purpose. It's kept in state and never sent to Better Stack."},
+			"ingesting_paused":                schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether ingestion is paused for this collector."},
+			"ingestion_logs_transformation":   schema.StringAttribute{Optional: true, Description: "VRL program Better Stack runs on each log line from the collector as it's ingested. Remove the argument to clear it."},
+			"ingestion_traces_transformation": schema.StringAttribute{Optional: true, Description: "VRL program Better Stack runs on each span from the collector as it's ingested. Remove the argument to clear it."},
+			"installation_guide_url":          schema.StringAttribute{Computed: true, Description: "Link to the installation guide for the collector's platform, with the install command that uses its secret.", MarkdownDescription: "Link to the installation guide for the collector's platform, with the install command that uses its `secret`."},
+			"live_tail_pattern":               schema.StringAttribute{Optional: true, Computed: true, Description: "The pattern Live tail shows each log line with. Columns are wrapped in braces, such as PID: {message_json.pid} {level} {message}. It's null when the collector's source doesn't receive logs. See Formatting logs (https://betterstack.com/docs/logs/using-logtail/formatting-logs/). A collector whose source doesn't receive logs refuses it.", MarkdownDescription: "The pattern Live tail shows each log line with. Columns are wrapped in braces, such as `PID: {message_json.pid} {level} {message}`. It's `null` when the collector's source doesn't receive logs. See [Formatting logs](https://betterstack.com/docs/logs/using-logtail/formatting-logs/). A collector whose source doesn't receive logs refuses it."},
+			"live_tail_pattern_spans":         schema.StringAttribute{Optional: true, Computed: true, Description: "The pattern Live tail shows each span with. Columns are wrapped in braces, such as {span.name} {duration}. It's null when the collector's source doesn't receive spans. See Formatting logs (https://betterstack.com/docs/logs/using-logtail/formatting-logs/). A collector whose source doesn't receive spans refuses it.", MarkdownDescription: "The pattern Live tail shows each span with. Columns are wrapped in braces, such as `{span.name} {duration}`. It's `null` when the collector's source doesn't receive spans. See [Formatting logs](https://betterstack.com/docs/logs/using-logtail/formatting-logs/). A collector whose source doesn't receive spans refuses it."},
+			"logs_retention":                  schema.Int64Attribute{Optional: true, Computed: true, Description: "Days logs are kept, one of the retention periods your plan offers.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
+			"metrics_retention":               schema.Int64Attribute{Optional: true, Computed: true, Description: "Days metrics are kept, one of the retention periods your plan offers.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
+			"name":                            schema.StringAttribute{Required: true, Description: "Collector name."},
+			"note":                            schema.StringAttribute{Optional: true, Description: "A note about the collector. Remove the argument to clear it."},
+			"pinged_at":                       schema.StringAttribute{Computed: true, Description: "When a host of the collector last checked in, or null when no host has checked in yet.", MarkdownDescription: "When a host of the collector last checked in, or `null` when no host has checked in yet."},
+			"platform":                        schema.StringAttribute{Required: true, Description: "Where the collector runs. Can't be changed after the collector is created.", Validators: []validator.String{stringvalidator.OneOf("docker", "swarm", "kubernetes")}, PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_collector"}}},
+			"secret":                          schema.StringAttribute{Computed: true, Description: "Secret the deployed collector authenticates with. Returned on every read.", Sensitive: true},
+			"service_fields":                  schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name_key": schema.StringAttribute{Optional: true, Computed: true, Description: "The field to extract the service name from, such as service.name.", MarkdownDescription: "The field to extract the service name from, such as `service.name`."}, "type_key": schema.StringAttribute{Optional: true, Computed: true, Description: "The field to extract the service's platform from, such as service.type. Better Stack matches platforms like Nginx, PostgreSQL or Redis in its value.", MarkdownDescription: "The field to extract the service's platform from, such as `service.type`. Better Stack matches platforms like Nginx, PostgreSQL or Redis in its value."}}}, Description: "Log fields that break data down by service. Each entry needs a name_key, and type_key can be null to skip it. The list replaces the existing one, and [] removes them all.", MarkdownDescription: "Log fields that break data down by service. Each entry needs a `name_key`, and `type_key` can be `null` to skip it. The list replaces the existing one, and `[]` removes them all.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"source_group_id":                 schema.StringAttribute{Optional: true, Description: "Source group the collector's source belongs to, or null when it's in no group. Get the IDs via List source groups (https://betterstack.com/docs/logs/api/list-all-existing-source-groups/).", MarkdownDescription: "Source group the collector's source belongs to, or `null` when it's in no group. Get the IDs via [List source groups](https://betterstack.com/docs/logs/api/list-all-existing-source-groups/)."},
+			"source_id":                       schema.StringAttribute{Computed: true, Description: "ID of the source the collector sends data to."},
+			"status":                          schema.StringAttribute{Computed: true, Description: "The collector's status, worked out from its hosts, one of pending, up, degraded, unknown, partially_up, unsupported_version or down.", MarkdownDescription: "The collector's status, worked out from its hosts, one of `pending`, `up`, `degraded`, `unknown`, `partially_up`, `unsupported_version` or `down`."},
+			"team_id":                         schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns the collector, such as t123. Defaults to the provider's team_id. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", MarkdownDescription: "Team that owns the collector, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_collector"}}},
+			"team_name":                       schema.StringAttribute{Computed: true, Description: "Name of the team that owns the collector.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"updated_at":                      schema.StringAttribute{Computed: true, Description: "When the collector was last updated."},
+			"user_vector_config":              schema.StringAttribute{Optional: true, Description: "Your own Vector configuration in YAML, merged into the configuration the collector runs with."},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -428,14 +746,34 @@ func (r *CollectorResource) body(ctx context.Context, m CollectorModel) map[stri
 	if !m.IngestingPaused.IsNull() && !m.IngestingPaused.IsUnknown() {
 		body["ingesting_paused"] = m.IngestingPaused.ValueBool()
 	}
-	if !m.SourceVrlTransformation.IsNull() && !m.SourceVrlTransformation.IsUnknown() {
-		body["source_vrl_transformation"] = m.SourceVrlTransformation.ValueString()
+	if !m.CollectorLogsTransformation.IsNull() && !m.CollectorLogsTransformation.IsUnknown() {
+		body["collector_logs_transformation"] = m.CollectorLogsTransformation.ValueString()
+	}
+	if !m.CollectorMetricsTransformation.IsNull() && !m.CollectorMetricsTransformation.IsUnknown() {
+		body["collector_metrics_transformation"] = m.CollectorMetricsTransformation.ValueString()
+	}
+	if !m.CollectorTracesTransformation.IsNull() && !m.CollectorTracesTransformation.IsUnknown() {
+		body["collector_traces_transformation"] = m.CollectorTracesTransformation.ValueString()
+	}
+	if !m.IngestionLogsTransformation.IsNull() && !m.IngestionLogsTransformation.IsUnknown() {
+		body["ingestion_logs_transformation"] = m.IngestionLogsTransformation.ValueString()
+	}
+	if !m.IngestionTracesTransformation.IsNull() && !m.IngestionTracesTransformation.IsUnknown() {
+		body["ingestion_traces_transformation"] = m.IngestionTracesTransformation.ValueString()
 	}
 	if !m.SourceGroupId.IsNull() && !m.SourceGroupId.IsUnknown() {
-		body["source_group_id"] = idToAPI(m.SourceGroupId.ValueString())
+		body["source_group_id"] = m.SourceGroupId.ValueString()
 	}
 	if !m.LiveTailPattern.IsNull() && !m.LiveTailPattern.IsUnknown() {
 		body["live_tail_pattern"] = m.LiveTailPattern.ValueString()
+	}
+	if !m.LiveTailPatternSpans.IsNull() && !m.LiveTailPatternSpans.IsUnknown() {
+		body["live_tail_pattern_spans"] = m.LiveTailPatternSpans.ValueString()
+	}
+	if !m.BlockedMetrics.IsNull() && !m.BlockedMetrics.IsUnknown() {
+		var vals []string
+		m.BlockedMetrics.ElementsAs(ctx, &vals, false)
+		body["blocked_metrics"] = vals
 	}
 	if !m.UserVectorConfig.IsNull() && !m.UserVectorConfig.IsUnknown() {
 		body["user_vector_config"] = m.UserVectorConfig.ValueString()
@@ -467,14 +805,34 @@ func (r *CollectorResource) bodyForUpdate(ctx context.Context, m CollectorModel)
 	if !m.IngestingPaused.IsNull() && !m.IngestingPaused.IsUnknown() {
 		body["ingesting_paused"] = m.IngestingPaused.ValueBool()
 	}
-	if !m.SourceVrlTransformation.IsNull() && !m.SourceVrlTransformation.IsUnknown() {
-		body["source_vrl_transformation"] = m.SourceVrlTransformation.ValueString()
+	if !m.CollectorLogsTransformation.IsNull() && !m.CollectorLogsTransformation.IsUnknown() {
+		body["collector_logs_transformation"] = m.CollectorLogsTransformation.ValueString()
+	}
+	if !m.CollectorMetricsTransformation.IsNull() && !m.CollectorMetricsTransformation.IsUnknown() {
+		body["collector_metrics_transformation"] = m.CollectorMetricsTransformation.ValueString()
+	}
+	if !m.CollectorTracesTransformation.IsNull() && !m.CollectorTracesTransformation.IsUnknown() {
+		body["collector_traces_transformation"] = m.CollectorTracesTransformation.ValueString()
+	}
+	if !m.IngestionLogsTransformation.IsNull() && !m.IngestionLogsTransformation.IsUnknown() {
+		body["ingestion_logs_transformation"] = m.IngestionLogsTransformation.ValueString()
+	}
+	if !m.IngestionTracesTransformation.IsNull() && !m.IngestionTracesTransformation.IsUnknown() {
+		body["ingestion_traces_transformation"] = m.IngestionTracesTransformation.ValueString()
 	}
 	if !m.SourceGroupId.IsNull() && !m.SourceGroupId.IsUnknown() {
-		body["source_group_id"] = idToAPI(m.SourceGroupId.ValueString())
+		body["source_group_id"] = m.SourceGroupId.ValueString()
 	}
 	if !m.LiveTailPattern.IsNull() && !m.LiveTailPattern.IsUnknown() {
 		body["live_tail_pattern"] = m.LiveTailPattern.ValueString()
+	}
+	if !m.LiveTailPatternSpans.IsNull() && !m.LiveTailPatternSpans.IsUnknown() {
+		body["live_tail_pattern_spans"] = m.LiveTailPatternSpans.ValueString()
+	}
+	if !m.BlockedMetrics.IsNull() && !m.BlockedMetrics.IsUnknown() {
+		var vals []string
+		m.BlockedMetrics.ElementsAs(ctx, &vals, false)
+		body["blocked_metrics"] = vals
 	}
 	if !m.UserVectorConfig.IsNull() && !m.UserVectorConfig.IsUnknown() {
 		body["user_vector_config"] = m.UserVectorConfig.ValueString()
@@ -482,14 +840,13 @@ func (r *CollectorResource) bodyForUpdate(ctx context.Context, m CollectorModel)
 	if !m.Configuration.IsNull() && !m.Configuration.IsUnknown() {
 		body["configuration"] = expandCollectorConfiguration(ctx, m.Configuration)
 	}
+	if !m.CustomBucket.IsNull() && !m.CustomBucket.IsUnknown() {
+		body["custom_bucket"] = expandCollectorCustomBucketForUpdate(ctx, m.CustomBucket)
+	}
 	if !m.ConnectedSourceIds.IsNull() && !m.ConnectedSourceIds.IsUnknown() {
 		var vals []string
 		m.ConnectedSourceIds.ElementsAs(ctx, &vals, false)
-		wire := make([]interface{}, len(vals))
-		for i, v := range vals {
-			wire[i] = idToAPI(v)
-		}
-		body["connected_source_ids"] = wire
+		body["connected_source_ids"] = vals
 	}
 	if !m.ServiceFields.IsNull() && !m.ServiceFields.IsUnknown() {
 		items := make([]map[string]interface{}, 0, len(m.ServiceFields.Elements()))
@@ -509,11 +866,7 @@ func (r *CollectorResource) postCreateBody(ctx context.Context, m CollectorModel
 	if !m.ConnectedSourceIds.IsNull() && !m.ConnectedSourceIds.IsUnknown() {
 		var vals []string
 		m.ConnectedSourceIds.ElementsAs(ctx, &vals, false)
-		wire := make([]interface{}, len(vals))
-		for i, v := range vals {
-			wire[i] = idToAPI(v)
-		}
-		body["connected_source_ids"] = wire
+		body["connected_source_ids"] = vals
 	}
 	if !m.ServiceFields.IsNull() && !m.ServiceFields.IsUnknown() {
 		items := make([]map[string]interface{}, 0, len(m.ServiceFields.Elements()))
@@ -533,8 +886,20 @@ func (r *CollectorResource) updateBody(ctx context.Context, config, plan, state 
 	if !state.Note.IsNull() && !state.Note.IsUnknown() && plan.Note.IsNull() {
 		body["note"] = nil
 	}
-	if !state.SourceVrlTransformation.IsNull() && !state.SourceVrlTransformation.IsUnknown() && plan.SourceVrlTransformation.IsNull() {
-		body["source_vrl_transformation"] = nil
+	if !state.CollectorLogsTransformation.IsNull() && !state.CollectorLogsTransformation.IsUnknown() && plan.CollectorLogsTransformation.IsNull() {
+		body["collector_logs_transformation"] = nil
+	}
+	if !state.CollectorMetricsTransformation.IsNull() && !state.CollectorMetricsTransformation.IsUnknown() && plan.CollectorMetricsTransformation.IsNull() {
+		body["collector_metrics_transformation"] = nil
+	}
+	if !state.CollectorTracesTransformation.IsNull() && !state.CollectorTracesTransformation.IsUnknown() && plan.CollectorTracesTransformation.IsNull() {
+		body["collector_traces_transformation"] = nil
+	}
+	if !state.IngestionLogsTransformation.IsNull() && !state.IngestionLogsTransformation.IsUnknown() && plan.IngestionLogsTransformation.IsNull() {
+		body["ingestion_logs_transformation"] = nil
+	}
+	if !state.IngestionTracesTransformation.IsNull() && !state.IngestionTracesTransformation.IsUnknown() && plan.IngestionTracesTransformation.IsNull() {
+		body["ingestion_traces_transformation"] = nil
 	}
 	if !state.SourceGroupId.IsNull() && !state.SourceGroupId.IsUnknown() && plan.SourceGroupId.IsNull() {
 		body["source_group_id"] = nil
@@ -555,8 +920,16 @@ func (r *CollectorResource) Create(ctx context.Context, req resource.CreateReque
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
 	out, err := r.client.Create(ctx, collectorBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating collector", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating collector", err, req.Plan.Raw.Type())
 		return
@@ -574,7 +947,7 @@ func (r *CollectorResource) Create(ctx context.Context, req resource.CreateReque
 	// values stay untouched so the apply result is always consistent with the plan.
 	resp.State.Raw = stateFromPlan(req.Plan.Raw, nullValue(req.Plan.Raw.Type()), out)
 	// Retain the created identity if applying update-only fields fails.
-	if pcBody := r.postCreateBody(ctx, request); len(pcBody) > 0 {
+	if pcBody := r.postCreateBody(ctx, request); len(pcBody) > 0 && unsettled == nil {
 		vars["id"] = id
 		pcOut, err := r.client.Update(ctx, collectorBinding, vars, pcBody)
 		if err != nil {
@@ -606,9 +979,22 @@ func (r *CollectorResource) Read(ctx context.Context, req resource.ReadRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, collectorBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), collectorBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading collector", err, req.State.Raw.Type())
 		return
@@ -616,6 +1002,10 @@ func (r *CollectorResource) Read(ctx context.Context, req resource.ReadRequest, 
 	if !found {
 		resp.State.RemoveResource(ctx)
 		return
+	}
+	// Unset, it holds the API's whole list: compare the read with a configured list only.
+	if !configuredBefore(ctx, req.Private, "connected_source_ids") {
+		state.ConnectedSourceIds = types.ListNull(types.StringType)
 	}
 	populateCollector(ctx, &state, out)
 	// The API never returns it: an imported object starts protected, as a created one does.
@@ -648,7 +1038,7 @@ func populateCollector(ctx context.Context, m *CollectorModel, attrs map[string]
 	}
 	if m.DataRegion.IsNull() || m.DataRegion.IsUnknown() {
 		if v, ok := stringFromAPI(attrs["data_region"]); ok {
-			m.DataRegion = types.StringValue(v)
+			m.DataRegion = aliasedValue(map[string]string{"germany": "europe", "us_east": "us", "us_west": "us"}, m.DataRegion, v)
 		}
 	}
 	if v, ok := int64FromAPI(attrs["logs_retention"]); ok {
@@ -660,12 +1050,48 @@ func populateCollector(ctx context.Context, m *CollectorModel, attrs map[string]
 	if v, ok := boolFromAPI(attrs["ingesting_paused"]); ok {
 		m.IngestingPaused = types.BoolValue(v)
 	}
-	if rawValue, exists := attrs["source_vrl_transformation"]; exists {
+	if rawValue, exists := attrs["collector_logs_transformation"]; exists {
 		if rawValue == nil {
-			m.SourceVrlTransformation = types.StringNull()
+			m.CollectorLogsTransformation = types.StringNull()
 		} else {
-			if v, ok := stringFromAPI(attrs["source_vrl_transformation"]); ok {
-				m.SourceVrlTransformation = types.StringValue(v)
+			if v, ok := stringFromAPI(attrs["collector_logs_transformation"]); ok {
+				m.CollectorLogsTransformation = vrlValue(m.CollectorLogsTransformation, v)
+			}
+		}
+	}
+	if rawValue, exists := attrs["collector_metrics_transformation"]; exists {
+		if rawValue == nil {
+			m.CollectorMetricsTransformation = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["collector_metrics_transformation"]); ok {
+				m.CollectorMetricsTransformation = vrlValue(m.CollectorMetricsTransformation, v)
+			}
+		}
+	}
+	if rawValue, exists := attrs["collector_traces_transformation"]; exists {
+		if rawValue == nil {
+			m.CollectorTracesTransformation = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["collector_traces_transformation"]); ok {
+				m.CollectorTracesTransformation = vrlValue(m.CollectorTracesTransformation, v)
+			}
+		}
+	}
+	if rawValue, exists := attrs["ingestion_logs_transformation"]; exists {
+		if rawValue == nil {
+			m.IngestionLogsTransformation = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["ingestion_logs_transformation"]); ok {
+				m.IngestionLogsTransformation = vrlValue(m.IngestionLogsTransformation, v)
+			}
+		}
+	}
+	if rawValue, exists := attrs["ingestion_traces_transformation"]; exists {
+		if rawValue == nil {
+			m.IngestionTracesTransformation = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["ingestion_traces_transformation"]); ok {
+				m.IngestionTracesTransformation = vrlValue(m.IngestionTracesTransformation, v)
 			}
 		}
 	}
@@ -678,8 +1104,33 @@ func populateCollector(ctx context.Context, m *CollectorModel, attrs map[string]
 			}
 		}
 	}
-	if v, ok := stringFromAPI(attrs["live_tail_pattern"]); ok {
-		m.LiveTailPattern = types.StringValue(v)
+	if rawValue, exists := attrs["live_tail_pattern"]; exists {
+		if rawValue == nil {
+			m.LiveTailPattern = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["live_tail_pattern"]); ok {
+				m.LiveTailPattern = types.StringValue(v)
+			}
+		}
+	}
+	if rawValue, exists := attrs["live_tail_pattern_spans"]; exists {
+		if rawValue == nil {
+			m.LiveTailPatternSpans = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["live_tail_pattern_spans"]); ok {
+				m.LiveTailPatternSpans = types.StringValue(v)
+			}
+		}
+	}
+	if raw, ok := attrs["blocked_metrics"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.BlockedMetrics = lv
 	}
 	if rawValue, exists := attrs["user_vector_config"]; exists {
 		if rawValue == nil {
@@ -710,7 +1161,7 @@ func populateCollector(ctx context.Context, m *CollectorModel, attrs map[string]
 			}
 		}
 		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
-		m.ConnectedSourceIds = lv
+		m.ConnectedSourceIds = supersetRead(m.ConnectedSourceIds, lv)
 	}
 	if raw, ok := attrs["service_fields"].([]interface{}); ok {
 		items := make([]types.Object, 0, len(raw))
@@ -738,11 +1189,8 @@ func populateCollector(ctx context.Context, m *CollectorModel, attrs map[string]
 			}
 		}
 	}
-	if v, ok := stringFromAPI(attrs["team_id"]); ok {
-		m.TeamId = types.StringValue(v)
-	}
-	if v, ok := stringFromAPI(attrs["team_name"]); ok {
-		m.TeamName = types.StringValue(v)
+	if v, ok := stringFromAPI(attrs["installation_guide_url"]); ok {
+		m.InstallationGuideUrl = types.StringValue(v)
 	}
 	if rawValue, exists := attrs["pinged_at"]; exists {
 		if rawValue == nil {
@@ -759,19 +1207,26 @@ func populateCollector(ctx context.Context, m *CollectorModel, attrs map[string]
 	if v, ok := stringFromAPI(attrs["updated_at"]); ok {
 		m.UpdatedAt = datetimeValue(m.UpdatedAt, v)
 	}
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(attrs["team_name"]); ok {
+		m.TeamName = types.StringValue(v)
+	}
 }
 
 func (r *CollectorResource) mergeResponse(ctx context.Context, m CollectorModel, attrs map[string]interface{}) {
 	if raw, ok := attrs["custom_bucket"]; ok && !m.CustomBucket.IsNull() && !m.CustomBucket.IsUnknown() {
 		if tv, err := m.CustomBucket.ToTerraformValue(ctx); err == nil {
 			if prior, err := tftypesToAPI(tv); err == nil {
-				attrs["custom_bucket"] = mergeAPIRead(raw, prior, apiValueShape{Fields: map[string]apiValueShape{"name": apiValueShape{}, "endpoint": apiValueShape{}, "access_key_id": apiValueShape{}, "secret_access_key": apiValueShape{WriteOnly: true}, "keep_data_after_retention": apiValueShape{}}})
+				attrs["custom_bucket"] = mergeAPIRead(raw, prior, apiValueShape{Fields: map[string]apiValueShape{"name": apiValueShape{ReadOnly: true}, "endpoint": apiValueShape{}, "access_key_id": apiValueShape{}, "secret_access_key": apiValueShape{WriteOnly: true}, "keep_data_after_retention": apiValueShape{}}})
 			}
 		}
 	}
 }
 
 func (r *CollectorResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	defer rememberConfigured(ctx, req.Config, resp.Private, collectorKeptOnRemoval, &resp.Diagnostics)
 	var plan CollectorModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -787,6 +1242,12 @@ func (r *CollectorResource) Update(ctx context.Context, req resource.UpdateReque
 	if !plan.IngestingPaused.Equal(state.IngestingPaused) {
 		request.IngestingPaused = plan.IngestingPaused
 	}
+	// Some of this object's keys are set on create only and the rest are sent only when they
+	// changed, so an unrelated change never resends them.
+	if plan.CustomBucket.Equal(state.CustomBucket) {
+		request.CustomBucket = types.ObjectNull(request.CustomBucket.AttributeTypes(ctx))
+	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, err := r.client.Update(ctx, collectorBinding, vars, r.updateBody(ctx, request, plan, state))
@@ -810,6 +1271,7 @@ func (r *CollectorResource) Delete(ctx context.Context, req resource.DeleteReque
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	if err := r.client.Delete(ctx, collectorBinding, vars); err != nil {
@@ -818,15 +1280,19 @@ func (r *CollectorResource) Delete(ctx context.Context, req resource.DeleteReque
 }
 
 // Attributes whose removal from the configuration keeps the server's value (no default, no null).
-var collectorKeptOnRemoval = []string{"configuration", "connected_source_ids", "live_tail_pattern", "logs_retention", "metrics_retention", "service_fields"}
+var collectorKeptOnRemoval = []string{"blocked_metrics", "configuration", "connected_source_ids", "live_tail_pattern", "live_tail_pattern_spans", "logs_retention", "metrics_retention", "service_fields"}
 
 func (r *CollectorResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseUnnamedTeam(ctx, req, resp, r.client, "collector")
 	refuseProtectedDestroy(ctx, req, resp, "collector")
 	warnKeptOnRemoval(ctx, "betterstack_collector", req, resp, collectorKeptOnRemoval)
+	warnSupersetRemoval(ctx, "betterstack_collector", req, resp, []string{"connected_source_ids"})
 }
 
 func (r *CollectorResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("ingesting_paused"), false)...)
 }
 
 var _ resource.ResourceWithMoveState = &CollectorResource{}
@@ -835,6 +1301,6 @@ var _ resource.ResourceWithMoveState = &CollectorResource{}
 // logtail_collector (registry.terraform.io/BetterStackHQ/logtail).
 func (r *CollectorResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"singleton\",\"path\":\"custom_bucket\"},{\"op\":\"singleton\",\"path\":\"configuration\"},{\"op\":\"singleton\",\"path\":\"configuration.components\"},{\"op\":\"rename\",\"path\":\"configuration.components.metrics_databases\",\"to\":\"configuration.components.metrics_cluster\",\"on_conflict\":\"target\"},{\"op\":\"index_by\",\"path\":\"configuration.service_option\",\"to\":\"configuration.services_options\",\"key\":\"name\"},{\"op\":\"index_by\",\"path\":\"configuration.namespace_option\",\"to\":\"configuration.namespaces_options\",\"key\":\"name\"},{\"op\":\"sentinel_null\",\"path\":\"source_group_id\",\"value\":0},{\"op\":\"string_id\",\"path\":\"source_group_id\"},{\"op\":\"string_id\",\"path\":\"source_id\"}],\"ignored_fields\":[\"team_id\",\"team_name\",\"databases\",\"databases_count\",\"hosts_count\",\"hosts_up_count\"],\"instructions\":[\"Read GET /api/v4/collectors/:id to verify the authoritative global team before moving. Keep the collector ID and existing sensitive state: the custom_bucket secret_access_key cannot be recovered by importing the collector. Turn configuration, components and custom_bucket singleton blocks into objects. Replace service_option and namespace_option sets with services_options/namespaces_options maps keyed by name, preserving numeric log_sampling and boolean ingest_traces. metrics_cluster takes precedence over deprecated metrics_databases exactly as in the legacy provider.\",\"A populated databases list becomes one betterstack_collector_target per row, imported at its existing target ID next to the moved collector, with collector_id referencing it. Leave password and api_key out: they are write-only, the API keeps them server-side and never returns them. Never apply removal of inline blocks through the legacy provider, which deletes targets.\",\"Preserve source_id, source_group_id, live_tail_pattern, retention, Vector configuration, component flags and both VRL programs. Migration must produce no remote create, update or delete, including credential reassertion.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_collector\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"split\":{\"path\":\"databases\",\"resource\":\"collector_target\",\"param\":\"collector_id\",\"match\":{\"id\":\"id\",\"kind\":\"service_type\",\"host\":\"host\",\"port\":\"port\"}},\"recipe\":\"betterstack terraform migrate moves the collector and imports one betterstack_collector_target per legacy databases row when GET /api/v1/collectors/<existing collector ID>/targets in the verified team lists exactly one target with the same ID, kind (legacy service_type), host and port for each row. Otherwise the collector stays on the legacy provider: resolve missing, duplicate or mismatched targets and rerun it, never inferring identity from position. By hand: stop concurrent applies and keep a raw terraform state pull backup outside the repository. Move logtail_collector.NAME to betterstack_collector.NAME with a moved block; never import or recreate the collector, whose bucket credentials live only in state. Configure one betterstack_collector_target per database with collector_id = betterstack_collector.NAME.id and the existing kind, host, port, username, ssl_mode and tls, leaving password and api_key out (write-only: the API keeps them server-side), and import each at its verified target ID with an import block. Never apply removal of the inline databases through the legacy provider: it deletes the targets. Require a plan with no remote create, update, delete or credential change.\",\"source_attributes\":[{\"computed\":true,\"description\":\"Collector-level configuration including active components, sampling rates, batching, and VRL transformations. These settings run on the collector host inside your infrastructure.\",\"max_items\":1,\"name\":\"configuration\",\"optional\":true,\"type\":\"list(object)\",\"json\":\"configuration\"},{\"computed\":true,\"description\":\"Maximum number of events held in the collector's in-memory buffer before overflowing to the disk buffer. Defaults to 10000.\",\"name\":\"configuration.buffer_max_events\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntAtLeast.func32\"},{\"computed\":true,\"description\":\"Enable or disable specific collector components. Maps to the Logs, Metrics, and eBPF tabs in the collector settings UI.\",\"max_items\":1,\"name\":\"configuration.components\",\"optional\":true,\"type\":\"list(object)\",\"note\":\"13 bools: logs_host, logs_docker, logs_kubernetes, logs_collector_internals (Go field LogsCollectorInternal), metrics_databases, metrics_nginx, metrics_apache, metrics_traefik, ebpf_metrics, ebpf_tracing_basic, ebpf_tracing_full, traces_opentelemetry, ebpf_red_metrics\",\"json\":\"components\"},{\"computed\":true,\"description\":\"Enable eBPF-based metrics collection.\",\"name\":\"configuration.components.ebpf_metrics\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Enable service map and RED (Requests, Error rate, Duration) metrics via eBPF.\",\"name\":\"configuration.components.ebpf_red_metrics\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Enable basic eBPF tracing.\",\"name\":\"configuration.components.ebpf_tracing_basic\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Enable full eBPF tracing.\",\"name\":\"configuration.components.ebpf_tracing_full\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Collect internal collector logs.\",\"name\":\"configuration.components.logs_collector_internals\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Collect Docker container logs.\",\"name\":\"configuration.components.logs_docker\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Collect host-level logs.\",\"name\":\"configuration.components.logs_host\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Collect Kubernetes logs.\",\"name\":\"configuration.components.logs_kubernetes\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Collect Apache metrics.\",\"name\":\"configuration.components.metrics_apache\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Run the cluster agent for database metrics. Takes precedence over `metrics_databases` when both are set.\",\"name\":\"configuration.components.metrics_cluster\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"deprecated\":\"Use `metrics_cluster` instead.\",\"description\":\"Run the cluster agent for database metrics.\",\"name\":\"configuration.components.metrics_databases\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Enable the Elasticsearch metrics exporter. Defaults to true.\",\"name\":\"configuration.components.metrics_elasticsearch\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Enable the MySQL metrics exporter. Defaults to true.\",\"name\":\"configuration.components.metrics_mysql\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Collect Nginx metrics.\",\"name\":\"configuration.components.metrics_nginx\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Enable the PgBouncer metrics exporter. Defaults to true.\",\"name\":\"configuration.components.metrics_pgbouncer\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Enable the PostgreSQL metrics exporter. Defaults to true.\",\"name\":\"configuration.components.metrics_postgres\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Collect Traefik metrics.\",\"name\":\"configuration.components.metrics_traefik\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Accept OpenTelemetry SDK traces on ports 4317 (gRPC) and 4318 (HTTP).\",\"name\":\"configuration.components.traces_opentelemetry\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Disk buffer size in MB for outgoing requests. Minimum 256 MB.\",\"name\":\"configuration.disk_batch_size_mb\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntAtLeast.func30\"},{\"computed\":true,\"description\":\"Maximum log line length in kB. Lines longer than this are dropped by the collector to protect Vector from memory exhaustion. Higher values may use more memory. Must be between 4 and 128. Defaults to 8.\",\"name\":\"configuration.log_line_length_limit_kb\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntBetween.func34\"},{\"computed\":true,\"description\":\"Sample rate for logs (0-100).\",\"name\":\"configuration.logs_sample_rate\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntBetween.func28\"},{\"computed\":true,\"description\":\"Memory batch size in MB for outgoing requests. Maximum 40 MB.\",\"name\":\"configuration.memory_batch_size_mb\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntAtMost.func31\"},{\"computed\":true,\"description\":\"Whether to merge multi-line logs (e.g. stack traces) into single log entries on the collector host before transmission. Matches the Merge logs tab in the collector's Transform data UI.\",\"name\":\"configuration.merge_logs\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"VRL condition detecting the first line of a new log entry - consecutive lines not matching it are merged into the preceding entry. Leave unset to use the built-in heuristic (lines starting with a timestamp or log level). Only used when `merge_logs` is `true`.\",\"name\":\"configuration.merge_logs_config\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Per-namespace overrides for log sampling rate and trace ingestion (Kubernetes only). Order-independent; entries are identified by name.\",\"name\":\"configuration.namespace_option\",\"optional\":true,\"set_func\":\"provider.hashOptionEntry\",\"type\":\"set(object)\",\"note\":\"same transformation\",\"json\":\"namespaces_options\"},{\"description\":\"Whether to ingest traces for this namespace.\",\"name\":\"configuration.namespace_option.ingest_traces\",\"optional\":true,\"type\":\"bool\"},{\"description\":\"Log sampling rate (0-100).\",\"name\":\"configuration.namespace_option.log_sampling\",\"optional\":true,\"type\":\"int\"},{\"description\":\"Namespace name.\",\"name\":\"configuration.namespace_option.name\",\"required\":true,\"type\":\"string\"},{\"description\":\"Per-service overrides for log sampling rate and trace ingestion. Only includes user-managed services; internal collector services (`better-stack-beyla`, `better-stack-collector`) are excluded. Use the `logtail_collector` data source to see all discovered services.\",\"name\":\"configuration.service_option\",\"optional\":true,\"set_func\":\"provider.hashOptionEntry\",\"type\":\"set(object)\",\"note\":\"SHAPE AND NAME differ: a TF set of {name, log_sampling, ingest_traces} maps to a JSON map keyed by name. Internal better-stack-* services are filtered out of state; unmanaged server-side entries are merged back on update.\",\"json\":\"services_options\"},{\"description\":\"Whether to ingest traces for this service.\",\"name\":\"configuration.service_option.ingest_traces\",\"optional\":true,\"type\":\"bool\"},{\"description\":\"Log sampling rate (0-100).\",\"name\":\"configuration.service_option.log_sampling\",\"optional\":true,\"type\":\"int\"},{\"description\":\"Service name.\",\"name\":\"configuration.service_option.name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Sample rate for traces (0-100).\",\"name\":\"configuration.traces_sample_rate\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntBetween.func29\"},{\"computed\":true,\"description\":\"VRL transformation that runs on the collector host, inside your infrastructure, before data is transmitted to Better Stack. Use this for PII redaction and sensitive data filtering - raw data never leaves your network. For server-side transformations that run during ingestion on Better Stack, use the top-level `source_vrl_transformation` attribute instead. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.init.func4\",\"name\":\"configuration.vrl_transformation\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"What the collector does when the disk buffer is full. `drop_newest` (default) drops incoming data, preferring availability; `block` applies backpressure to producers, preferring completeness.\",\"name\":\"configuration.when_full\",\"optional\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func33\"},{\"computed\":true,\"description\":\"The time when this collector was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"description\":\"Optional custom S3-compatible bucket configuration for the collector. Can only be set when creating the collector and cannot be added, changed, or removed afterwards - recreate the collector to use a different bucket. Better Stack validates the credentials by writing and reading a test object in the bucket during creation.\",\"max_items\":1,\"name\":\"custom_bucket\",\"optional\":true,\"type\":\"list(object)\",\"note\":\"own struct collectorCustomBucket, identical 5 fields; never sent on update\"},{\"description\":\"Access key ID for the bucket.\",\"name\":\"custom_bucket.access_key_id\",\"required\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\"},{\"description\":\"Bucket endpoint including the bucket name, e.g. `https://s3.us-east-1.amazonaws.com/my-bucket` or `https://my-bucket.s3.us-east-1.amazonaws.com`.\",\"name\":\"custom_bucket.endpoint\",\"required\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\"},{\"default\":false,\"description\":\"Whether to keep data in the bucket after the retention period.\",\"name\":\"custom_bucket.keep_data_after_retention\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"deprecated\":\"Do not set the bucket name - it is always derived from `endpoint`. This attribute will be removed in a future release.\",\"description\":\"Bucket name derived from `endpoint`. Deprecated - do not set this attribute.\",\"name\":\"custom_bucket.name\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Secret access key for the bucket.\",\"name\":\"custom_bucket.secret_access_key\",\"required\":true,\"sensitive\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\"},{\"computed\":true,\"description\":\"Data region or private cluster name to create the collector in. Permitted values for most plans are: `us_west`, `germany`, `singapore`. This value can only be set at creation time and cannot be changed afterwards. The API returns the specific cluster name, which may differ from the value you provide (for example, `germany` may read back as `eu-nbg-2`).  \\nWhen importing an existing collector, leave `data_region` unset in your configuration - Terraform reads it from the API. Pinning it to an identifier that differs from the stored cluster name produces a spurious `data_region cannot be changed after collector is created` error.\",\"name\":\"data_region\",\"optional\":true,\"type\":\"string\",\"note\":\"create-only\"},{\"deprecated\":\"Use the `logtail_collector_target` resource instead.\",\"description\":\"Database connections for the collector. Deprecated - use the `logtail_collector_target` resource instead.\",\"name\":\"databases\",\"optional\":true,\"type\":\"list(object)\",\"note\":\"sub-attrs id, service_type (postgres|mysql|redis|mongodb|memcached), host, port, username, password(sensitive), ssl_mode, tls. Updates send a delta; removals carry the JSON key _destroy: true.\"},{\"description\":\"The database host.\",\"name\":\"databases.host\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this database connection (assigned by the API).\",\"name\":\"databases.id\",\"type\":\"int\"},{\"description\":\"The database password.\",\"name\":\"databases.password\",\"optional\":true,\"sensitive\":true,\"type\":\"string\"},{\"description\":\"The database port.\",\"name\":\"databases.port\",\"required\":true,\"type\":\"int\"},{\"description\":\"The type of database service.\",\"name\":\"databases.service_type\",\"required\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func35\"},{\"description\":\"SSL mode for PostgreSQL connections. Valid values: `disable`, `require`, `verify-ca`.\",\"name\":\"databases.ssl_mode\",\"optional\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func36\"},{\"description\":\"TLS mode for MySQL connections. Valid values: `false`, `true`, `skip-verify`, `preferred`.\",\"name\":\"databases.tls\",\"optional\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func37\"},{\"description\":\"The database username.\",\"name\":\"databases.username\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The number of database connections configured for this collector.\",\"name\":\"databases_count\",\"type\":\"int\"},{\"computed\":true,\"description\":\"The number of hosts connected to this collector.\",\"name\":\"hosts_count\",\"type\":\"int\"},{\"computed\":true,\"description\":\"The number of hosts currently online.\",\"name\":\"hosts_up_count\",\"type\":\"int\"},{\"computed\":true,\"description\":\"The ID of this collector.\",\"name\":\"id\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether ingestion is paused for this collector.\",\"name\":\"ingesting_paused\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Freeform text template for formatting Live tail output with columns wrapped in {column} brackets. Example: \\\"PID: {message_json.pid} {level} {message}\\\"\",\"name\":\"live_tail_pattern\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Data retention for logs in days. Allowed values: 7, 30, 60, 90, 180, 365, 730, 1095, 1460, 1825. There might be additional charges for longer retention.\",\"name\":\"logs_retention\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntInSlice.func26\"},{\"computed\":true,\"description\":\"Data retention for metrics in days. Allowed values: 7, 30, 60, 90, 180, 365, 730, 1095, 1460, 1825. There might be additional charges for longer retention.\",\"name\":\"metrics_retention\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntInSlice.func27\"},{\"description\":\"The name of this collector.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"description\":\"A description or note about this collector.\",\"name\":\"note\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this collector last received data.\",\"name\":\"pinged_at\",\"type\":\"string\"},{\"description\":\"The platform of this collector. This value can be set only when creating a new collector and cannot be changed later. Valid values are: `docker`, `swarm`, `kubernetes`.\",\"force_new\":true,\"name\":\"platform\",\"required\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func25\"},{\"computed\":true,\"description\":\"The secret token used to authenticate collector hosts.\",\"name\":\"secret\",\"sensitive\":true,\"type\":\"string\"},{\"description\":\"The ID of the source group (folder) this collector belongs to. Set to `0` to remove from a group.\",\"diff_suppress_func\":\"provider.init.func2\",\"name\":\"source_group_id\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The ID of the underlying source. Use this with `logtail_metric` to define metrics on this collector's data.\",\"name\":\"source_id\",\"type\":\"int\"},{\"computed\":true,\"description\":\"Server-side VRL transformation that runs during ingestion on Better Stack. Use this for enrichment, routing, or light normalization that doesn't involve sensitive data. For PII redaction and sensitive data filtering, prefer `configuration.vrl_transformation` which runs on the collector host and ensures raw data never leaves your network. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.init.func3\",\"name\":\"source_vrl_transformation\",\"optional\":true,\"type\":\"string\",\"note\":\"VRL-normalizing DiffSuppress\"},{\"computed\":true,\"description\":\"The current status of this collector.\",\"name\":\"status\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The team ID for this resource.\",\"name\":\"team_id\",\"type\":\"string\",\"go_type\":\"*StringOrInt\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.init.teamNameSchema.func24\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this collector was last updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Custom Vector YAML configuration for additional sources and transforms beyond the built-in component toggles. Must not contain `command:` directives.\",\"name\":\"user_vector_config\",\"optional\":true,\"type\":\"string\"}],\"response_projections\":[]}"),
+		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"singleton\",\"path\":\"custom_bucket\"},{\"op\":\"singleton\",\"path\":\"configuration\"},{\"op\":\"singleton\",\"path\":\"configuration.components\"},{\"op\":\"rename\",\"path\":\"configuration.vrl_transformation\",\"to\":\"collector_logs_transformation\"},{\"op\":\"sentinel_null\",\"path\":\"collector_logs_transformation\",\"value\":\"\\n.\"},{\"op\":\"sentinel_null\",\"path\":\"collector_logs_transformation\",\"value\":\"\"},{\"op\":\"rename\",\"path\":\"source_vrl_transformation\",\"to\":\"ingestion_logs_transformation\"},{\"op\":\"sentinel_null\",\"path\":\"ingestion_logs_transformation\",\"value\":\"\"},{\"op\":\"rename\",\"path\":\"configuration.components.metrics_databases\",\"to\":\"configuration.components.metrics_cluster\",\"on_conflict\":\"target\"},{\"op\":\"index_by\",\"path\":\"configuration.service_option\",\"to\":\"configuration.services_options\",\"key\":\"name\"},{\"op\":\"index_by\",\"path\":\"configuration.namespace_option\",\"to\":\"configuration.namespaces_options\",\"key\":\"name\"},{\"op\":\"sentinel_null\",\"path\":\"source_group_id\",\"value\":0},{\"op\":\"string_id\",\"path\":\"source_group_id\"},{\"op\":\"string_id\",\"path\":\"source_id\"}],\"ignored_fields\":[\"team_id\",\"team_name\",\"databases\",\"databases_count\",\"hosts_count\",\"hosts_up_count\",\"custom_bucket[].name\"],\"instructions\":[\"Before moving, check the collector's team with `betterstack collector get ID`. Keep the collector ID and existing sensitive state: importing the collector cannot recover the custom_bucket secret_access_key. Turn the configuration, components and custom_bucket blocks into objects. Replace the service_option and namespace_option sets with services_options and namespaces_options maps keyed by name, keeping numeric log_sampling and boolean ingest_traces. metrics_cluster takes precedence over the deprecated metrics_databases, as in the legacy provider.\",\"A populated databases list becomes one betterstack_collector_target per row, imported at its existing target ID next to the moved collector, with collector_id referencing it. Leave password and api_key out: they are write-only: Better Stack keeps them and never returns them. Never apply removal of inline blocks through the legacy provider, which deletes targets.\",\"Preserve source_id, source_group_id, live_tail_pattern, retention, Vector configuration, component flags and both VRL programs. Migration must produce no remote create, update or delete, including credential reassertion. Remove name from custom_bucket: Better Stack reads the bucket name from its endpoint.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_collector\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"split\":{\"path\":\"databases\",\"resource\":\"collector_target\",\"param\":\"collector_id\",\"match\":{\"id\":\"id\",\"kind\":\"service_type\",\"host\":\"host\",\"port\":\"port\"}},\"recipe\":\"betterstack terraform migrate moves the collector and imports one betterstack_collector_target per legacy databases row when the collector's targets, as `betterstack collector-target list --collector-id COLLECTOR_ID --team t123` lists them, hold exactly one target with the same ID, kind (legacy service_type), host and port for each row. Otherwise the collector stays on the legacy provider: fix missing, duplicate or mismatched targets and run it again, and never match targets by their position. By hand: stop other applies and keep a raw `terraform state pull` backup outside the repository. Move logtail_collector.NAME to betterstack_collector.NAME with a moved block. Never import or recreate the collector, whose bucket credentials live only in state. Configure one betterstack_collector_target per database with collector_id = betterstack_collector.NAME.id and the existing kind, host, port, username, ssl_mode and tls, leaving password and api_key out (Better Stack keeps them and never returns them), and import each at its target ID with an import block. Never apply a removal of the inline databases through the legacy provider: it deletes the targets. Require a plan with no create, update, delete or credential change.\",\"defaults\":{\"ingesting_paused\":false},\"source_attributes\":[{\"computed\":true,\"description\":\"Collector-level configuration including active components, sampling rates, batching, and VRL transformations. These settings run on the collector host inside your infrastructure.\",\"max_items\":1,\"name\":\"configuration\",\"optional\":true,\"type\":\"list(object)\",\"json\":\"configuration\"},{\"computed\":true,\"description\":\"Maximum number of events held in the collector's in-memory buffer before overflowing to the disk buffer. Defaults to 10000.\",\"name\":\"configuration.buffer_max_events\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntAtLeast.func32\"},{\"computed\":true,\"description\":\"Enable or disable specific collector components. Maps to the Logs, Metrics, and eBPF tabs in the collector settings UI.\",\"max_items\":1,\"name\":\"configuration.components\",\"optional\":true,\"type\":\"list(object)\",\"note\":\"13 bools: logs_host, logs_docker, logs_kubernetes, logs_collector_internals (Go field LogsCollectorInternal), metrics_databases, metrics_nginx, metrics_apache, metrics_traefik, ebpf_metrics, ebpf_tracing_basic, ebpf_tracing_full, traces_opentelemetry, ebpf_red_metrics\",\"json\":\"components\"},{\"computed\":true,\"description\":\"Inject the Java agent into JVMs for HTTPS visibility in eBPF traces. Requires eBPF tracing and collector v1.1.46+ on every host. Defaults to false.\",\"name\":\"configuration.components.ebpf_java_agent\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Enable eBPF-based metrics collection.\",\"name\":\"configuration.components.ebpf_metrics\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Enable service map and RED (Requests, Error rate, Duration) metrics via eBPF.\",\"name\":\"configuration.components.ebpf_red_metrics\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Enable basic eBPF tracing.\",\"name\":\"configuration.components.ebpf_tracing_basic\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Enable full eBPF tracing.\",\"name\":\"configuration.components.ebpf_tracing_full\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Collect internal collector logs.\",\"name\":\"configuration.components.logs_collector_internals\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Collect Docker container logs.\",\"name\":\"configuration.components.logs_docker\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Collect host-level logs.\",\"name\":\"configuration.components.logs_host\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Collect Kubernetes logs.\",\"name\":\"configuration.components.logs_kubernetes\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Collect Apache metrics.\",\"name\":\"configuration.components.metrics_apache\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Run the cluster agent for database metrics. Takes precedence over `metrics_databases` when both are set.\",\"name\":\"configuration.components.metrics_cluster\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"deprecated\":\"Use `metrics_cluster` instead.\",\"description\":\"Run the cluster agent for database metrics.\",\"name\":\"configuration.components.metrics_databases\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Enable the Elasticsearch metrics exporter. Defaults to true.\",\"name\":\"configuration.components.metrics_elasticsearch\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Collect CPU, memory, disk, filesystem and network metrics of the host with node_exporter, independently of `ebpf_metrics`. The API turns it on when omitted, but a `components` block that omits it on create turns it off, so set it explicitly.\",\"name\":\"configuration.components.metrics_host_os\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Enable the MySQL metrics exporter. Defaults to true.\",\"name\":\"configuration.components.metrics_mysql\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Collect Nginx metrics.\",\"name\":\"configuration.components.metrics_nginx\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Enable the PgBouncer metrics exporter. Defaults to true.\",\"name\":\"configuration.components.metrics_pgbouncer\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Enable the PostgreSQL metrics exporter. Defaults to true.\",\"name\":\"configuration.components.metrics_postgres\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Collect Traefik metrics.\",\"name\":\"configuration.components.metrics_traefik\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Accept OpenTelemetry SDK traces on ports 4317 (gRPC) and 4318 (HTTP).\",\"name\":\"configuration.components.traces_opentelemetry\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Disk buffer size in MB for outgoing requests. Minimum 256 MB.\",\"name\":\"configuration.disk_batch_size_mb\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntAtLeast.func30\"},{\"computed\":true,\"description\":\"Maximum log line length in kB. Lines longer than this are dropped by the collector to protect Vector from memory exhaustion. Higher values may use more memory. Must be between 4 and 128. Defaults to 8.\",\"name\":\"configuration.log_line_length_limit_kb\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntBetween.func34\"},{\"computed\":true,\"description\":\"Sample rate for logs (0-100).\",\"name\":\"configuration.logs_sample_rate\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntBetween.func28\"},{\"computed\":true,\"description\":\"Memory batch size in MB for outgoing requests. Maximum 40 MB.\",\"name\":\"configuration.memory_batch_size_mb\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntAtMost.func31\"},{\"computed\":true,\"description\":\"Whether to merge multi-line logs (e.g. stack traces) into single log entries on the collector host before transmission. Matches the Merge logs tab in the collector's Transform data UI.\",\"name\":\"configuration.merge_logs\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"VRL condition detecting the first line of a new log entry - consecutive lines not matching it are merged into the preceding entry. Leave unset to use the built-in heuristic (lines starting with a timestamp or log level). Only used when `merge_logs` is `true`.\",\"name\":\"configuration.merge_logs_config\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Per-namespace overrides for log sampling rate and trace ingestion (Kubernetes only). Order-independent; entries are identified by name.\",\"name\":\"configuration.namespace_option\",\"optional\":true,\"set_func\":\"provider.hashOptionEntry\",\"type\":\"set(object)\",\"note\":\"same transformation\",\"json\":\"namespaces_options\"},{\"description\":\"Whether to ingest traces for this namespace.\",\"name\":\"configuration.namespace_option.ingest_traces\",\"optional\":true,\"type\":\"bool\"},{\"description\":\"Log sampling rate (0-100).\",\"name\":\"configuration.namespace_option.log_sampling\",\"optional\":true,\"type\":\"int\"},{\"description\":\"Namespace name.\",\"name\":\"configuration.namespace_option.name\",\"required\":true,\"type\":\"string\"},{\"description\":\"Per-service overrides for log sampling rate and trace ingestion. Only includes user-managed services; internal collector services (`better-stack-beyla`, `better-stack-collector`) are excluded. Use the `logtail_collector` data source to see all discovered services.\",\"name\":\"configuration.service_option\",\"optional\":true,\"set_func\":\"provider.hashOptionEntry\",\"type\":\"set(object)\",\"note\":\"SHAPE AND NAME differ: a TF set of {name, log_sampling, ingest_traces} maps to a JSON map keyed by name. Internal better-stack-* services are filtered out of state; unmanaged server-side entries are merged back on update.\",\"json\":\"services_options\"},{\"description\":\"Whether to ingest traces for this service.\",\"name\":\"configuration.service_option.ingest_traces\",\"optional\":true,\"type\":\"bool\"},{\"description\":\"Log sampling rate (0-100).\",\"name\":\"configuration.service_option.log_sampling\",\"optional\":true,\"type\":\"int\"},{\"description\":\"Service name.\",\"name\":\"configuration.service_option.name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Sample rate for traces (0-100).\",\"name\":\"configuration.traces_sample_rate\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntBetween.func29\"},{\"computed\":true,\"description\":\"VRL transformation that runs on the collector host, inside your infrastructure, before data is transmitted to Better Stack. Use this for PII redaction and sensitive data filtering - raw data never leaves your network. For server-side transformations that run during ingestion on Better Stack, use the top-level `source_vrl_transformation` attribute instead. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.init.func4\",\"name\":\"configuration.vrl_transformation\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"What the collector does when the disk buffer is full. `drop_newest` (default) drops incoming data, preferring availability; `block` applies backpressure to producers, preferring completeness.\",\"name\":\"configuration.when_full\",\"optional\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func33\"},{\"computed\":true,\"description\":\"The time when this collector was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"description\":\"Optional custom S3-compatible bucket configuration for the collector. Can only be set when creating the collector and cannot be added, changed, or removed afterwards - recreate the collector to use a different bucket. Better Stack validates the credentials by writing and reading a test object in the bucket during creation.\",\"max_items\":1,\"name\":\"custom_bucket\",\"optional\":true,\"type\":\"list(object)\",\"note\":\"own struct collectorCustomBucket, identical 5 fields; never sent on update\"},{\"description\":\"Access key ID for the bucket.\",\"name\":\"custom_bucket.access_key_id\",\"required\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\"},{\"description\":\"Bucket endpoint including the bucket name, e.g. `https://s3.us-east-1.amazonaws.com/my-bucket` or `https://my-bucket.s3.us-east-1.amazonaws.com`.\",\"name\":\"custom_bucket.endpoint\",\"required\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\"},{\"default\":false,\"description\":\"Whether to keep data in the bucket after the retention period.\",\"name\":\"custom_bucket.keep_data_after_retention\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"deprecated\":\"Do not set the bucket name - it is always derived from `endpoint`. This attribute will be removed in a future release.\",\"description\":\"Bucket name derived from `endpoint`. Deprecated - do not set this attribute.\",\"name\":\"custom_bucket.name\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Secret access key for the bucket.\",\"name\":\"custom_bucket.secret_access_key\",\"required\":true,\"sensitive\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\"},{\"computed\":true,\"description\":\"Data region or private cluster name to create the collector in. Permitted values for most plans are: `us_west`, `germany`, `singapore`. This value can only be set at creation time and cannot be changed afterwards. The API returns the specific cluster name, which may differ from the value you provide (for example, `germany` may read back as `eu-nbg-2`).  \\nWhen importing an existing collector, leave `data_region` unset in your configuration - Terraform reads it from the API. Pinning it to an identifier that differs from the stored cluster name produces a spurious `data_region cannot be changed after collector is created` error.\",\"name\":\"data_region\",\"optional\":true,\"type\":\"string\",\"note\":\"create-only\"},{\"deprecated\":\"Use the `logtail_collector_target` resource instead.\",\"description\":\"Database connections for the collector. Deprecated - use the `logtail_collector_target` resource instead.\",\"name\":\"databases\",\"optional\":true,\"type\":\"list(object)\",\"note\":\"sub-attrs id, service_type (postgres|mysql|redis|mongodb|memcached), host, port, username, password(sensitive), ssl_mode, tls. Updates send a delta; removals carry the JSON key _destroy: true.\"},{\"description\":\"The database host.\",\"name\":\"databases.host\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this database connection (assigned by the API).\",\"name\":\"databases.id\",\"type\":\"int\"},{\"description\":\"The database password.\",\"name\":\"databases.password\",\"optional\":true,\"sensitive\":true,\"type\":\"string\"},{\"description\":\"The database port.\",\"name\":\"databases.port\",\"required\":true,\"type\":\"int\"},{\"description\":\"The type of database service.\",\"name\":\"databases.service_type\",\"required\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func35\"},{\"description\":\"SSL mode for PostgreSQL connections. Valid values: `disable`, `require`, `verify-ca`.\",\"name\":\"databases.ssl_mode\",\"optional\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func36\"},{\"description\":\"TLS mode for MySQL connections. Valid values: `false`, `true`, `skip-verify`, `preferred`.\",\"name\":\"databases.tls\",\"optional\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func37\"},{\"description\":\"The database username.\",\"name\":\"databases.username\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The number of database connections configured for this collector.\",\"name\":\"databases_count\",\"type\":\"int\"},{\"computed\":true,\"description\":\"The number of hosts connected to this collector.\",\"name\":\"hosts_count\",\"type\":\"int\"},{\"computed\":true,\"description\":\"The number of hosts currently online.\",\"name\":\"hosts_up_count\",\"type\":\"int\"},{\"computed\":true,\"description\":\"The ID of this collector.\",\"name\":\"id\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether ingestion is paused for this collector.\",\"name\":\"ingesting_paused\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Freeform text template for formatting Live tail output with columns wrapped in {column} brackets. Example: \\\"PID: {message_json.pid} {level} {message}\\\"\",\"name\":\"live_tail_pattern\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Data retention for logs in days. Allowed values: 7, 30, 60, 90, 180, 365, 730, 1095, 1460, 1825. There might be additional charges for longer retention.\",\"name\":\"logs_retention\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntInSlice.func26\"},{\"computed\":true,\"description\":\"Data retention for metrics in days. Allowed values: 7, 30, 60, 90, 180, 365, 730, 1095, 1460, 1825. There might be additional charges for longer retention.\",\"name\":\"metrics_retention\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntInSlice.func27\"},{\"description\":\"The name of this collector.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"description\":\"A description or note about this collector.\",\"name\":\"note\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this collector last received data.\",\"name\":\"pinged_at\",\"type\":\"string\"},{\"description\":\"The platform of this collector. This value can be set only when creating a new collector and cannot be changed later. Valid values are: `docker`, `swarm`, `kubernetes`.\",\"force_new\":true,\"name\":\"platform\",\"required\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func25\"},{\"computed\":true,\"description\":\"The secret token used to authenticate collector hosts.\",\"name\":\"secret\",\"sensitive\":true,\"type\":\"string\"},{\"description\":\"The ID of the source group (folder) this collector belongs to. Set to `0` to remove from a group.\",\"diff_suppress_func\":\"provider.init.func2\",\"name\":\"source_group_id\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The ID of the underlying source. Use this with `logtail_metric` to define metrics on this collector's data.\",\"name\":\"source_id\",\"type\":\"int\"},{\"computed\":true,\"description\":\"Server-side VRL transformation that runs during ingestion on Better Stack. Use this for enrichment, routing, or light normalization that doesn't involve sensitive data. For PII redaction and sensitive data filtering, prefer `configuration.vrl_transformation` which runs on the collector host and ensures raw data never leaves your network. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.init.func3\",\"name\":\"source_vrl_transformation\",\"optional\":true,\"type\":\"string\",\"note\":\"VRL-normalizing DiffSuppress\"},{\"computed\":true,\"description\":\"The current status of this collector.\",\"name\":\"status\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The team ID for this resource.\",\"name\":\"team_id\",\"type\":\"string\",\"go_type\":\"*StringOrInt\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.init.teamNameSchema.func24\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this collector was last updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Custom Vector YAML configuration for additional sources and transforms beyond the built-in component toggles. Must not contain `command:` directives.\",\"name\":\"user_vector_config\",\"optional\":true,\"type\":\"string\"}],\"response_projections\":[]}"),
 	}
 }

@@ -16,14 +16,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
-	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 )
 
 var _ resource.Resource = &ConnectionResource{}
 var _ resource.ResourceWithConfigure = &ConnectionResource{}
 var _ resource.ResourceWithImportState = &ConnectionResource{}
-var _ resource.ResourceWithConfigValidators = &ConnectionResource{}
 
 type ConnectionResource struct {
 	client *Client
@@ -36,9 +34,10 @@ func NewConnectionResource() resource.Resource {
 type ConnectionModel struct {
 	Id          types.String `tfsdk:"id"`
 	ClientType  types.String `tfsdk:"client_type"`
+	Cluster     types.String `tfsdk:"cluster"`
+	Clusters    types.List   `tfsdk:"clusters"`
 	CreatedAt   types.String `tfsdk:"created_at"`
 	CreatedBy   types.Object `tfsdk:"created_by"`
-	DataRegion  types.String `tfsdk:"data_region"`
 	DataSources types.List   `tfsdk:"data_sources"`
 	Host        types.String `tfsdk:"host"`
 	IpAllowlist types.List   `tfsdk:"ip_allowlist"`
@@ -50,6 +49,52 @@ type ConnectionModel struct {
 	TeamNames   types.List   `tfsdk:"team_names"`
 	Username    types.String `tfsdk:"username"`
 	ValidUntil  types.String `tfsdk:"valid_until"`
+}
+
+type ConnectionClustersModel struct {
+	Name types.String `tfsdk:"name"`
+	Host types.String `tfsdk:"host"`
+}
+
+func connectionClustersAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"name": types.StringType,
+		"host": types.StringType,
+	}
+}
+
+// expandConnectionClusters marshals a nested ConnectionClusters object into its request map.
+func expandConnectionClusters(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ConnectionClustersModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Host.IsNull() && !m.Host.IsUnknown() {
+		out["host"] = m.Host.ValueString()
+	}
+	return out
+}
+
+// flattenConnectionClusters refreshes a typed ConnectionClusters object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenConnectionClusters(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ConnectionClustersModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["host"]); ok {
+		m.Host = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, connectionClustersAttrTypes(), m)
+	return obj
 }
 
 type ConnectionCreatedByModel struct {
@@ -73,7 +118,7 @@ func expandConnectionCreatedBy(ctx context.Context, o types.Object) map[string]i
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
 	if !m.Id.IsNull() && !m.Id.IsUnknown() {
-		out["id"] = idToAPI(m.Id.ValueString())
+		out["id"] = m.Id.ValueString()
 	}
 	if !m.Email.IsNull() && !m.Email.IsUnknown() {
 		out["email"] = m.Email.ValueString()
@@ -125,7 +170,7 @@ func expandConnectionDataSources(ctx context.Context, o types.Object) map[string
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
 	if !m.SourceId.IsNull() && !m.SourceId.IsUnknown() {
-		out["source_id"] = idToAPI(m.SourceId.ValueString())
+		out["source_id"] = m.SourceId.ValueString()
 	}
 	if !m.SourceName.IsNull() && !m.SourceName.IsUnknown() {
 		out["source_name"] = m.SourceName.ValueString()
@@ -186,33 +231,29 @@ func (r *ConnectionResource) Metadata(ctx context.Context, req resource.Metadata
 
 func (r *ConnectionResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A ClickHouse connection for querying ingested data directly over SQL.",
+		Description:         "A ClickHouse connection for querying ingested data directly over SQL.",
+		MarkdownDescription: "A ClickHouse connection for querying ingested data directly over SQL.",
 		Attributes: map[string]schema.Attribute{
 			"id":           schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"client_type":  schema.StringAttribute{Required: true, Description: "Client protocol.", Validators: []validator.String{stringvalidator.OneOf("clickhouse", "grafana")}, PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_connection"}}},
+			"cluster":      schema.StringAttribute{Optional: true, Description: "Cluster a Grafana connection points at, by its name. Get a source (https://betterstack.com/docs/logs/api/get-a-single-source/) returns the cluster its data is stored on. Required for a Grafana connection. Leave it out for a ClickHouse connection, which reaches every cluster where its teams store data and returns null here.", MarkdownDescription: "Cluster a Grafana connection points at, by its name. [Get a source](https://betterstack.com/docs/logs/api/get-a-single-source/) returns the `cluster` its data is stored on. Required for a Grafana connection. Leave it out for a ClickHouse connection, which reaches every cluster where its teams store data and returns `null` here.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_connection"}}},
+			"clusters":     schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Computed: true, Description: "The cluster's name."}, "host": schema.StringAttribute{Computed: true, Description: "Host to connect to the cluster on."}}}, Description: "Every cluster the credential reaches, each with its name and the host to connect to.", MarkdownDescription: "Every cluster the credential reaches, each with its `name` and the `host` to connect to."},
 			"created_at":   schema.StringAttribute{Computed: true, Description: "When the connection was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"created_by":   schema.SingleNestedAttribute{Computed: true, Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true}, "email": schema.StringAttribute{Computed: true}}, Description: "User who created the connection in the web UI. Always `null` for a connection created through the API or MCP."},
-			"data_region":  schema.StringAttribute{Optional: true, Description: "Cluster name or region ID to limit the connection to. Leave it out to reach every cluster where the connection's teams store data, which is returned as `null`. Otherwise it's returned as the cluster's storage backend name.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_connection"}}},
-			"data_sources": schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"source_id": schema.StringAttribute{Computed: true}, "source_name": schema.StringAttribute{Computed: true}, "team_name": schema.StringAttribute{Computed: true}, "connection_url": schema.StringAttribute{Computed: true}, "data_sources": schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "ClickHouse collection names exposed for this source."}}}, Description: "Sources this connection can query. Not returned when listing connections."},
+			"created_by":   schema.SingleNestedAttribute{Computed: true, Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true, Description: "The creator's user ID, such as u123.", MarkdownDescription: "The creator's user ID, such as `u123`."}, "email": schema.StringAttribute{Computed: true, Description: "The creator's e-mail."}}, Description: "User who created the connection in the web UI. Always null for a connection created through the API or MCP.", MarkdownDescription: "User who created the connection in the web UI. Always `null` for a connection created through the API or MCP."},
+			"data_sources": schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"source_id": schema.StringAttribute{Computed: true, Description: "The source's ID."}, "source_name": schema.StringAttribute{Computed: true, Description: "The source's name."}, "team_name": schema.StringAttribute{Computed: true, Description: "The name of the team the source belongs to."}, "connection_url": schema.StringAttribute{Computed: true, Description: "The URL to connect to for this source's data."}, "data_sources": schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "ClickHouse collection names you can query for this source."}}}, Description: "Sources this connection can query. Not returned when listing connections."},
 			"host":         schema.StringAttribute{Computed: true, Description: "Connection host."},
 			"ip_allowlist": schema.ListAttribute{Optional: true, Computed: true, Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})), ElementType: types.StringType, Description: "Allowed source IPs or CIDRs.", PlanModifiers: []planmodifier.List{replaceWarningList{listplanmodifier.RequiresReplace(), "betterstack_connection"}}},
 			"note":         schema.StringAttribute{Optional: true, Description: "Free-form note.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_connection"}}},
 			"password":     schema.StringAttribute{Computed: true, Description: "Connection password. Returned only when the connection is created and never again, so save it then.", Sensitive: true},
 			"port":         schema.Int64Attribute{Computed: true, Description: "Connection port."},
-			"sample_query": schema.StringAttribute{Computed: true, Description: "An example query to get started. Not returned when listing connections."},
-			"team_ids":     schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Teams whose data this connection reaches, as `t`-prefixed team IDs such as `t123`. Give either `team_ids` or `team_names`, not both. At least one of `team_ids` or `team_names` must be configured.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown(), replaceWarningList{listplanmodifier.RequiresReplaceIfConfigured(), "betterstack_connection"}}},
-			"team_names":   schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Names of the teams whose data this connection reaches. Give either `team_ids` or `team_names`, not both. At least one of `team_ids` or `team_names` must be configured.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown(), replaceWarningList{listplanmodifier.RequiresReplaceIfConfigured(), "betterstack_connection"}}},
-			"username":     schema.StringAttribute{Computed: true, Description: "Connection username."},
-			"valid_until":  schema.StringAttribute{Optional: true, Description: "When the credential expires.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_connection"}}},
+			"sample_query": schema.StringAttribute{Computed: true, Description: "An example curl query to get started. The response that creates the connection includes its password here, and later reads show INSERT_PASSWORD instead. Not returned when listing connections.", MarkdownDescription: "An example `curl` query to get started. The response that creates the connection includes its password here, and later reads show `INSERT_PASSWORD` instead. Not returned when listing connections.", Sensitive: true},
+			"team_ids":     schema.ListAttribute{Required: true, ElementType: types.StringType, Description: "Teams whose data this connection reaches, as t-prefixed team IDs such as t123. Get the IDs via List teams (https://betterstack.com/docs/uptime/api/teams/list/).", MarkdownDescription: "Teams whose data this connection reaches, as `t`-prefixed team IDs such as `t123`. Get the IDs via [List teams](https://betterstack.com/docs/uptime/api/teams/list/).", PlanModifiers: []planmodifier.List{replaceWarningList{listplanmodifier.RequiresReplace(), "betterstack_connection"}}},
+			"team_names":   schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "Names of the teams whose data this connection reaches."},
+			"username":     schema.StringAttribute{Computed: true, Description: "The username to connect with."},
+			"valid_until":  schema.StringAttribute{Optional: true, Description: "When the credential expires, or null if it never does.", MarkdownDescription: "When the credential expires, or `null` if it never does.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_connection"}}},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
-}
-
-func (r *ConnectionResource) ConfigValidators(context.Context) []resource.ConfigValidator {
-	return []resource.ConfigValidator{
-		resourcevalidator.AtLeastOneOf(path.MatchRoot("team_ids"), path.MatchRoot("team_names")),
-	}
 }
 
 func (r *ConnectionResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -229,18 +270,13 @@ func (r *ConnectionResource) body(ctx context.Context, m ConnectionModel) map[st
 	if !m.ClientType.IsNull() && !m.ClientType.IsUnknown() {
 		body["client_type"] = m.ClientType.ValueString()
 	}
-	if !m.DataRegion.IsNull() && !m.DataRegion.IsUnknown() {
-		body["data_region"] = m.DataRegion.ValueString()
+	if !m.Cluster.IsNull() && !m.Cluster.IsUnknown() {
+		body["cluster"] = m.Cluster.ValueString()
 	}
 	if !m.TeamIds.IsNull() && !m.TeamIds.IsUnknown() {
 		var vals []string
 		m.TeamIds.ElementsAs(ctx, &vals, false)
 		body["team_ids"] = vals
-	}
-	if !m.TeamNames.IsNull() && !m.TeamNames.IsUnknown() {
-		var vals []string
-		m.TeamNames.ElementsAs(ctx, &vals, false)
-		body["team_names"] = vals
 	}
 	if !m.IpAllowlist.IsNull() && !m.IpAllowlist.IsUnknown() {
 		var vals []string
@@ -249,6 +285,8 @@ func (r *ConnectionResource) body(ctx context.Context, m ConnectionModel) map[st
 	}
 	if !m.ValidUntil.IsNull() && !m.ValidUntil.IsUnknown() {
 		body["valid_until"] = m.ValidUntil.ValueString()
+	} else if m.ValidUntil.IsNull() {
+		body["valid_until"] = nil
 	}
 	if !m.Note.IsNull() && !m.Note.IsUnknown() {
 		body["note"] = m.Note.ValueString()
@@ -259,8 +297,8 @@ func (r *ConnectionResource) body(ctx context.Context, m ConnectionModel) map[st
 // updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
 func (r *ConnectionResource) updateBody(ctx context.Context, config, plan, state ConnectionModel) map[string]interface{} {
 	body := r.body(ctx, config)
-	if !state.DataRegion.IsNull() && !state.DataRegion.IsUnknown() && plan.DataRegion.IsNull() {
-		body["data_region"] = nil
+	if !state.Cluster.IsNull() && !state.Cluster.IsUnknown() && plan.Cluster.IsNull() {
+		body["cluster"] = nil
 	}
 	if !state.ValidUntil.IsNull() && !state.ValidUntil.IsUnknown() && plan.ValidUntil.IsNull() {
 		body["valid_until"] = nil
@@ -282,6 +320,13 @@ func (r *ConnectionResource) Create(ctx context.Context, req resource.CreateRequ
 	}
 	vars := map[string]string{}
 	out, err := r.client.Create(ctx, connectionBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating connection", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating connection", err, req.Plan.Raw.Type())
 		return
@@ -330,16 +375,27 @@ func populateConnection(ctx context.Context, m *ConnectionModel, attrs map[strin
 	if v, ok := stringFromAPI(attrs["client_type"]); ok {
 		m.ClientType = types.StringValue(v)
 	}
-	if m.DataRegion.IsNull() || m.DataRegion.IsUnknown() {
-		if rawValue, exists := attrs["data_region"]; exists {
+	if m.Cluster.IsNull() || m.Cluster.IsUnknown() {
+		if rawValue, exists := attrs["cluster"]; exists {
 			if rawValue == nil {
-				m.DataRegion = types.StringNull()
+				m.Cluster = types.StringNull()
 			} else {
-				if v, ok := stringFromAPI(attrs["data_region"]); ok {
-					m.DataRegion = types.StringValue(v)
+				if v, ok := stringFromAPI(attrs["cluster"]); ok {
+					m.Cluster = types.StringValue(v)
 				}
 			}
 		}
+	}
+	if raw, ok := attrs["clusters"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(connectionClustersAttrTypes())
+				items = append(items, flattenConnectionClusters(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: connectionClustersAttrTypes()}, items)
+		m.Clusters = lv
 	}
 	if raw, ok := attrs["team_ids"].([]interface{}); ok {
 		vals := make([]string, 0, len(raw))
@@ -460,6 +516,7 @@ func (r *ConnectionResource) Delete(ctx context.Context, req resource.DeleteRequ
 
 func (r *ConnectionResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("ip_allowlist"), types.ListValueMust(types.StringType, []attr.Value{}))...)
 }
 
 var _ resource.ResourceWithMoveState = &ConnectionResource{}
@@ -468,6 +525,6 @@ var _ resource.ResourceWithMoveState = &ConnectionResource{}
 // logtail_connection (registry.terraform.io/BetterStackHQ/logtail).
 func (r *ConnectionResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"sentinel_null\",\"path\":\"valid_until\",\"value\":\"\"}],\"ignored_fields\":[\"team_ids\"],\"instructions\":[\"Read GET /api/v2/connections/:id with credentials authorized for the full connection: its team_ids are the t-prefixed ids of the teams the legacy numeric team_ids named. Replace a legacy team_ids configuration with precisely that set (or keep team_names as it is); never use a single selected team as a substitute for a multi-team connection or prefix app-local IDs yourself.\",\"Move the existing state; never remove/import or recreate this credential: password is only returned on creation and must remain in sensitive state. Keep host, port, username, password, sample_query, data_sources, client_type, data_region, IP allowlist, expiry, note and creator. Preserve configured data_region and valid_until rather than API-normalized variants. Verify no credential rotation or replacement in the plan.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_connection\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"scope\":{\"field\":\"team_ids\",\"kind\":\"set\"},\"source_attributes\":[{\"description\":\"Type of client connection. Currently only `clickhouse` is supported.\",\"force_new\":true,\"name\":\"client_type\",\"required\":true,\"type\":\"string\",\"json\":\"client_type\"},{\"computed\":true,\"description\":\"The time when this connection was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Information about the user who created this connection.\",\"name\":\"created_by\",\"type\":\"map(string)\",\"note\":\"always null for API-created connections\"},{\"description\":\"Data region or private cluster name. Permitted values for most plans are: `us_west`, `germany`, `singapore`.\",\"force_new\":true,\"name\":\"data_region\",\"optional\":true,\"type\":\"string\",\"note\":\"user value preserved over API normalization\"},{\"computed\":true,\"description\":\"List of available data sources for this connection.\",\"name\":\"data_sources\",\"type\":\"list(object)\"},{\"computed\":true,\"description\":\"\",\"name\":\"data_sources.data_sources\",\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"\",\"name\":\"data_sources.source_id\",\"type\":\"int\"},{\"computed\":true,\"description\":\"\",\"name\":\"data_sources.source_name\",\"type\":\"string\"},{\"computed\":true,\"description\":\"\",\"name\":\"data_sources.team_name\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The connection hostname.\",\"name\":\"host\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this connection.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"Array of IP addresses or CIDR ranges that are allowed to use this connection.\",\"force_new\":true,\"name\":\"ip_allowlist\",\"optional\":true,\"type\":\"list(string)\"},{\"description\":\"A descriptive note for the connection.\",\"force_new\":true,\"name\":\"note\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The connection password. Only available immediately after creation.\",\"name\":\"password\",\"sensitive\":true,\"type\":\"string\",\"note\":\"returned only at create; preserved in state thereafter\"},{\"computed\":true,\"description\":\"The connection port.\",\"name\":\"port\",\"type\":\"int\"},{\"computed\":true,\"description\":\"A sample query showing how to use this connection.\",\"name\":\"sample_query\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Array of team IDs to associate with the connection. Only one of `team_names` or `team_ids` should be provided.\",\"force_new\":true,\"name\":\"team_ids\",\"optional\":true,\"type\":\"list(int)\"},{\"computed\":true,\"description\":\"Array of team names to associate with the connection. Only one of `team_names` or `team_ids` should be provided.\",\"force_new\":true,\"name\":\"team_names\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"The connection username.\",\"name\":\"username\",\"type\":\"string\"},{\"description\":\"ISO 8601 timestamp when the connection expires.\",\"force_new\":true,\"name\":\"valid_until\",\"optional\":true,\"type\":\"string\",\"note\":\"user value preserved\"}],\"response_projections\":[]}"),
+		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"sentinel_null\",\"path\":\"valid_until\",\"value\":\"\"},{\"op\":\"string_id\",\"path\":\"data_sources[].source_id\"}],\"ignored_fields\":[\"team_ids\",\"data_region\"],\"instructions\":[\"Run `betterstack connection get ID` with a token that can see every team of the connection: its team_ids are the t-prefixed IDs of the teams the legacy numeric team_ids named. Replace a legacy team_ids or team_names configuration with exactly that set, since team_names is only read back now. Never use one selected team in place of a multi-team connection, and never prefix the old numbers yourself.\",\"Move the existing state. Never remove and import or recreate this connection: its password is shown only when the connection is created and must stay in sensitive state. Keep host, port, username, password, sample_query, data_sources, client_type, the IP allowlist, expiry, note and creator. Remove data_region from a ClickHouse connection's configuration: the connection stays limited to its cluster, which is only read back in cluster, and Better Stack refuses cluster on a ClickHouse connection. For a Grafana connection, set cluster to the cluster name `betterstack connection get ID` shows. Keep valid_until as configured, not the normalized value Better Stack reads back. Check that the plan neither rotates nor replaces the credential.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_connection\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"scope\":{\"field\":\"team_ids\",\"kind\":\"set\"},\"refreshed_fields\":[\"team_ids\"],\"defaults\":{\"ip_allowlist\":[]},\"source_attributes\":[{\"description\":\"Type of client connection. Currently only `clickhouse` is supported.\",\"force_new\":true,\"name\":\"client_type\",\"required\":true,\"type\":\"string\",\"json\":\"client_type\"},{\"computed\":true,\"description\":\"The time when this connection was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Information about the user who created this connection.\",\"name\":\"created_by\",\"type\":\"map(string)\",\"note\":\"always null for API-created connections\"},{\"description\":\"Data region or private cluster name. Permitted values for most plans are: `us_west`, `germany`, `singapore`.\",\"force_new\":true,\"name\":\"data_region\",\"optional\":true,\"type\":\"string\",\"note\":\"user value preserved over API normalization\"},{\"computed\":true,\"description\":\"List of available data sources for this connection.\",\"name\":\"data_sources\",\"type\":\"list(object)\"},{\"computed\":true,\"description\":\"\",\"name\":\"data_sources.data_sources\",\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"\",\"name\":\"data_sources.source_id\",\"type\":\"int\"},{\"computed\":true,\"description\":\"\",\"name\":\"data_sources.source_name\",\"type\":\"string\"},{\"computed\":true,\"description\":\"\",\"name\":\"data_sources.team_name\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The connection hostname.\",\"name\":\"host\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this connection.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"Array of IP addresses or CIDR ranges that are allowed to use this connection.\",\"force_new\":true,\"name\":\"ip_allowlist\",\"optional\":true,\"type\":\"list(string)\"},{\"description\":\"A descriptive note for the connection.\",\"force_new\":true,\"name\":\"note\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The connection password. Only available immediately after creation.\",\"name\":\"password\",\"sensitive\":true,\"type\":\"string\",\"note\":\"returned only at create; preserved in state thereafter\"},{\"computed\":true,\"description\":\"The connection port.\",\"name\":\"port\",\"type\":\"int\"},{\"computed\":true,\"description\":\"A sample query showing how to use this connection.\",\"name\":\"sample_query\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Array of team IDs to associate with the connection. Only one of `team_names` or `team_ids` should be provided.\",\"force_new\":true,\"name\":\"team_ids\",\"optional\":true,\"type\":\"list(int)\"},{\"computed\":true,\"description\":\"Array of team names to associate with the connection. Only one of `team_names` or `team_ids` should be provided.\",\"force_new\":true,\"name\":\"team_names\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"The connection username.\",\"name\":\"username\",\"type\":\"string\"},{\"description\":\"ISO 8601 timestamp when the connection expires.\",\"force_new\":true,\"name\":\"valid_until\",\"optional\":true,\"type\":\"string\",\"note\":\"user value preserved\"}],\"response_projections\":[]}"),
 	}
 }

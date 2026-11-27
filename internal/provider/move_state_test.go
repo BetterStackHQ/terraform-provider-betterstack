@@ -353,6 +353,35 @@ func TestLegacyIgnoredFieldsAreExplicitAndNested(t *testing.T) {
 	}
 }
 
+func TestLegacyWrapTurnsEachValueIntoAnObjectInOrder(t *testing.T) {
+	transform := migrationTransform{Op: "wrap", Path: "routes[].channel_ids", To: "routes[].channels", Key: "id"}
+	state := map[string]interface{}{"routes": []interface{}{
+		map[string]interface{}{"channel_ids": []interface{}{"b", "a"}, "applications": []interface{}{}},
+		map[string]interface{}{"channel_ids": nil},
+	}}
+	if err := applyMigrationTransform(state, transform); err != nil {
+		t.Fatal(err)
+	}
+	first := state["routes"].([]interface{})[0].(map[string]interface{})
+	channels := first["channels"].([]interface{})
+	if len(channels) != 2 || channels[0].(map[string]interface{})["id"] != "b" || channels[1].(map[string]interface{})["id"] != "a" {
+		t.Fatal("wrapped values lost or reordered")
+	}
+	if _, exists := first["channel_ids"]; exists {
+		t.Fatal("source field survived wrap")
+	}
+	for _, rows := range []interface{}{
+		[]interface{}{map[string]interface{}{"id": "x"}},
+		[]interface{}{[]interface{}{"x"}},
+		[]interface{}{nil},
+		"not a list",
+	} {
+		if err := applyMigrationTransform(map[string]interface{}{"routes": []interface{}{map[string]interface{}{"channel_ids": rows}}}, transform); err == nil {
+			t.Fatal("a value that is not plain was wrapped")
+		}
+	}
+}
+
 func TestLegacyIndexByPreservesValuesAndRejectsAmbiguousKeys(t *testing.T) {
 	transform := migrationTransform{Op: "index_by", Path: "service_option", To: "services_options", Key: "name"}
 	state := map[string]interface{}{"service_option": []interface{}{
@@ -451,9 +480,8 @@ func TestLegacyMigrationManifestMatchesRegisteredMovers(t *testing.T) {
 	}
 }
 
-// These cases were shared with `betterstack terraform migrate`, which had its own port of this
-// mover in the Go CLI. That command went with the Go CLI and is not in the Rust one yet; the cases
-// stay beside the CLI so a port has to pass them too.
+// These cases are shared with `betterstack terraform migrate`, which has its own port of this
+// mover in the CLI (cli/src/terraform/convert.rs): both have to pass them.
 func TestLegacyMoveMatchesCLIParityCases(t *testing.T) {
 	raw, err := os.ReadFile("../../../../cli/testdata/terraform_move_parity.json")
 	if os.IsNotExist(err) {

@@ -67,7 +67,8 @@ func (d *DashboardTemplateDataSource) Metadata(ctx context.Context, req datasour
 
 func (d *DashboardTemplateDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A prebuilt dashboard template that can be exported and imported to create a dashboard.",
+		Description:         "A prebuilt dashboard template that can be exported and imported to create a dashboard.",
+		MarkdownDescription: "A prebuilt dashboard template that can be exported and imported to create a dashboard.",
 		Attributes: map[string]schema.Attribute{
 			"id":          schema.StringAttribute{Optional: true, Computed: true, Description: "Look up by id, or by name."},
 			"categories":  schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "Categories the template is filed under."},

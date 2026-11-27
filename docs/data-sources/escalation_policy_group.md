@@ -2,12 +2,12 @@
 page_title: "betterstack_escalation_policy_group Data Source - terraform-provider-betterstack"
 subcategory: "Incidents"
 description: |-
-  An escalation policy group: a container that groups related escalation policies.
+  An escalation policy group, a container that groups related escalation policies.
 ---
 
 # betterstack_escalation_policy_group (Data Source)
 
-An escalation policy group: a container that groups related escalation policies.
+An escalation policy group, a container that groups related escalation policies.
 
 ## Example Usage
 
@@ -21,20 +21,16 @@ data "betterstack_escalation_policy_group" "example" {
 
 ### Required
 
-- `id` (String) The id of the escalation_policy_group to look up.
+- `id` (String) The ID of the escalation policy group to look up.
+
+### Optional
+
+- `team_id` (String) Team that owns this group, such as `t123`. Defaults to the provider's `team_id`. Set it to look the object up in another team.
 
 ### Read-Only
 
 - `name` (String) Group name.
-- `team_name` (String) Name of the team that owns this group.
-- `sort_index` (Number) Display order of the group among the team's escalation policy groups. When writing, you can also send it as position.
+- `sort_index` (Number) The group's position in your list of escalation policy groups, lower values first. `null` when no position was set.
 - `created_at` (String (RFC 3339)) When the group was created.
 - `updated_at` (String (RFC 3339)) When the group was last updated.
-
-## Endpoints
-
-- `GET /api/v3/escalation-policy-groups`
-- `GET /api/v3/escalation-policy-groups/:id`
-- `POST /api/v3/escalation-policy-groups`
-- `PATCH /api/v3/escalation-policy-groups/:id`
-- `DELETE /api/v3/escalation-policy-groups/:id`
+- `team_name` (String) Name of the team that owns this group.

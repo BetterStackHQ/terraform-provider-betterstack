@@ -4,9 +4,11 @@ package provider
 import (
 	"context"
 	"fmt"
+	"net/url"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -27,34 +29,37 @@ func (d *HeartbeatDataSource) Metadata(ctx context.Context, req datasource.Metad
 
 func (d *HeartbeatDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A heartbeat that expects a periodic ping and alerts if one fails to arrive in time.",
+		Description:         "A heartbeat that expects a periodic ping and alerts if one fails to arrive in time.",
+		MarkdownDescription: "A heartbeat that expects a periodic ping and alerts if one fails to arrive in time.",
 		Attributes: map[string]schema.Attribute{
-			"id":                   schema.StringAttribute{Required: true, Description: "Id of the heartbeat to look up."},
-			"call":                 schema.BoolAttribute{Computed: true, Description: "Alert by phone call."},
+			"id":                   schema.StringAttribute{Optional: true, Computed: true, Description: "Look up by id, or by name / status."},
+			"call":                 schema.BoolAttribute{Computed: true, Description: "Whether to call the on-call person. Ignored while an escalation policy is set."},
 			"created_at":           schema.StringAttribute{Computed: true, Description: "When the heartbeat was created."},
-			"critical_alert":       schema.BoolAttribute{Computed: true, Description: "Alert by a critical push notification that bypasses silent mode."},
-			"email":                schema.BoolAttribute{Computed: true, Description: "Alert by e-mail."},
-			"escalation_policy_id": schema.StringAttribute{Computed: true, Description: "ID of the escalation policy used for alerts. Returned as a string. You can send it as a number or a string."},
-			"grace":                schema.Int64Attribute{Computed: true, Description: "How long to wait after the period before alerting, in seconds. At least 0."},
+			"critical_alert":       schema.BoolAttribute{Computed: true, Description: "Whether to send a critical push notification that ignores the mute switch and Do Not Disturb mode. Ignored while an escalation policy is set."},
+			"deletion_protection":  schema.BoolAttribute{Computed: true, Description: "Always null: deletion protection is a setting of the managed resource."},
+			"email":                schema.BoolAttribute{Computed: true, Description: "Whether to send an e-mail to the on-call person. Ignored while an escalation policy is set."},
+			"escalation_policy_id": schema.StringAttribute{Computed: true, Description: "ID of the escalation policy for alerts, or null to alert the current on-call person directly. Get the ID via List escalation policies (https://betterstack.com/docs/uptime/api/list-all-escalation-policies/).", MarkdownDescription: "ID of the escalation policy for alerts, or `null` to alert the current on-call person directly. Get the ID via [List escalation policies](https://betterstack.com/docs/uptime/api/list-all-escalation-policies/)."},
+			"grace":                schema.Int64Attribute{Computed: true, Description: "How late a request can arrive after period, in seconds, before it counts as missed. At least 0 and less than a year.", MarkdownDescription: "How late a request can arrive after `period`, in seconds, before it counts as missed. At least `0` and less than a year."},
 			"heartbeat_group_id":   schema.StringAttribute{Computed: true, Description: "ID of the heartbeat group this heartbeat belongs to."},
-			"maintenance_days":     schema.SetAttribute{Computed: true, ElementType: types.StringType, Description: "Days of the week the maintenance window applies to."},
-			"maintenance_from":     schema.StringAttribute{Computed: true, Description: "Start time of the maintenance window, as `HH:MM:SS`."},
-			"maintenance_timezone": schema.StringAttribute{Computed: true, Description: "Time zone of the maintenance window."},
-			"maintenance_to":       schema.StringAttribute{Computed: true, Description: "End time of the maintenance window, as `HH:MM:SS`."},
-			"metadata":             schema.MapNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"values": schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Computed: true, Description: "`String`, or the type of the referenced item."}, "value": schema.StringAttribute{Computed: true, Description: "The text of a String value."}, "item_id": schema.StringAttribute{Computed: true, Description: "ID of the referenced item: a number, or for a team its ID starting with `t`, such as `t123`."}, "name": schema.StringAttribute{Computed: true, Description: "Referenced item's name."}, "email": schema.StringAttribute{Computed: true, Description: "Referenced user's e-mail."}}}}}}, Description: "Custom metadata. Each key holds a list of values. A value is a string, written as `{type: \"String\", value}`, or a catalog reference, written as `{type, item_id, name, email}`. Team references are returned as team IDs such as `t123`."},
-			"name":                 schema.StringAttribute{Computed: true, Description: "Heartbeat name."},
-			"paused":               schema.BoolAttribute{Computed: true, Description: "Whether the heartbeat is paused."},
+			"maintenance_days":     schema.SetAttribute{Computed: true, ElementType: types.StringType, Description: "Days of the week the maintenance window applies to, any of mon, tue, wed, thu, fri, sat and sun. An overnight window counts for the day it starts.", MarkdownDescription: "Days of the week the maintenance window applies to, any of `mon`, `tue`, `wed`, `thu`, `fri`, `sat` and `sun`. An overnight window counts for the day it starts."},
+			"maintenance_from":     schema.StringAttribute{Computed: true, Description: "Start time of the daily maintenance window, like 01:00. We don't check the heartbeat during the window. Returned as HH:MM:SS, or null when no window is set.", MarkdownDescription: "Start time of the daily maintenance window, like `01:00`. We don't check the heartbeat during the window. Returned as `HH:MM:SS`, or `null` when no window is set."},
+			"maintenance_timezone": schema.StringAttribute{Computed: true, Description: "Time zone of the maintenance window, as a Rails time zone name like Amsterdam or an IANA name like Europe/Amsterdam. Returned as the Rails name. null means UTC.", MarkdownDescription: "Time zone of the maintenance window, as a Rails time zone name like `Amsterdam` or an IANA name like `Europe/Amsterdam`. Returned as the Rails name. `null` means UTC."},
+			"maintenance_to":       schema.StringAttribute{Computed: true, Description: "End time of the daily maintenance window, like 03:00. Required with maintenance_from. A window that ends before it starts runs overnight. Returned as HH:MM:SS, or null when no window is set.", MarkdownDescription: "End time of the daily maintenance window, like `03:00`. Required with `maintenance_from`. A window that ends before it starts runs overnight. Returned as `HH:MM:SS`, or `null` when no window is set."},
+			"metadata":             schema.MapNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"values": schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Computed: true, Description: "String, or the type of the referenced item, which is one of User, Team, EscalationPolicy, OnCallSchedule, Monitor, SlackIntegration, LinearIntegration, JiraIntegration, MicrosoftTeamsIntegration, ZapierZap, OutgoingWebhook, PagerDutyIntegration or Source.", MarkdownDescription: "`String`, or the type of the referenced item, which is one of `User`, `Team`, `EscalationPolicy`, `OnCallSchedule`, `Monitor`, `SlackIntegration`, `LinearIntegration`, `JiraIntegration`, `MicrosoftTeamsIntegration`, `ZapierZap`, `OutgoingWebhook`, `PagerDutyIntegration` or `Source`."}, "value": schema.StringAttribute{Computed: true, Description: "The text of a String value.", MarkdownDescription: "The text of a `String` value."}, "item_id": schema.StringAttribute{Computed: true, Description: "ID of the referenced item. For a user it's u123 or their e-mail. For a team it's t123, and for any other item it's the item's own ID. Responses return users and teams in this form. Get a user's ID via List team members (https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via List teams (https://betterstack.com/docs/uptime/api/teams/list/).", MarkdownDescription: "ID of the referenced item. For a user it's `u123` or their e-mail. For a team it's `t123`, and for any other item it's the item's own ID. Responses return users and teams in this form. Get a user's ID via [List team members](https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via [List teams](https://betterstack.com/docs/uptime/api/teams/list/).", Validators: []validator.String{patternWhenString{Sibling: "type", Patterns: map[string]string{"User": "^(u[1-9][0-9]*|[^@/\\s]+@[^@/\\s]+)$", "Team": "^t[1-9][0-9]*$"}}}}, "name": schema.StringAttribute{Computed: true, Description: "Referenced item's name, or null when the item has no name or no longer exists. An item can also be found by its name instead of item_id.", MarkdownDescription: "Referenced item's name, or `null` when the item has no name or no longer exists. An item can also be found by its name instead of `item_id`."}, "email": schema.StringAttribute{Computed: true, Description: "Referenced user's e-mail, returned for a User. A user can also be found by e-mail."}}}}}}, Description: "Custom metadata. Each key holds a list of values. A value is a string, written as {type: \"String\", value}, or a catalog reference, written as {type, item_id, name, email}. User references are returned as u123 and team references as t123. Get a user's ID via List team members (https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via List teams (https://betterstack.com/docs/uptime/api/teams/list/). Values under one key must all be the same type and can't repeat.", MarkdownDescription: "Custom metadata. Each key holds a list of values. A value is a string, written as `{type: \"String\", value}`, or a catalog reference, written as `{type, item_id, name, email}`. User references are returned as `u123` and team references as `t123`. Get a user's ID via [List team members](https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via [List teams](https://betterstack.com/docs/uptime/api/teams/list/). Values under one key must all be the same type and can't repeat."},
+			"name":                 schema.StringAttribute{Optional: true, Computed: true, Description: "Heartbeat name."},
+			"paused":               schema.BoolAttribute{Computed: true, Description: "Whether the heartbeat is paused. A paused heartbeat doesn't notify you about downtime."},
 			"paused_at":            schema.StringAttribute{Computed: true, Description: "When the heartbeat was paused."},
-			"period":               schema.Int64Attribute{Computed: true, Description: "Expected time between pings, in seconds. At least 30 and less than a year."},
-			"push":                 schema.BoolAttribute{Computed: true, Description: "Alert by push notification."},
-			"server_timezone":      schema.StringAttribute{Computed: true, Description: "IANA time zone, such as `Europe/London`, that keeps expected pings at the same local time of day. Only accepted for a period of 1 hour (3600 seconds) or more."},
-			"sms":                  schema.BoolAttribute{Computed: true, Description: "Alert by SMS."},
-			"sort_index":           schema.Int64Attribute{Computed: true, Description: "Display order within the group."},
-			"status":               schema.StringAttribute{Computed: true, Description: "Current heartbeat status."},
+			"period":               schema.Int64Attribute{Computed: true, Description: "How often the heartbeat expects a request, in seconds. At least 30 and less than a year.", MarkdownDescription: "How often the heartbeat expects a request, in seconds. At least `30` and less than a year."},
+			"push":                 schema.BoolAttribute{Computed: true, Description: "Whether to send a push notification to the on-call person. Ignored while an escalation policy is set."},
+			"server_timezone":      schema.StringAttribute{Computed: true, Description: "The server's time zone, an IANA name like Europe/Berlin, so missed heartbeats are counted in its local time across daylight saving changes.", MarkdownDescription: "The server's time zone, an IANA name like `Europe/Berlin`, so missed heartbeats are counted in its local time across daylight saving changes."},
+			"sms":                  schema.BoolAttribute{Computed: true, Description: "Whether to send an SMS to the on-call person. Ignored while an escalation policy is set."},
+			"sort_index":           schema.Int64Attribute{Computed: true, Description: "A sort value you can set through the API. The dashboard doesn't use it to order heartbeats."},
+			"status":               schema.StringAttribute{Optional: true, Computed: true, Description: "The heartbeat's current status.\n\n- paused: The heartbeat is paused.\n- pending: The first request hasn't arrived yet.\n- maintenance: The heartbeat is in its maintenance window.\n- up: There's no open incident.\n- validating: Requests arrive again, and the open incident resolves once the recovery period passes.\n- down: A request didn't arrive in time or reported a failure.", MarkdownDescription: "The heartbeat's current status.\n\n- `paused`: The heartbeat is paused.\n- `pending`: The first request hasn't arrived yet.\n- `maintenance`: The heartbeat is in its maintenance window.\n- `up`: There's no open incident.\n- `validating`: Requests arrive again, and the open incident resolves once the recovery period passes.\n- `down`: A request didn't arrive in time or reported a failure."},
+			"team_id":              schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns this heartbeat, such as t123. Defaults to the provider's team_id. Set it to look the object up in another team.", MarkdownDescription: "Team that owns this heartbeat, such as `t123`. Defaults to the provider's `team_id`. Set it to look the object up in another team.", Validators: []validator.String{teamIDValidator()}},
 			"team_name":            schema.StringAttribute{Computed: true, Description: "Name of the team that owns this heartbeat."},
-			"team_wait":            schema.Int64Attribute{Computed: true, Description: "Seconds before escalating to the whole team."},
+			"team_wait":            schema.Int64Attribute{Computed: true, Description: "Seconds to wait before escalating to the whole team. 0 alerts the whole team right away, and null never escalates to the team. Ignored while an escalation policy is set.", MarkdownDescription: "Seconds to wait before escalating to the whole team. `0` alerts the whole team right away, and `null` never escalates to the team. Ignored while an escalation policy is set."},
 			"updated_at":           schema.StringAttribute{Computed: true, Description: "When the heartbeat was last updated."},
-			"url":                  schema.StringAttribute{Computed: true, Description: "URL to send pings to.", Sensitive: true},
+			"url":                  schema.StringAttribute{Computed: true, Description: "The unique URL your service requests to report a heartbeat.", Sensitive: true},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -73,16 +78,118 @@ func (d *HeartbeatDataSource) Read(ctx context.Context, req datasource.ReadReque
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	vars := map[string]string{}
-	vars["id"] = data.Id.ValueString()
-	out, found, err := d.client.GetDataSource(ctx, heartbeatBinding, vars)
-	if err != nil {
-		addAPIError(&resp.Diagnostics, "reading heartbeat", err, req.Config.Raw.Type())
-		return
-	}
-	if !found {
-		resp.Diagnostics.AddError("heartbeat not found", fmt.Sprintf("no heartbeat with id %s", data.Id.ValueString()))
-		return
+	ctx = inTeam(ctx, data.TeamId.ValueString())
+	var out map[string]interface{}
+	if !data.Id.IsNull() && !data.Id.IsUnknown() && data.Id.ValueString() != "" {
+		vars := map[string]string{}
+		vars["id"] = data.Id.ValueString()
+		got, found, err := d.client.GetDataSource(ctx, heartbeatBinding, vars)
+		if err != nil {
+			addAPIError(&resp.Diagnostics, "reading heartbeat", err, req.Config.Raw.Type())
+			return
+		}
+		if !found {
+			resp.Diagnostics.AddError("heartbeat not found", fmt.Sprintf("no heartbeat with id %s", data.Id.ValueString()))
+			return
+		}
+		out = got
+		if !data.Name.IsNull() && !data.Name.IsUnknown() && data.Name.ValueString() != "" {
+			matched := false
+			for _, field := range []string{"name"} {
+				if stringifyScalar(out[field]) == data.Name.ValueString() {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				resp.Diagnostics.AddError("heartbeat lookup conflicts with id", "The selected object does not match configured name.")
+				return
+			}
+		}
+		if !data.Status.IsNull() && !data.Status.IsUnknown() && data.Status.ValueString() != "" {
+			matched := false
+			for _, field := range []string{"status"} {
+				if stringifyScalar(out[field]) == data.Status.ValueString() {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				resp.Diagnostics.AddError("heartbeat lookup conflicts with id", "The selected object does not match configured status.")
+				return
+			}
+		}
+	} else {
+		// Lookup by filter: narrow server-side with the filters the list endpoint declares, then
+		// require an exact, unambiguous client-side match.
+		vars := map[string]string{}
+		q := url.Values{}
+		want := map[string]string{}
+		alternatives := map[string][]string{
+			"name":   {"name"},
+			"status": {"status"},
+		}
+		if !data.Name.IsNull() && !data.Name.IsUnknown() && data.Name.ValueString() != "" {
+			q.Set("name", data.Name.ValueString())
+			want["name"] = data.Name.ValueString()
+		}
+		if !data.Status.IsNull() && !data.Status.IsUnknown() && data.Status.ValueString() != "" {
+			q.Set("status", data.Status.ValueString())
+			want["status"] = data.Status.ValueString()
+		}
+		if len(want) == 0 {
+			resp.Diagnostics.AddError("missing heartbeat lookup", "Set id or one of: name, status.")
+			return
+		}
+		records, err := d.client.List(ctx, heartbeatBinding, vars, q)
+		if err != nil {
+			addAPIError(&resp.Diagnostics, "reading heartbeat", err, req.Config.Raw.Type())
+			return
+		}
+		var matches []map[string]interface{}
+		for _, rec := range records {
+			ok := true
+			for k, v := range want {
+				matched := false
+				for _, field := range alternatives[k] {
+					if stringifyScalar(rec[field]) == v {
+						matched = true
+						break
+					}
+				}
+				if !matched {
+					ok = false
+					break
+				}
+			}
+			if ok {
+				matches = append(matches, rec)
+			}
+		}
+		if len(matches) == 0 {
+			resp.Diagnostics.AddError("heartbeat not found", "no heartbeat matched the lookup attributes")
+			return
+		}
+		if len(matches) > 1 {
+			resp.Diagnostics.AddError("heartbeat lookup is ambiguous", fmt.Sprintf("%d heartbeat records matched; look up by id instead", len(matches)))
+			return
+		}
+		out = matches[0]
+		data.Id = types.StringValue(stringifyScalar(out["id"]))
+		// List endpoints may return summaries. Resolve the selected identity through the real
+		// member endpoint so computed outputs and data-source-only reads are complete.
+		memberVars := map[string]string{}
+		memberVars["id"] = data.Id.ValueString()
+		detail, found, err := d.client.GetDataSource(ctx, heartbeatBinding, memberVars)
+		if err != nil {
+			addAPIError(&resp.Diagnostics, "reading heartbeat details", err, req.Config.Raw.Type())
+			return
+		}
+		if !found {
+			resp.Diagnostics.AddError("heartbeat not found", "The selected object disappeared before its detail could be read.")
+			return
+		}
+		out = detail
 	}
 	populateHeartbeat(ctx, &data, out)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)

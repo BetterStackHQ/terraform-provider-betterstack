@@ -25,26 +25,31 @@ resource "betterstack_exploration_group" "example" {
 
 - `name` (String) Group name.
 
+### Optional
+
+- `team_id` (String) Team that owns the group, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.
+
 ### Read-Only
 
-- `id` (String) The id of this exploration_group.
-- `team_name` (String) Name of the team that owns the group.
+- `id` (String) The ID of this exploration group.
 - `created_at` (String (RFC 3339)) When the group was created.
 - `updated_at` (String (RFC 3339)) When the group was last updated.
-
-## Endpoints
-
-- `GET /api/v2/exploration-groups`
-- `GET /api/v2/exploration-groups/:id`
-- `POST /api/v2/exploration-groups`
-- `PATCH /api/v2/exploration-groups/:id`
-- `DELETE /api/v2/exploration-groups/:id`
-
--> With an OAuth token, the user needs the dashboards permission, which also covers Explore. A role can also deny one group: the list then doesn't include it, and getting, updating or deleting it, or listing its explorations, returns 403.
-
--> Served on telemetry.betterstack.com only. Every action returns 404 on rum.betterstack.com.
+- `team_name` (String) Name of the team that owns the group.
 
 ## Import
+
+Import an existing exploration group by its ID. Get the ID from the [`betterstack_exploration_group` data source](../data-sources/exploration_group.md), which finds it by `name`.
+
+With Terraform 1.5 or later, use an `import` block:
+
+```terraform
+import {
+  to = betterstack_exploration_group.example
+  id = "12345"
+}
+```
+
+Or run `terraform import`:
 
 ```shell
 terraform import betterstack_exploration_group.example 12345

@@ -24,7 +24,9 @@ type MockAPI struct {
 	itemIDs    map[string][]string
 	redact     map[string][]string
 	fail       map[string]mockFailure
+	failPath   map[string]mockFailure
 	lastRaw    map[string][]byte
+	afterWrite map[string]func(map[string]interface{})
 	agents     []string
 	requests   []string
 	url        string
@@ -43,6 +45,7 @@ type mockRoute struct {
 	slot    string
 	ep      *endpoint
 	fields  []string
+	change  *inPlaceChange
 }
 
 func mockRoutes() []mockRoute {
@@ -61,6 +64,14 @@ func mockRoutes() []mockRoute {
 				routes = append(routes, mockRoute{binding: b, slot: pair.slot, ep: pair.ep})
 			}
 		}
+		for i := range b.InPlace {
+			change := &b.InPlace[i]
+			for _, ep := range []*endpoint{change.Set, change.Unset} {
+				if ep != nil {
+					routes = append(routes, mockRoute{binding: b, slot: "in_place", ep: ep, change: change})
+				}
+			}
+		}
 		for _, reads := range [][]supplementalRead{b.Reads, b.DataSourceReads} {
 			for _, read := range reads {
 				routes = append(routes, mockRoute{binding: b, slot: "supplemental", ep: read.Endpoint, fields: read.Fields})
@@ -73,6 +84,21 @@ func mockRoutes() []mockRoute {
 // replacingCreate is true when the binding's update is its create (the schema's replaces_existing).
 func replacingCreate(b *apiBinding) bool {
 	return b.Create != nil && b.Update != nil && b.Create.Method == b.Update.Method && b.Create.Path == b.Update.Path
+}
+
+// storeName is the collection a binding's records live in: its own, or, for a resource without a
+// create that reads another resource's endpoint (a source's AWS account reads the source), that
+// resource's, so both see the same records.
+func storeName(b *apiBinding) string {
+	if b.Create != nil || b.Read == nil {
+		return b.Resource
+	}
+	for _, other := range allBindings {
+		if other != b && other.Create != nil && other.Read != nil && other.BaseURL == b.BaseURL && other.Read.Path == b.Read.Path {
+			return other.Resource
+		}
+	}
+	return b.Resource
 }
 
 // bindingFor finds the binding by the resource name the bindings spell (the Terraform type without
@@ -129,7 +155,9 @@ func NewMockAPI() *MockAPI {
 		itemIDs:    map[string][]string{},
 		redact:     map[string][]string{},
 		fail:       map[string]mockFailure{},
+		failPath:   map[string]mockFailure{},
 		lastRaw:    map[string][]byte{},
+		afterWrite: map[string]func(map[string]interface{}){},
 	}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -230,6 +258,31 @@ func (m *MockAPI) SeedRecord(resource string, vars map[string]string, id string,
 	return nil
 }
 
+// keepParent stores the parent of a created record, as it must exist, unless it is stored already.
+func (m *MockAPI) keepParent(b *apiBinding, vars map[string]string) {
+	parent, id := bindingFor(b.GoneParent), vars[b.GoneParentVar]
+	if b.GoneParent == "" || parent == nil || id == "" {
+		return
+	}
+	key := storeName(parent)
+	if _, ok := m.store[key][id]; ok {
+		return
+	}
+	if m.store[key] == nil {
+		m.store[key] = map[string]map[string]interface{}{}
+	}
+	m.store[key][id] = map[string]interface{}{parent.GoneField: "running"}
+	m.order[key] = append(m.order[key], id)
+}
+
+// AfterWrite runs fn on a resource's record after each create and update, for what the real API
+// derives from a write (a role name from the role id a role change sets).
+func (m *MockAPI) AfterWrite(resource string, fn func(map[string]interface{})) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.afterWrite[resource] = fn
+}
+
 // RedactInResponses drops attributes from every response for a resource, the way the API never
 // echoes a secret back.
 func (m *MockAPI) RedactInResponses(resource string, keys ...string) {
@@ -243,6 +296,88 @@ func (m *MockAPI) FailWrites(resource string, status int, body string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.fail[resource] = mockFailure{status: status, body: body}
+}
+
+// FailRequest answers every request with this method and path with the given status and body, and
+// stops doing so when status is 0.
+func (m *MockAPI) FailRequest(method, path string, status int, body string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if status == 0 {
+		delete(m.failPath, method+" "+path)
+		return
+	}
+	m.failPath[method+" "+path] = mockFailure{status: status, body: body}
+}
+
+// changeInPlace makes a described in-place change on the stored record, and settles it at once on the
+// literals its wait expects. It is false when no stored record is meant.
+func (m *MockAPI) changeInPlace(w http.ResponseWriter, route mockRoute, vars map[string]string, body map[string]interface{}, answered bool) bool {
+	b, change := route.binding, route.change
+	set := route.ep == change.Set
+	id, item := vars[recordVar(b.Read)], vars[change.ItemVar]
+	if change.Items && change.SelfParam == "" && set {
+		item = stringifyScalar(body[change.Param])
+	}
+	if change.ItemList {
+		if items := itemStrings(body[change.Param]); len(items) == 1 {
+			item = items[0]
+		}
+	}
+	if change.SelfParam != "" {
+		id = stringifyScalar(body[change.SelfParam])
+		if change.SelfList {
+			if ids := itemStrings(body[change.SelfParam]); len(ids) == 1 {
+				id = ids[0]
+			}
+		}
+		if change.SelfVar != "" && vars[change.SelfVar] != "" {
+			id = vars[change.SelfVar]
+		}
+	}
+	// An item's own removal can leave this object unnamed (a reserved IP's unassign): whichever holds it.
+	if change.Items && change.SelfParam != "" && id == "" {
+		for recID, held := range m.store[storeName(b)] {
+			if containsString(itemStrings(held[change.Field]), item) {
+				id = recID
+			}
+		}
+	}
+	attrs, recID, ok := m.lookup(storeName(b), id)
+	if !ok || id == "" {
+		return false
+	}
+	wait := change.Wait
+	switch {
+	case change.Items:
+		items := withoutString(itemStrings(attrs[change.Field]), item)
+		if set {
+			items = append(items, item)
+		}
+		list := []interface{}{}
+		for _, one := range items {
+			list = append(list, one)
+		}
+		attrs[change.Field] = list
+	case set:
+		attrs[change.Field] = body[change.Param]
+	default:
+		attrs[change.Field], wait = nil, change.UnsetWait
+	}
+	var policy waitPolicy
+	if wait != "" && json.Unmarshal([]byte(wait), &policy) == nil && policy.Success != nil {
+		for _, leaf := range append([]waitPredicate{*policy.Success}, policy.Success.All...) {
+			if len(leaf.Path) == 1 && leaf.Expected != nil && leaf.Expected.Source == "literal" {
+				attrs[leaf.Path[0]] = leaf.Expected.Value
+			}
+		}
+	}
+	if !answered {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(w).Encode(wrapPath(b.Envelope.ItemPath, m.record(b, recID, m.redacted(b, attrs))))
+	}
+	return true
 }
 
 // LastRequestBody returns the raw bytes of the last write to a resource: the envelope assertions
@@ -293,14 +428,61 @@ func (m *MockAPI) handle(w http.ResponseWriter, r *http.Request) {
 		scoped.Envelope = *route.ep.Envelope
 		b = &scoped
 	}
+	if f, ok := m.failPath[r.Method+" "+r.URL.Path]; ok {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(f.status)
+		fmt.Fprint(w, f.body)
+		return
+	}
 	if f, ok := m.fail[b.Resource]; ok && r.Method != http.MethodGet {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(f.status)
 		fmt.Fprint(w, f.body)
 		return
 	}
+	if route.slot == "in_place" {
+		// One path can change a field of two resources (attaching an SSH key to a server).
+		var body map[string]interface{}
+		dec := json.NewDecoder(r.Body)
+		dec.UseNumber()
+		_ = dec.Decode(&body)
+		answered := false
+		for _, candidate := range mockRoutes() {
+			if candidate.slot != "in_place" || candidate.ep.Method != r.Method {
+				continue
+			}
+			if vars, ok := matchPath(candidate.ep.Path, r.URL.Path); ok {
+				answered = m.changeInPlace(w, candidate, vars, body, answered) || answered
+			}
+		}
+		if !answered {
+			http.Error(w, `{"error":{"code":"not_found","message":"Resource with the provided ID was not found."}}`, http.StatusNotFound)
+		}
+		return
+	}
 	key := m.storeKey(route, vars)
 	id := vars[route.recordVar()]
+	if field := route.ep.KeyField; field != "" && route.slot != "create" && route.slot != "list" {
+		// A natural key addresses the record by one of its attributes, in the path or a query param.
+		value := vars[field]
+		for param, name := range route.ep.QueryVars {
+			if name == field {
+				value = r.URL.Query().Get(param)
+			}
+		}
+		id = m.findByAttribute(key, field, value)
+		if id == "" {
+			http.Error(w, `{"errors":"Resource with the provided ID was not found."}`, http.StatusNotFound)
+			return
+		}
+		if route.slot == "update" {
+			if attrs, ok := m.store[key][id]; ok {
+				for _, name := range route.ep.PathFields {
+					attrs[name] = vars[name]
+				}
+			}
+		}
+	}
 	switch route.slot {
 	case "create":
 		attrs := m.decodeAttributes(b, r)
@@ -312,10 +494,19 @@ func (m *MockAPI) handle(w http.ResponseWriter, r *http.Request) {
 		}
 		m.nextID++
 		newID := strconv.Itoa(m.nextID)
+		// An object keyed by a field the request names (an SSH key's slug) keeps that key as its id.
+		if path := b.Envelope.IDPath; len(path) == 1 && path[0] != "id" && len(b.Envelope.AttributesPath) == 0 {
+			if chosen, ok := attrs[path[0]].(string); ok && chosen != "" {
+				newID = chosen
+			}
+		}
 		for k, v := range m.inject[b.Resource] {
 			attrs[k] = v
 		}
 		m.applyItemInjections(b, attrs)
+		if fn := m.afterWrite[b.Resource]; fn != nil {
+			fn(attrs)
+		}
 		if m.store[key] == nil || replacingCreate(b) {
 			m.store[key] = map[string]map[string]interface{}{}
 			if replacingCreate(b) {
@@ -324,6 +515,7 @@ func (m *MockAPI) handle(w http.ResponseWriter, r *http.Request) {
 		}
 		m.store[key][newID] = attrs
 		m.order[key] = append(m.order[key], newID)
+		m.keepParent(b, vars)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		m.writeItem(w, b, route.ep, newID, attrs)
@@ -336,8 +528,15 @@ func (m *MockAPI) handle(w http.ResponseWriter, r *http.Request) {
 			}
 			records = append(records, m.record(b, recID, m.redacted(b, attrs)))
 		}
+		total := len(records)
+		if b.Pagination.Via == "increment" {
+			records = pageOf(records, r, b.Pagination.Param)
+		}
 		doc := wrapPath(b.Envelope.ListPath, records)
-		if len(b.Pagination.Path) > 0 {
+		if b.Pagination.Via == "increment" {
+			setPath(doc, b.Pagination.Path, total)
+		}
+		if len(b.Pagination.Path) > 0 && b.Pagination.Via != "increment" {
 			setPath(doc, b.Pagination.Path, nil)
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -366,6 +565,9 @@ func (m *MockAPI) handle(w http.ResponseWriter, r *http.Request) {
 			attrs[k] = v
 		}
 		m.applyItemInjections(b, attrs)
+		if fn := m.afterWrite[b.Resource]; fn != nil {
+			fn(attrs)
+		}
 		m.writeItem(w, b, route.ep, recID, attrs)
 	case "delete":
 		_, recID, ok := m.lookup(key, id)
@@ -376,6 +578,29 @@ func (m *MockAPI) handle(w http.ResponseWriter, r *http.Request) {
 		delete(m.store[key], recID)
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+// pageOf is the page a list request asks for, 25 records a page unless it says how many, up to 1000.
+func pageOf(records []interface{}, r *http.Request, param string) []interface{} {
+	page, _ := strconv.Atoi(r.URL.Query().Get(param))
+	size, _ := strconv.Atoi(r.URL.Query().Get("per_page"))
+	if page < 1 {
+		page = 1
+	}
+	if size < 1 {
+		size = 25
+	}
+	if size > 1000 {
+		size = 1000
+	}
+	from, to := (page-1)*size, page*size
+	if from > len(records) {
+		from = len(records)
+	}
+	if to > len(records) {
+		to = len(records)
+	}
+	return records[from:to]
 }
 
 // route picks the endpoint a request is for. When several templates match, the one with the fewest
@@ -391,6 +616,17 @@ func (m *MockAPI) route(r *http.Request) (mockRoute, map[string]string, bool) {
 		}
 		vars, ok := matchPath(route.ep.Path, r.URL.Path)
 		if !ok {
+			continue
+		}
+		// An endpoint that takes its key as a query param answers only requests that send it: the
+		// same path without it is the list.
+		missing := false
+		for param := range route.ep.QueryVars {
+			if r.URL.Query().Get(param) == "" {
+				missing = true
+			}
+		}
+		if missing {
 			continue
 		}
 		if !found || len(vars) < len(bestVars) {
@@ -415,14 +651,65 @@ func (route mockRoute) recordVar() string {
 // alerts are different collections exactly as the API says.
 func (m *MockAPI) storeKey(route mockRoute, vars map[string]string) string {
 	record := route.recordVar()
-	parts := []string{route.binding.Resource}
+	var keyField string
+	var pathFields []string
+	if route.ep != nil {
+		keyField, pathFields = route.ep.KeyField, route.ep.PathFields
+	}
+	parts := []string{storeName(route.binding)}
 	for _, name := range sortedKeys(vars) {
-		if name == record {
+		if name == record || (keyField != "" && name == keyField) || containsString(pathFields, name) {
 			continue
 		}
 		parts = append(parts, name+"="+vars[name])
 	}
 	return strings.Join(parts, "|")
+}
+
+// findByAttribute is the id of the collection's record whose attribute has this value, letter case
+// aside (the e-mail a team member is keyed by is stored in lowercase), or "".
+func (m *MockAPI) findByAttribute(key, field, value string) string {
+	for _, recID := range m.order[key] {
+		if attrs, ok := m.store[key][recID]; ok && strings.EqualFold(stringifyScalar(attrs[field]), value) {
+			return recID
+		}
+	}
+	return ""
+}
+
+// SetFields changes attributes of every record of a resource whose field has this value, the way
+// something outside Terraform changes it (an invitation accepted in the web app).
+func (m *MockAPI) SetFields(resource, field, value string, attrs map[string]interface{}) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	changed := 0
+	for key, records := range m.store {
+		if key != resource && !strings.HasPrefix(key, resource+"|") {
+			continue
+		}
+		for _, rec := range records {
+			if strings.EqualFold(stringifyScalar(rec[field]), value) {
+				for k, v := range attrs {
+					if v == nil {
+						delete(rec, k)
+					} else {
+						rec[k] = v
+					}
+				}
+				changed++
+			}
+		}
+	}
+	return changed
+}
+
+func containsString(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 // lookup finds a record by id, or the collection's single record when the endpoint is a singleton

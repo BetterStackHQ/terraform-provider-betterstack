@@ -1,3 +1,0 @@
-data "betterstack_slack_integration" "example" {
-  slack_channel_name = "#better-stack-incidents"
-}

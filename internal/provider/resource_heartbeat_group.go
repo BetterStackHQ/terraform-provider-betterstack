@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -32,6 +33,7 @@ type HeartbeatGroupModel struct {
 	Name      types.String `tfsdk:"name"`
 	Paused    types.Bool   `tfsdk:"paused"`
 	SortIndex types.Int64  `tfsdk:"sort_index"`
+	TeamId    types.String `tfsdk:"team_id"`
 	TeamName  types.String `tfsdk:"team_name"`
 	UpdatedAt types.String `tfsdk:"updated_at"`
 }
@@ -42,14 +44,16 @@ func (r *HeartbeatGroupResource) Metadata(ctx context.Context, req resource.Meta
 
 func (r *HeartbeatGroupResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A group that organizes related heartbeats together.",
+		Description:         "A group that organizes related heartbeats together.",
+		MarkdownDescription: "A group that organizes related heartbeats together.",
 		Attributes: map[string]schema.Attribute{
 			"id":         schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"created_at": schema.StringAttribute{Computed: true, Description: "When the group was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"name":       schema.StringAttribute{Required: true, Description: "Group name."},
-			"paused":     schema.BoolAttribute{Optional: true, Computed: true, Description: "Set to `true` to pause every heartbeat in the group, or `false` to resume them all. Returned as `true` only when the group has heartbeats and all of them are paused. Accepted on create, but it has no effect there because a new group has no heartbeats.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
-			"sort_index": schema.Int64Attribute{Optional: true, Description: "Display order within the team."},
-			"team_name":  schema.StringAttribute{Computed: true, Description: "Name of the team that owns this heartbeat group."},
+			"paused":     schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether every heartbeat in the group is paused, false when the group has none. Set it to true to pause them all or false to resume them. Accepted on create, but it has no effect there.", MarkdownDescription: "Whether every heartbeat in the group is paused, `false` when the group has none. Set it to `true` to pause them all or `false` to resume them. Accepted on create, but it has no effect there.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
+			"sort_index": schema.Int64Attribute{Optional: true, Description: "The position of the group in your list of heartbeat groups, lower values first. null when no position was set.", MarkdownDescription: "The position of the group in your list of heartbeat groups, lower values first. `null` when no position was set."},
+			"team_id":    schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns this heartbeat group, such as t123. Defaults to the provider's team_id. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", MarkdownDescription: "Team that owns this heartbeat group, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_heartbeat_group"}}},
+			"team_name":  schema.StringAttribute{Computed: true, Description: "Name of the team that owns this heartbeat group.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"updated_at": schema.StringAttribute{Computed: true, Description: "When the group was last updated."},
 		},
 	}
@@ -118,8 +122,16 @@ func (r *HeartbeatGroupResource) Create(ctx context.Context, req resource.Create
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
 	out, err := r.client.Create(ctx, heartbeatGroupBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating heartbeat_group", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating heartbeat_group", err, req.Plan.Raw.Type())
 		return
@@ -137,7 +149,7 @@ func (r *HeartbeatGroupResource) Create(ctx context.Context, req resource.Create
 	// values stay untouched so the apply result is always consistent with the plan.
 	resp.State.Raw = stateFromPlan(req.Plan.Raw, nullValue(req.Plan.Raw.Type()), out)
 	// Retain the created identity if applying update-only fields fails.
-	if pcBody := r.postCreateBody(ctx, request); len(pcBody) > 0 {
+	if pcBody := r.postCreateBody(ctx, request); len(pcBody) > 0 && unsettled == nil {
 		vars["id"] = id
 		pcOut, err := r.client.Update(ctx, heartbeatGroupBinding, vars, pcBody)
 		if err != nil {
@@ -163,9 +175,22 @@ func (r *HeartbeatGroupResource) Read(ctx context.Context, req resource.ReadRequ
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, heartbeatGroupBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), heartbeatGroupBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading heartbeat_group", err, req.State.Raw.Type())
 		return
@@ -183,9 +208,6 @@ func (r *HeartbeatGroupResource) Read(ctx context.Context, req resource.ReadRequ
 func populateHeartbeatGroup(ctx context.Context, m *HeartbeatGroupModel, attrs map[string]interface{}) {
 	if attrs == nil {
 		return
-	}
-	if v, ok := stringFromAPI(attrs["team_name"]); ok {
-		m.TeamName = types.StringValue(v)
 	}
 	if v, ok := stringFromAPI(attrs["name"]); ok {
 		m.Name = types.StringValue(v)
@@ -208,9 +230,16 @@ func populateHeartbeatGroup(ctx context.Context, m *HeartbeatGroupModel, attrs m
 	if v, ok := stringFromAPI(attrs["updated_at"]); ok {
 		m.UpdatedAt = datetimeValue(m.UpdatedAt, v)
 	}
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(attrs["team_name"]); ok {
+		m.TeamName = types.StringValue(v)
+	}
 }
 
 func (r *HeartbeatGroupResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	defer rememberConfigured(ctx, req.Config, resp.Private, heartbeatGroupKeptOnRemoval, &resp.Diagnostics)
 	var plan HeartbeatGroupModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -221,6 +250,7 @@ func (r *HeartbeatGroupResource) Update(ctx context.Context, req resource.Update
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, err := r.client.Update(ctx, heartbeatGroupBinding, vars, r.updateBody(ctx, request, plan, state))
@@ -240,6 +270,7 @@ func (r *HeartbeatGroupResource) Delete(ctx context.Context, req resource.Delete
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	if err := r.client.Delete(ctx, heartbeatGroupBinding, vars); err != nil {
@@ -251,10 +282,12 @@ func (r *HeartbeatGroupResource) Delete(ctx context.Context, req resource.Delete
 var heartbeatGroupKeptOnRemoval = []string{"paused"}
 
 func (r *HeartbeatGroupResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseUnnamedTeam(ctx, req, resp, r.client, "heartbeat group")
 	warnKeptOnRemoval(ctx, "betterstack_heartbeat_group", req, resp, heartbeatGroupKeptOnRemoval)
 }
 
 func (r *HeartbeatGroupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
@@ -264,6 +297,6 @@ var _ resource.ResourceWithMoveState = &HeartbeatGroupResource{}
 // betteruptime_heartbeat_group (registry.terraform.io/BetterStackHQ/better-uptime).
 func (r *HeartbeatGroupResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[],\"ignored_fields\":[\"team_name\"],\"instructions\":[\"Keep every attribute: the legacy provider wrote the same /api/v2/heartbeat-groups fields. Move team_name to the provider's team_id (or a provider alias for that team). Import uses the existing group id.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/better-uptime\",\"source_type\":\"betteruptime_heartbeat_group\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"computed\":true,\"description\":\"The time when this heartbeat group was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this Monitor.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"A name of the group that you can see in the dashboard.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Set to true to pause monitoring for any existing heartbeats in the group - we won't notify you about downtime. Set to false to resume monitoring for any existing heartbeats in the group.\",\"name\":\"paused\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Set sort_index to specify how to sort your heartbeat groups.\",\"diff_suppress_func\":\"provider.init.func2\",\"name\":\"sort_index\",\"optional\":true,\"type\":\"int\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.teamNameSchema.func1\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this heartbeat group was updated.\",\"name\":\"updated_at\",\"type\":\"string\"}],\"response_projections\":[]}"),
+		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[],\"ignored_fields\":[\"team_name\"],\"instructions\":[\"Keep every attribute. Move team_name to the provider's team_id, or to the resource's own team_id for an object in another team. Import uses the existing group id.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/better-uptime\",\"source_type\":\"betteruptime_heartbeat_group\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"defaults\":{},\"source_attributes\":[{\"computed\":true,\"description\":\"The time when this heartbeat group was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this Monitor.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"A name of the group that you can see in the dashboard.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Set to true to pause monitoring for any existing heartbeats in the group - we won't notify you about downtime. Set to false to resume monitoring for any existing heartbeats in the group.\",\"name\":\"paused\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Set sort_index to specify how to sort your heartbeat groups.\",\"diff_suppress_func\":\"provider.init.func2\",\"name\":\"sort_index\",\"optional\":true,\"type\":\"int\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.teamNameSchema.func1\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this heartbeat group was updated.\",\"name\":\"updated_at\",\"type\":\"string\"}],\"response_projections\":[]}"),
 	}
 }

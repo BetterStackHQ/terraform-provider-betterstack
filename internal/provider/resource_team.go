@@ -34,8 +34,10 @@ func NewTeamResource() resource.Resource {
 type TeamModel struct {
 	Id                              types.String `tfsdk:"id"`
 	CreatedAt                       types.String `tfsdk:"created_at"`
+	DeletionProtection              types.Bool   `tfsdk:"deletion_protection"`
 	IncidentGroupingMetadataScope   types.List   `tfsdk:"incident_grouping_metadata_scope"`
 	IncidentGroupingPeriod          types.Int64  `tfsdk:"incident_grouping_period"`
+	LogoRemoteUrl                   types.String `tfsdk:"logo_remote_url"`
 	Name                            types.String `tfsdk:"name"`
 	NotifyAboutAllIncidentsInAGroup types.Bool   `tfsdk:"notify_about_all_incidents_in_a_group"`
 	OnCallReminderEmail             types.Bool   `tfsdk:"on_call_reminder_email"`
@@ -54,21 +56,24 @@ func (r *TeamResource) Metadata(ctx context.Context, req resource.MetadataReques
 
 func (r *TeamResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A team in the organization. Everything you create in any Better Stack product belongs to a team.",
+		Description:         "A team in the organization. Everything you create in any Better Stack product belongs to a team.",
+		MarkdownDescription: "A team in the organization. Everything you create in any Better Stack product belongs to a team.",
 		Attributes: map[string]schema.Attribute{
 			"id":                                    schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"created_at":                            schema.StringAttribute{Computed: true, Description: "When the team was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"incident_grouping_metadata_scope":      schema.ListAttribute{Optional: true, Computed: true, Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{types.StringValue("Origin")})), ElementType: types.StringType, Description: "Metadata keys whose values must match for incidents to be grouped. New teams start with [\"Origin\"]."},
-			"incident_grouping_period":              schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(300), Description: "Seconds within which a new incident is grouped with an open one, from 0 to 2147483647. New teams start at 300."},
-			"name":                                  schema.StringAttribute{Required: true, Description: "The team's name. Unique within the organization, ignoring letter case."},
+			"deletion_protection":                   schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether destroying or replacing this team is refused. Defaults to true. Set it to false and apply before you delete or replace it on purpose. It's kept in state and never sent to Better Stack.", MarkdownDescription: "Whether destroying or replacing this team is refused. Defaults to `true`. Set it to `false` and apply before you delete or replace it on purpose. It's kept in state and never sent to Better Stack."},
+			"incident_grouping_metadata_scope":      schema.ListAttribute{Optional: true, Computed: true, Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{types.StringValue("Origin")})), ElementType: types.StringType, Description: "Metadata keys whose values must match for incidents to be grouped. New teams start with [\"Origin\"]. null groups the same way as [\"Origin\"].", MarkdownDescription: "Metadata keys whose values must match for incidents to be grouped. New teams start with `[\"Origin\"]`. `null` groups the same way as `[\"Origin\"]`."},
+			"incident_grouping_period":              schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(300), Description: "Seconds within which a new incident is grouped with an earlier one that's still open, for example 300 for 5 minutes. 0 never groups incidents. From 0 to 2147483647, and new teams start at 300.", MarkdownDescription: "Seconds within which a new incident is grouped with an earlier one that's still open, for example `300` for 5 minutes. `0` never groups incidents. From `0` to `2147483647`, and new teams start at `300`."},
+			"logo_remote_url":                       schema.StringAttribute{Optional: true, Description: "The URL the team's logo was fetched from. It accepts an image URL, and we fetch the logo from it. Remove the argument to remove the logo."},
+			"name":                                  schema.StringAttribute{Required: true, Description: "The team's name. It must be unique in the organization, ignoring letter case."},
 			"notify_about_all_incidents_in_a_group": schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether every incident in a group alerts, rather than only the first. New teams start at true."},
-			"on_call_reminder_email":                schema.BoolAttribute{Optional: true, Computed: true, Description: "Send on-call reminders by e-mail. Turning it on needs a plan with on-call scheduling. New teams start at true.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
-			"on_call_reminder_lead_time":            schema.Int64Attribute{Optional: true, Computed: true, Description: "Seconds before an on-call shift starts to remind the person: one of 0 (off), 3600, 21600, 43200, 86400, 172800 or 604800. A value other than 0 needs a plan with on-call scheduling. New teams start at 86400.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
-			"on_call_reminder_push":                 schema.BoolAttribute{Optional: true, Computed: true, Description: "Send on-call reminders as push notifications. Turning it on needs a plan with on-call scheduling and push alerts. New teams start at true.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
-			"on_call_reminder_sms":                  schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Send on-call reminders by SMS. Turning it on needs a plan with on-call scheduling and SMS alerts. New teams start at false."},
-			"opened_emails_tracking_enabled":        schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether the incident timeline records opened alert e-mails. New teams start at true."},
+			"on_call_reminder_email":                schema.BoolAttribute{Optional: true, Computed: true, Description: "Send on-call reminders by e-mail. New teams start at true.", MarkdownDescription: "Send on-call reminders by e-mail. New teams start at `true`.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
+			"on_call_reminder_lead_time":            schema.Int64Attribute{Optional: true, Computed: true, Description: "Seconds before an on-call shift starts to remind the person, or 0 for no reminder. The other values are 3600, 21600, 43200, 86400, 172800 and 604800. New teams start at 86400.", MarkdownDescription: "Seconds before an on-call shift starts to remind the person, or `0` for no reminder. The other values are `3600`, `21600`, `43200`, `86400`, `172800` and `604800`. New teams start at `86400`.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
+			"on_call_reminder_push":                 schema.BoolAttribute{Optional: true, Computed: true, Description: "Send on-call reminders as push notifications. New teams start at true.", MarkdownDescription: "Send on-call reminders as push notifications. New teams start at `true`.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
+			"on_call_reminder_sms":                  schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Send on-call reminders by SMS. New teams start at false.", MarkdownDescription: "Send on-call reminders by SMS. New teams start at `false`."},
+			"opened_emails_tracking_enabled":        schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether the incident timeline records when a team member opens the e-mail about a new incident. New teams start at true.", MarkdownDescription: "Whether the incident timeline records when a team member opens the e-mail about a new incident. New teams start at `true`."},
 			"organization_id":                       schema.StringAttribute{Computed: true, Description: "ID of the organization the team belongs to.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"reporting_enabled":                     schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether reporting is on. New teams start at false."},
+			"reporting_enabled":                     schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether reporting is on, which unlocks the reports in Incidents. New teams start at false.", MarkdownDescription: "Whether reporting is on, which unlocks the reports in Incidents. New teams start at `false`."},
 			"updated_at":                            schema.StringAttribute{Computed: true, Description: "When the team was last updated."},
 		},
 	}
@@ -118,6 +123,18 @@ func (r *TeamResource) body(ctx context.Context, m TeamModel) map[string]interfa
 	if !m.OnCallReminderPush.IsNull() && !m.OnCallReminderPush.IsUnknown() {
 		body["on_call_reminder_push"] = m.OnCallReminderPush.ValueBool()
 	}
+	if !m.LogoRemoteUrl.IsNull() && !m.LogoRemoteUrl.IsUnknown() {
+		body["logo_remote_url"] = m.LogoRemoteUrl.ValueString()
+	}
+	return body
+}
+
+// updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
+func (r *TeamResource) updateBody(ctx context.Context, config, plan, state TeamModel) map[string]interface{} {
+	body := r.body(ctx, config)
+	if !state.LogoRemoteUrl.IsNull() && !state.LogoRemoteUrl.IsUnknown() && plan.LogoRemoteUrl.IsNull() {
+		body["logo_remote_url"] = nil
+	}
 	return body
 }
 
@@ -138,6 +155,13 @@ func (r *TeamResource) Create(ctx context.Context, req resource.CreateRequest, r
 	}
 	vars := map[string]string{}
 	out, err := r.client.Create(ctx, teamBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating team", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating team", err, req.Plan.Raw.Type())
 		return
@@ -174,6 +198,10 @@ func (r *TeamResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 	populateTeam(ctx, &state, out)
+	// The API never returns it: an imported object starts protected, as a created one does.
+	if state.DeletionProtection.IsNull() || state.DeletionProtection.IsUnknown() {
+		state.DeletionProtection = types.BoolValue(true)
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -192,15 +220,21 @@ func populateTeam(ctx context.Context, m *TeamModel, attrs map[string]interface{
 	if v, ok := int64FromAPI(attrs["incident_grouping_period"]); ok {
 		m.IncidentGroupingPeriod = types.Int64Value(v)
 	}
-	if raw, ok := attrs["incident_grouping_metadata_scope"].([]interface{}); ok {
-		vals := make([]string, 0, len(raw))
-		for _, e := range raw {
-			if ev, ok := stringFromAPI(e); ok {
-				vals = append(vals, ev)
+	if rawValue, exists := attrs["incident_grouping_metadata_scope"]; exists {
+		if rawValue == nil {
+			m.IncidentGroupingMetadataScope = types.ListNull(types.StringType)
+		} else {
+			if raw, ok := attrs["incident_grouping_metadata_scope"].([]interface{}); ok {
+				vals := make([]string, 0, len(raw))
+				for _, e := range raw {
+					if ev, ok := stringFromAPI(e); ok {
+						vals = append(vals, ev)
+					}
+				}
+				lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+				m.IncidentGroupingMetadataScope = lv
 			}
 		}
-		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
-		m.IncidentGroupingMetadataScope = lv
 	}
 	if v, ok := boolFromAPI(attrs["notify_about_all_incidents_in_a_group"]); ok {
 		m.NotifyAboutAllIncidentsInAGroup = types.BoolValue(v)
@@ -223,6 +257,15 @@ func populateTeam(ctx context.Context, m *TeamModel, attrs map[string]interface{
 	if v, ok := boolFromAPI(attrs["on_call_reminder_push"]); ok {
 		m.OnCallReminderPush = types.BoolValue(v)
 	}
+	if rawValue, exists := attrs["logo_remote_url"]; exists {
+		if rawValue == nil {
+			m.LogoRemoteUrl = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["logo_remote_url"]); ok {
+				m.LogoRemoteUrl = types.StringValue(v)
+			}
+		}
+	}
 	if v, ok := stringFromAPI(attrs["created_at"]); ok {
 		m.CreatedAt = datetimeValue(m.CreatedAt, v)
 	}
@@ -232,6 +275,7 @@ func populateTeam(ctx context.Context, m *TeamModel, attrs map[string]interface{
 }
 
 func (r *TeamResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	defer rememberConfigured(ctx, req.Config, resp.Private, teamKeptOnRemoval, &resp.Diagnostics)
 	var plan TeamModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -264,7 +308,7 @@ func (r *TeamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	}
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
-	out, err := r.client.Update(ctx, teamBinding, vars, r.body(ctx, request))
+	out, err := r.client.Update(ctx, teamBinding, vars, r.updateBody(ctx, request, plan, state))
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "updating team", err, req.Plan.Raw.Type())
 		return
@@ -276,6 +320,9 @@ func (r *TeamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 }
 
 func (r *TeamResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	if refuseProtectedDelete(ctx, req.State, "team", &resp.Diagnostics) {
+		return
+	}
 	var state TeamModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -292,9 +339,17 @@ func (r *TeamResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 var teamKeptOnRemoval = []string{"on_call_reminder_email", "on_call_reminder_lead_time", "on_call_reminder_push"}
 
 func (r *TeamResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseProtectedDestroy(ctx, req, resp, "team")
 	warnKeptOnRemoval(ctx, "betterstack_team", req, resp, teamKeptOnRemoval)
 }
 
 func (r *TeamResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("incident_grouping_period"), 300)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("incident_grouping_metadata_scope"), types.ListValueMust(types.StringType, []attr.Value{types.StringValue("Origin")}))...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("notify_about_all_incidents_in_a_group"), true)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("reporting_enabled"), false)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("opened_emails_tracking_enabled"), true)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("on_call_reminder_sms"), false)...)
 }

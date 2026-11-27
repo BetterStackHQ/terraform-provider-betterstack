@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 )
 
 var _ datasource.DataSource = &CollectorTargetDataSource{}
@@ -26,27 +27,29 @@ func (d *CollectorTargetDataSource) Metadata(ctx context.Context, req datasource
 
 func (d *CollectorTargetDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A database or process a collector scrapes for metrics, for example Postgres, nginx, or a Prometheus endpoint.",
+		Description:         "A database or process a collector scrapes for metrics, for example Postgres, nginx, or a Prometheus endpoint.",
+		MarkdownDescription: "A database or process a collector scrapes for metrics, for example Postgres, nginx, or a Prometheus endpoint.",
 		Attributes: map[string]schema.Attribute{
-			"id":           schema.StringAttribute{Required: true, Description: "Id of the collector_target to look up."},
-			"api_key":      schema.StringAttribute{Computed: true, Description: "API key (elasticsearch). Never returned by any read.", Sensitive: true},
-			"collector_id": schema.StringAttribute{Required: true, Description: "Id of the parent this collector belongs to."},
+			"id":           schema.StringAttribute{Required: true, Description: "The ID of the collector target to look up."},
+			"api_key":      schema.StringAttribute{Computed: true, Description: "API key for elasticsearch targets.", MarkdownDescription: "API key for `elasticsearch` targets.", Sensitive: true},
+			"collector_id": schema.StringAttribute{Required: true, Description: "The ID of the parent this collector belongs to."},
 			"container":    schema.StringAttribute{Computed: true, Description: "Detected container."},
 			"created_at":   schema.StringAttribute{Computed: true, Description: "When the target was created."},
-			"enabled":      schema.BoolAttribute{Computed: true, Description: "Whether the collector scrapes this target. Disabling it sets `status` to `disabled`. Enabling it again checks the target again."},
-			"endpoint":     schema.StringAttribute{Computed: true, Description: "Scrape endpoint (prometheus)."},
+			"enabled":      schema.BoolAttribute{Computed: true, Description: "Whether the collector scrapes this target. A new target is enabled unless it's set to false. Disabling it sets status to disabled, and enabling it again checks the target again.", MarkdownDescription: "Whether the collector scrapes this target. A new target is enabled unless it's set to `false`. Disabling it sets `status` to `disabled`, and enabling it again checks the target again."},
+			"endpoint":     schema.StringAttribute{Computed: true, Description: "The full scrape URL, like http://10.0.0.5:9090/metrics. Required for prometheus targets and returned only for them.", MarkdownDescription: "The full scrape URL, like `http://10.0.0.5:9090/metrics`. Required for `prometheus` targets and returned only for them."},
 			"host":         schema.StringAttribute{Computed: true, Description: "Target host. For the process kinds this is the host the collector runs on."},
-			"kind":         schema.StringAttribute{Computed: true, Description: "Target type. Can't be changed after the target is created."},
-			"listen_ip":    schema.StringAttribute{Computed: true, Description: "Listen IP (nginx, apache, kafka, traefik)."},
-			"password":     schema.StringAttribute{Computed: true, Description: "Auth password (databases, elasticsearch). Never returned by any read.", Sensitive: true},
-			"port":         schema.Int64Attribute{Computed: true, Description: "Target port (databases, nginx, apache, kafka, traefik)."},
-			"scheme":       schema.StringAttribute{Computed: true, Description: "Scheme (elasticsearch)."},
-			"service":      schema.StringAttribute{Computed: true, Description: "Service name (nginx, apache, kafka, traefik, prometheus)."},
-			"ssl_mode":     schema.StringAttribute{Computed: true, Description: "SSL mode (postgres, pgbouncer)."},
-			"status":       schema.StringAttribute{Computed: true, Description: "Connection status. An update that sends `host`, `port`, `service`, `listen_ip`, `endpoint`, `scheme`, `username`, `password`, `api_key`, `ssl_mode` or `tls` sets it back to `pending`."},
-			"tls":          schema.StringAttribute{Computed: true, Description: "TLS mode (mysql)."},
+			"kind":         schema.StringAttribute{Computed: true, Description: "Target type. Reads can also return pgcat, node_exporter and kube_state_metrics, which the collector finds by itself and the API doesn't accept on create.", MarkdownDescription: "Target type. Reads can also return `pgcat`, `node_exporter` and `kube_state_metrics`, which the collector finds by itself and the API doesn't accept on create."},
+			"listen_ip":    schema.StringAttribute{Computed: true, Description: "The IP address the process listens on. Accepted and returned only for nginx, apache, kafka and traefik, and null when not set.", MarkdownDescription: "The IP address the process listens on. Accepted and returned only for `nginx`, `apache`, `kafka` and `traefik`, and `null` when not set."},
+			"password":     schema.StringAttribute{Computed: true, Description: "Password for database and elasticsearch targets.", MarkdownDescription: "Password for database and `elasticsearch` targets.", Sensitive: true},
+			"port":         schema.Int64Attribute{Computed: true, Description: "The target's port. null when a target is found by its listen_ip or service instead.", MarkdownDescription: "The target's port. `null` when a target is found by its `listen_ip` or `service` instead."},
+			"scheme":       schema.StringAttribute{Computed: true, Description: "The connection scheme. Accepted and returned only for elasticsearch.", MarkdownDescription: "The connection scheme. Accepted and returned only for `elasticsearch`."},
+			"service":      schema.StringAttribute{Computed: true, Description: "The service name. Required for nginx, apache, kafka, prometheus and traefik targets, and accepted and returned only for those.", MarkdownDescription: "The service name. Required for `nginx`, `apache`, `kafka`, `prometheus` and `traefik` targets, and accepted and returned only for those."},
+			"ssl_mode":     schema.StringAttribute{Computed: true, Description: "The SSL mode for the connection. Required for postgres and pgbouncer, and accepted and returned only for those.\n\n- disable: Connects without SSL.\n- require: Connects over SSL without verifying the server's certificate.\n- verify-ca: Connects over SSL and checks that a trusted certificate authority signed the server's certificate.", MarkdownDescription: "The SSL mode for the connection. Required for `postgres` and `pgbouncer`, and accepted and returned only for those.\n\n- `disable`: Connects without SSL.\n- `require`: Connects over SSL without verifying the server's certificate.\n- `verify-ca`: Connects over SSL and checks that a trusted certificate authority signed the server's certificate."},
+			"status":       schema.StringAttribute{Computed: true, Description: "The connection status. An update that includes host, port, service, listen_ip, endpoint, scheme, username, password, api_key, ssl_mode or tls sets it back to pending.\n\n- pending: The collector hasn't reported on the target yet.\n- up: The collector collects metrics from the target.\n- unreachable: The collector can't connect to the target or hasn't seen it lately.\n- down: The collector reaches the target, but its check fails.\n- invalid_credentials: The target rejects the credentials.\n- configuration_required: Metrics are collected, but the database needs more setup, such as the pg_stat_statements extension.\n- disabled: The target is paused and the collector doesn't check it.\n- removed: The collector no longer finds the target.", MarkdownDescription: "The connection status. An update that includes `host`, `port`, `service`, `listen_ip`, `endpoint`, `scheme`, `username`, `password`, `api_key`, `ssl_mode` or `tls` sets it back to `pending`.\n\n- `pending`: The collector hasn't reported on the target yet.\n- `up`: The collector collects metrics from the target.\n- `unreachable`: The collector can't connect to the target or hasn't seen it lately.\n- `down`: The collector reaches the target, but its check fails.\n- `invalid_credentials`: The target rejects the credentials.\n- `configuration_required`: Metrics are collected, but the database needs more setup, such as the `pg_stat_statements` extension.\n- `disabled`: The target is paused and the collector doesn't check it.\n- `removed`: The collector no longer finds the target."},
+			"team_id":      schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns the collector's source, such as t123. Defaults to the provider's team_id. Set it to look the object up in another team.", MarkdownDescription: "Team that owns the collector's source, such as `t123`. Defaults to the provider's `team_id`. Set it to look the object up in another team.", Validators: []validator.String{teamIDValidator()}},
+			"tls":          schema.StringAttribute{Computed: true, Description: "The TLS mode for the connection. Required for mysql, and accepted and returned only for it.\n\n- false: Connects without TLS.\n- true: Connects over TLS and verifies the server's certificate.\n- skip-verify: Connects over TLS without verifying the server's certificate.\n- preferred: Uses TLS when the server supports it, without verifying the server's certificate.", MarkdownDescription: "The TLS mode for the connection. Required for `mysql`, and accepted and returned only for it.\n\n- `false`: Connects without TLS.\n- `true`: Connects over TLS and verifies the server's certificate.\n- `skip-verify`: Connects over TLS without verifying the server's certificate.\n- `preferred`: Uses TLS when the server supports it, without verifying the server's certificate."},
 			"updated_at":   schema.StringAttribute{Computed: true, Description: "When the target was last updated."},
-			"username":     schema.StringAttribute{Computed: true, Description: "Auth username (databases, elasticsearch)."},
+			"username":     schema.StringAttribute{Computed: true, Description: "The username used to connect, or null when not set. Accepted and returned only for postgres, pgbouncer, mysql, redis, mongodb, memcached and elasticsearch.", MarkdownDescription: "The username used to connect, or `null` when not set. Accepted and returned only for `postgres`, `pgbouncer`, `mysql`, `redis`, `mongodb`, `memcached` and `elasticsearch`."},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -65,6 +68,7 @@ func (d *CollectorTargetDataSource) Read(ctx context.Context, req datasource.Rea
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, data.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["collector_id"] = data.CollectorId.ValueString()
 	vars["id"] = data.Id.ValueString()

@@ -26,14 +26,15 @@ func (d *StatusPageGroupDataSource) Metadata(ctx context.Context, req datasource
 
 func (d *StatusPageGroupDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A group of related status pages. It belongs to the organization, not to a team.",
+		Description:         "A group of related status pages. It belongs to the whole organization.",
+		MarkdownDescription: "A group of related status pages. It belongs to the whole organization.",
 		Attributes: map[string]schema.Attribute{
-			"id":              schema.StringAttribute{Required: true, Description: "Id of the status_page_group to look up."},
-			"created_at":      schema.StringAttribute{Computed: true},
+			"id":              schema.StringAttribute{Required: true, Description: "The ID of the status page group to look up."},
+			"created_at":      schema.StringAttribute{Computed: true, Description: "When the status page group was created."},
 			"name":            schema.StringAttribute{Computed: true, Description: "Group name."},
-			"organization_id": schema.StringAttribute{Computed: true, Description: "Organization the group belongs to, as its Better Stack organization id. Defaults to the first organization the token can access. An organization the token can't access returns a 422 error that lists the ones it can. Not returned in responses."},
-			"sort_index":      schema.Int64Attribute{Computed: true, Description: "Display order among the organization's status page groups. Writes also accept it as position."},
-			"updated_at":      schema.StringAttribute{Computed: true},
+			"organization_id": schema.StringAttribute{Computed: true, Description: "Organization the group belongs to, such as 123. Required when you sign in with OAuth and can access more than one organization, otherwise the token's own organization. Not returned in responses.", MarkdownDescription: "Organization the group belongs to, such as `123`. Required when you sign in with OAuth and can access more than one organization, otherwise the token's own organization. Not returned in responses."},
+			"sort_index":      schema.Int64Attribute{Computed: true, Description: "Display order among the organization's status page groups. Lower values come first. Writes also accept it as position.", MarkdownDescription: "Display order among the organization's status page groups. Lower values come first. Writes also accept it as `position`."},
+			"updated_at":      schema.StringAttribute{Computed: true, Description: "When the status page group was last updated."},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)

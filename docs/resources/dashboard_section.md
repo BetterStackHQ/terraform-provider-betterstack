@@ -13,10 +13,23 @@ A full-width section divider that groups charts on a dashboard.
 
 ## Example Usage
 
+### Create a dashboard section
+
 ```terraform
 resource "betterstack_dashboard_section" "example" {
-  dashboard_id = "12345"
-  name         = "Key Metrics"
+  dashboard_id = "1234"
+  name         = "Errors"
+  y            = 10
+}
+```
+
+### Collapsed below the last chart
+
+```terraform
+resource "betterstack_dashboard_section" "collapsed_below_the_last_chart" {
+  dashboard_id = "1234"
+  name         = "Background jobs"
+  collapsed    = true
 }
 ```
 
@@ -34,25 +47,29 @@ This object lives under a parent collection, so its parent is part of its addres
 
 ### Optional
 
-Optional attributes are also computed: left unset, they take the server-side default.
-
-- `y` (Number) Vertical position on the dashboard grid. Defaults to just below the last section or chart. If an update moves the section onto a chart, the layout is tidied up in the background. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
+- `team_id` (String) Team that owns the section's dashboard, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.
+- `y` (Number, Computed) Vertical position on the dashboard grid, from `0` at the top. If an update moves the section onto a chart, the layout is tidied up in the background. Defaults to just below the last section or chart.
 - `collapsed` (Boolean) Whether the section starts collapsed. Defaults to `false`.
-- `explanation` (String) Explanation of what the section groups, set by the AI tools. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `explanation` (String) Explanation of what the section groups, set by the AI tools.
 
 ### Read-Only
 
-- `id` (String) The id of this dashboard_section.
-
-## Endpoints
-
-- `GET /api/v2/dashboards/:dashboard_id/sections`
-- `GET /api/v2/dashboards/:dashboard_id/sections/:id`
-- `POST /api/v2/dashboards/:dashboard_id/sections`
-- `PATCH /api/v2/dashboards/:dashboard_id/sections/:id`
-- `DELETE /api/v2/dashboards/:dashboard_id/sections/:id`
+- `id` (String) The ID of this dashboard section.
 
 ## Import
+
+Import an existing dashboard section by its ID as `dashboard_id/id`. Get the ID from the [`betterstack_dashboard_section` data source](../data-sources/dashboard_section.md), which finds it by `name`. `terraform query` with the [`betterstack_dashboard_section` list resource](../list-resources/dashboard_section.md) lists them all, ready to import.
+
+With Terraform 1.5 or later, use an `import` block:
+
+```terraform
+import {
+  to = betterstack_dashboard_section.example
+  id = "<dashboard_id>/12345"
+}
+```
+
+Or run `terraform import`:
 
 ```shell
 terraform import betterstack_dashboard_section.example <dashboard_id>/12345

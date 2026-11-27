@@ -13,12 +13,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var _ resource.Resource = &DashboardSectionResource{}
 var _ resource.ResourceWithConfigure = &DashboardSectionResource{}
 var _ resource.ResourceWithImportState = &DashboardSectionResource{}
+var _ resource.ResourceWithIdentity = &DashboardSectionResource{}
 var _ resource.ResourceWithModifyPlan = &DashboardSectionResource{}
 
 type DashboardSectionResource struct {
@@ -35,6 +37,7 @@ type DashboardSectionModel struct {
 	DashboardId types.String `tfsdk:"dashboard_id"`
 	Explanation types.String `tfsdk:"explanation"`
 	Name        types.String `tfsdk:"name"`
+	TeamId      types.String `tfsdk:"team_id"`
 	Y           types.Int64  `tfsdk:"y"`
 }
 
@@ -44,14 +47,16 @@ func (r *DashboardSectionResource) Metadata(ctx context.Context, req resource.Me
 
 func (r *DashboardSectionResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A full-width section divider that groups charts on a dashboard.",
+		Description:         "A full-width section divider that groups charts on a dashboard.",
+		MarkdownDescription: "A full-width section divider that groups charts on a dashboard.",
 		Attributes: map[string]schema.Attribute{
 			"id":           schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"collapsed":    schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether the section starts collapsed."},
 			"dashboard_id": schema.StringAttribute{Required: true, Description: "Dashboard this section is on. Can't be changed after the section is created.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_dashboard_section"}}},
 			"explanation":  schema.StringAttribute{Optional: true, Description: "Explanation of what the section groups, set by the AI tools."},
 			"name":         schema.StringAttribute{Required: true, Description: "Section name."},
-			"y":            schema.Int64Attribute{Optional: true, Computed: true, Description: "Vertical position on the dashboard grid. Defaults to just below the last section or chart. If an update moves the section onto a chart, the layout is tidied up in the background.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
+			"team_id":      schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns the section's dashboard, such as t123. Defaults to the provider's team_id. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", MarkdownDescription: "Team that owns the section's dashboard, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_dashboard_section"}}},
+			"y":            schema.Int64Attribute{Optional: true, Computed: true, Description: "Vertical position on the dashboard grid, from 0 at the top. If an update moves the section onto a chart, the layout is tidied up in the background. Defaults to just below the last section or chart.", MarkdownDescription: "Vertical position on the dashboard grid, from `0` at the top. If an update moves the section onto a chart, the layout is tidied up in the background. Defaults to just below the last section or chart.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -107,6 +112,9 @@ func (r *DashboardSectionResource) bodyForUpdate(ctx context.Context, m Dashboar
 // updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
 func (r *DashboardSectionResource) updateBody(ctx context.Context, config, plan, state DashboardSectionModel) map[string]interface{} {
 	body := r.bodyForUpdate(ctx, config)
+	if !state.Name.IsNull() && !state.Name.IsUnknown() && plan.Name.IsNull() {
+		body["name"] = nil
+	}
 	if !state.Explanation.IsNull() && !state.Explanation.IsUnknown() && plan.Explanation.IsNull() {
 		body["explanation"] = nil
 	}
@@ -114,6 +122,7 @@ func (r *DashboardSectionResource) updateBody(ctx context.Context, config, plan,
 }
 
 func (r *DashboardSectionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer func() { syncIdentity(ctx, resp.State, resp.Identity, dashboardSectionIdentityNames, &resp.Diagnostics) }()
 	defer rememberConfigured(ctx, req.Config, resp.Private, dashboardSectionKeptOnRemoval, &resp.Diagnostics)
 	var plan DashboardSectionModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -123,9 +132,17 @@ func (r *DashboardSectionResource) Create(ctx context.Context, req resource.Crea
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["dashboard_id"] = plan.DashboardId.ValueString()
 	out, err := r.client.Create(ctx, dashboardSectionBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating dashboard_section", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating dashboard_section", err, req.Plan.Raw.Type())
 		return
@@ -145,15 +162,29 @@ func (r *DashboardSectionResource) Create(ctx context.Context, req resource.Crea
 }
 
 func (r *DashboardSectionResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	defer func() { syncIdentity(ctx, resp.State, resp.Identity, dashboardSectionIdentityNames, &resp.Diagnostics) }()
 	var state DashboardSectionModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["dashboard_id"] = state.DashboardId.ValueString()
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, dashboardSectionBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), dashboardSectionBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading dashboard_section", err, req.State.Raw.Type())
 		return
@@ -172,11 +203,14 @@ func populateDashboardSection(ctx context.Context, m *DashboardSectionModel, att
 	if attrs == nil {
 		return
 	}
-	if v, ok := stringFromAPI(attrs["dashboard_id"]); ok {
-		m.DashboardId = types.StringValue(v)
-	}
-	if v, ok := stringFromAPI(attrs["name"]); ok {
-		m.Name = types.StringValue(v)
+	if rawValue, exists := attrs["name"]; exists {
+		if rawValue == nil {
+			m.Name = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["name"]); ok {
+				m.Name = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := int64FromAPI(attrs["y"]); ok {
 		m.Y = types.Int64Value(v)
@@ -193,9 +227,24 @@ func populateDashboardSection(ctx context.Context, m *DashboardSectionModel, att
 			}
 		}
 	}
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
+}
+
+func (r *DashboardSectionResource) mergeResponse(ctx context.Context, m DashboardSectionModel, attrs map[string]interface{}) {
+	if raw, ok := attrs["dashboard_id"]; ok && !m.DashboardId.IsNull() && !m.DashboardId.IsUnknown() {
+		if tv, err := m.DashboardId.ToTerraformValue(ctx); err == nil {
+			if prior, err := tftypesToAPI(tv); err == nil {
+				attrs["dashboard_id"] = mergeAPIRead(raw, prior, apiValueShape{WriteOnly: true})
+			}
+		}
+	}
 }
 
 func (r *DashboardSectionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
+	defer func() { syncIdentity(ctx, resp.State, resp.Identity, dashboardSectionIdentityNames, &resp.Diagnostics) }()
 	defer rememberConfigured(ctx, req.Config, resp.Private, dashboardSectionKeptOnRemoval, &resp.Diagnostics)
 	var plan DashboardSectionModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -211,6 +260,7 @@ func (r *DashboardSectionResource) Update(ctx context.Context, req resource.Upda
 	if !plan.Collapsed.Equal(state.Collapsed) {
 		request.Collapsed = plan.Collapsed
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
 	vars["dashboard_id"] = plan.DashboardId.ValueString()
 	vars["id"] = plan.Id.ValueString()
@@ -222,6 +272,7 @@ func (r *DashboardSectionResource) Update(ctx context.Context, req resource.Upda
 	if out == nil {
 		out = map[string]interface{}{}
 	}
+	r.mergeResponse(ctx, state, out)
 	resp.State.Raw = stateFromPlan(req.Plan.Raw, req.State.Raw, out)
 }
 
@@ -231,6 +282,7 @@ func (r *DashboardSectionResource) Delete(ctx context.Context, req resource.Dele
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["dashboard_id"] = state.DashboardId.ValueString()
 	vars["id"] = state.Id.ValueString()
@@ -243,12 +295,19 @@ func (r *DashboardSectionResource) Delete(ctx context.Context, req resource.Dele
 var dashboardSectionKeptOnRemoval = []string{"y"}
 
 func (r *DashboardSectionResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseUnnamedTeam(ctx, req, resp, r.client, "dashboard section")
 	warnKeptOnRemoval(ctx, "betterstack_dashboard_section", req, resp, dashboardSectionKeptOnRemoval)
 }
 
 // The object hangs off a parent collection, so its address is composite:
 // dashboard_id/id.
 func (r *DashboardSectionResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
+	if req.ID == "" && req.Identity != nil {
+		stateFromIdentity(ctx, req.Identity, &resp.State, dashboardSectionIdentityNames, &resp.Diagnostics)
+		return
+	}
+	defer func() { syncIdentity(ctx, resp.State, resp.Identity, dashboardSectionIdentityNames, &resp.Diagnostics) }()
 	parts := strings.Split(req.ID, "/")
 	if len(parts) != 2 {
 		resp.Diagnostics.AddError("importing dashboard_section",
@@ -257,6 +316,7 @@ func (r *DashboardSectionResource) ImportState(ctx context.Context, req resource
 	}
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dashboard_id"), parts[0])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("collapsed"), false)...)
 }
 
 var _ resource.ResourceWithMoveState = &DashboardSectionResource{}
@@ -265,6 +325,6 @@ var _ resource.ResourceWithMoveState = &DashboardSectionResource{}
 // logtail_dashboard_section (registry.terraform.io/BetterStackHQ/logtail).
 func (r *DashboardSectionResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[],\"ignored_fields\":[\"created_at\",\"updated_at\"],\"instructions\":[\"Keep dashboard_id, name, y, collapsed and explanation: the legacy provider wrote the same /api/v2/dashboards/:dashboard_id/sections fields. The legacy dashboard_id/section_id composite id becomes the bare section id with dashboard_id beside it. created_at and updated_at are gone: the API never returned them. No create, delete or reposition is part of migration: these shift chart layout.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_dashboard_section\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"scope\":{\"kind\":\"parent\",\"field\":\"dashboard_id\",\"resource\":\"dashboard\"},\"source_attributes\":[{\"computed\":true,\"description\":\"Whether this section is collapsed.\",\"name\":\"collapsed\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"The time when this section was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"description\":\"The ID of the dashboard this section belongs to.\",\"force_new\":true,\"name\":\"dashboard_id\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The explanation text shown for this section.\",\"name\":\"explanation\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this section.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"The name of this section.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this section was updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"description\":\"The vertical position of this section in the dashboard grid.\",\"name\":\"y\",\"required\":true,\"type\":\"int\"}],\"response_projections\":[]}"),
+		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"composite_id\",\"path\":\"id\"}],\"ignored_fields\":[\"created_at\",\"updated_at\"],\"instructions\":[\"Keep dashboard_id, name, y, collapsed and explanation. The legacy dashboard_id/section_id composite id becomes the bare section id with dashboard_id beside it. created_at and updated_at are gone: Better Stack never returned them. Never create, delete or move a section during the migration: a new or moved section that overlaps others makes Better Stack rearrange the dashboard's charts.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_dashboard_section\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"scope\":{\"kind\":\"parent\",\"field\":\"dashboard_id\",\"resource\":\"dashboard\"},\"lookup\":{\"action\":\"list\",\"params\":{\"dashboard_id\":\"dashboard_id\"},\"id_parts\":2,\"id_part\":1},\"defaults\":{\"collapsed\":false},\"source_attributes\":[{\"computed\":true,\"description\":\"Whether this section is collapsed.\",\"name\":\"collapsed\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"The time when this section was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"description\":\"The ID of the dashboard this section belongs to.\",\"force_new\":true,\"name\":\"dashboard_id\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The explanation text shown for this section.\",\"name\":\"explanation\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this section.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"The name of this section.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this section was updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"description\":\"The vertical position of this section in the dashboard grid.\",\"name\":\"y\",\"required\":true,\"type\":\"int\"}],\"response_projections\":[]}"),
 	}
 }

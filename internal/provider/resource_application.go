@@ -35,33 +35,42 @@ func NewApplicationResource() resource.Resource {
 }
 
 type ApplicationModel struct {
-	Id                          types.String `tfsdk:"id"`
-	ApplicationGroupId          types.String `tfsdk:"application_group_id"`
-	CodeMappingSourceRoot       types.String `tfsdk:"code_mapping_source_root"`
-	CodeMappingStackRoot        types.String `tfsdk:"code_mapping_stack_root"`
-	CorrelateWithSourceId       types.String `tfsdk:"correlate_with_source_id"`
-	CreatedAt                   types.String `tfsdk:"created_at"`
-	CustomBucket                types.Object `tfsdk:"custom_bucket"`
-	DataRegion                  types.String `tfsdk:"data_region"`
-	DeletionProtection          types.Bool   `tfsdk:"deletion_protection"`
-	ErrorsRetention             types.Int64  `tfsdk:"errors_retention"`
-	GithubRepositoryName        types.String `tfsdk:"github_repository_name"`
-	GitlabRepositoryName        types.String `tfsdk:"gitlab_repository_name"`
-	IngestingHost               types.String `tfsdk:"ingesting_host"`
-	IngestingPaused             types.Bool   `tfsdk:"ingesting_paused"`
-	JsTagToken                  types.String `tfsdk:"js_tag_token"`
-	Name                        types.String `tfsdk:"name"`
-	Platform                    types.String `tfsdk:"platform"`
-	TableName                   types.String `tfsdk:"table_name"`
-	TeamId                      types.String `tfsdk:"team_id"`
-	TeamName                    types.String `tfsdk:"team_name"`
-	Token                       types.String `tfsdk:"token"`
-	UpdatedAt                   types.String `tfsdk:"updated_at"`
-	VrlTransformationExceptions types.String `tfsdk:"vrl_transformation_exceptions"`
-	VrlTransformationLogs       types.String `tfsdk:"vrl_transformation_logs"`
-	VrlTransformationReplays    types.String `tfsdk:"vrl_transformation_replays"`
-	VrlTransformationSpans      types.String `tfsdk:"vrl_transformation_spans"`
-	VrlTransformationWebEvents  types.String `tfsdk:"vrl_transformation_web_events"`
+	Id                                types.String `tfsdk:"id"`
+	AiPromptTemplate                  types.String `tfsdk:"ai_prompt_template"`
+	ApplicationGroupId                types.String `tfsdk:"application_group_id"`
+	CodeMappingSourceRoot             types.String `tfsdk:"code_mapping_source_root"`
+	CodeMappingStackRoot              types.String `tfsdk:"code_mapping_stack_root"`
+	CorrelateWithSourceId             types.String `tfsdk:"correlate_with_source_id"`
+	CreatedAt                         types.String `tfsdk:"created_at"`
+	CustomBucket                      types.Object `tfsdk:"custom_bucket"`
+	DataRegion                        types.String `tfsdk:"data_region"`
+	DeletionProtection                types.Bool   `tfsdk:"deletion_protection"`
+	ErrorsRetention                   types.Int64  `tfsdk:"errors_retention"`
+	GithubRepositoryName              types.String `tfsdk:"github_repository_name"`
+	GitlabRepositoryName              types.String `tfsdk:"gitlab_repository_name"`
+	IngestingHost                     types.String `tfsdk:"ingesting_host"`
+	IngestingPaused                   types.Bool   `tfsdk:"ingesting_paused"`
+	JsTagConfiguration                types.Object `tfsdk:"js_tag_configuration"`
+	JsTagOwnDomainStatus              types.String `tfsdk:"js_tag_own_domain_status"`
+	JsTagToken                        types.String `tfsdk:"js_tag_token"`
+	Name                              types.String `tfsdk:"name"`
+	ParentSourceId                    types.String `tfsdk:"parent_source_id"`
+	Platform                          types.String `tfsdk:"platform"`
+	QueryCollections                  types.Object `tfsdk:"query_collections"`
+	ReplaysRetention                  types.Int64  `tfsdk:"replays_retention"`
+	SourceTypes                       types.List   `tfsdk:"source_types"`
+	SpikeProtectionBaselineMultiplier types.Int64  `tfsdk:"spike_protection_baseline_multiplier"`
+	TableName                         types.String `tfsdk:"table_name"`
+	TeamId                            types.String `tfsdk:"team_id"`
+	TeamName                          types.String `tfsdk:"team_name"`
+	Token                             types.String `tfsdk:"token"`
+	UpdatedAt                         types.String `tfsdk:"updated_at"`
+	VrlTransformationExceptions       types.String `tfsdk:"vrl_transformation_exceptions"`
+	VrlTransformationLogs             types.String `tfsdk:"vrl_transformation_logs"`
+	VrlTransformationReplays          types.String `tfsdk:"vrl_transformation_replays"`
+	VrlTransformationSpans            types.String `tfsdk:"vrl_transformation_spans"`
+	VrlTransformationWebEvents        types.String `tfsdk:"vrl_transformation_web_events"`
+	WebEventsRetention                types.Int64  `tfsdk:"web_events_retention"`
 }
 
 type ApplicationCustomBucketModel struct {
@@ -90,9 +99,6 @@ func expandApplicationCustomBucket(ctx context.Context, o types.Object) map[stri
 	var m ApplicationCustomBucketModel
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
-	if !m.Name.IsNull() && !m.Name.IsUnknown() {
-		out["name"] = m.Name.ValueString()
-	}
 	if !m.Endpoint.IsNull() && !m.Endpoint.IsUnknown() {
 		out["endpoint"] = m.Endpoint.ValueString()
 	}
@@ -104,6 +110,24 @@ func expandApplicationCustomBucket(ctx context.Context, o types.Object) map[stri
 	}
 	if !m.KeepDataAfterRetention.IsNull() && !m.KeepDataAfterRetention.IsUnknown() {
 		out["keep_data_after_retention"] = m.KeepDataAfterRetention.ValueBool()
+	}
+	return out
+}
+
+// expandApplicationCustomBucketForUpdate marshals the keys an update takes: a key set on create only
+// replaces the resource when it changes, so an update never sends it.
+func expandApplicationCustomBucketForUpdate(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ApplicationCustomBucketModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.AccessKeyId.IsNull() && !m.AccessKeyId.IsUnknown() {
+		out["access_key_id"] = m.AccessKeyId.ValueString()
+	}
+	if !m.SecretAccessKey.IsNull() && !m.SecretAccessKey.IsUnknown() {
+		out["secret_access_key"] = m.SecretAccessKey.ValueString()
 	}
 	return out
 }
@@ -131,45 +155,477 @@ func flattenApplicationCustomBucket(ctx context.Context, prior types.Object, raw
 	return obj
 }
 
+type ApplicationJsTagConfigurationModel struct {
+	Collect                    types.Object `tfsdk:"collect"`
+	Sampling                   types.Object `tfsdk:"sampling"`
+	ExcludeSelectors           types.List   `tfsdk:"exclude_selectors"`
+	MaskSelectors              types.List   `tfsdk:"mask_selectors"`
+	SharedSessionDomains       types.List   `tfsdk:"shared_session_domains"`
+	AcceptIncomingSessions     types.Bool   `tfsdk:"accept_incoming_sessions"`
+	DecorateForms              types.Bool   `tfsdk:"decorate_forms"`
+	CustomConfig               types.String `tfsdk:"custom_config"`
+	SessionTimeoutMinutes      types.Int64  `tfsdk:"session_timeout_minutes"`
+	EventsBatchIntervalSeconds types.Int64  `tfsdk:"events_batch_interval_seconds"`
+	OwnDomain                  types.String `tfsdk:"own_domain"`
+}
+
+func applicationJsTagConfigurationAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"collect":                       types.ObjectType{AttrTypes: applicationJsTagConfigurationCollectAttrTypes()},
+		"sampling":                      types.ObjectType{AttrTypes: applicationJsTagConfigurationSamplingAttrTypes()},
+		"exclude_selectors":             types.ListType{ElemType: types.StringType},
+		"mask_selectors":                types.ListType{ElemType: types.StringType},
+		"shared_session_domains":        types.ListType{ElemType: types.StringType},
+		"accept_incoming_sessions":      types.BoolType,
+		"decorate_forms":                types.BoolType,
+		"custom_config":                 types.StringType,
+		"session_timeout_minutes":       types.Int64Type,
+		"events_batch_interval_seconds": types.Int64Type,
+		"own_domain":                    types.StringType,
+	}
+}
+
+// expandApplicationJsTagConfiguration marshals a nested ApplicationJsTagConfiguration object into its request map.
+func expandApplicationJsTagConfiguration(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ApplicationJsTagConfigurationModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Collect.IsNull() && !m.Collect.IsUnknown() {
+		out["collect"] = expandApplicationJsTagConfigurationCollect(ctx, m.Collect)
+	}
+	if !m.Sampling.IsNull() && !m.Sampling.IsUnknown() {
+		out["sampling"] = expandApplicationJsTagConfigurationSampling(ctx, m.Sampling)
+	}
+	if !m.ExcludeSelectors.IsNull() && !m.ExcludeSelectors.IsUnknown() {
+		var vals []string
+		m.ExcludeSelectors.ElementsAs(ctx, &vals, false)
+		out["exclude_selectors"] = vals
+	}
+	if !m.MaskSelectors.IsNull() && !m.MaskSelectors.IsUnknown() {
+		var vals []string
+		m.MaskSelectors.ElementsAs(ctx, &vals, false)
+		out["mask_selectors"] = vals
+	}
+	if !m.SharedSessionDomains.IsNull() && !m.SharedSessionDomains.IsUnknown() {
+		var vals []string
+		m.SharedSessionDomains.ElementsAs(ctx, &vals, false)
+		out["shared_session_domains"] = vals
+	}
+	if !m.AcceptIncomingSessions.IsNull() && !m.AcceptIncomingSessions.IsUnknown() {
+		out["accept_incoming_sessions"] = m.AcceptIncomingSessions.ValueBool()
+	}
+	if !m.DecorateForms.IsNull() && !m.DecorateForms.IsUnknown() {
+		out["decorate_forms"] = m.DecorateForms.ValueBool()
+	}
+	if !m.CustomConfig.IsNull() && !m.CustomConfig.IsUnknown() {
+		out["custom_config"] = m.CustomConfig.ValueString()
+	}
+	if !m.SessionTimeoutMinutes.IsNull() && !m.SessionTimeoutMinutes.IsUnknown() {
+		out["session_timeout_minutes"] = m.SessionTimeoutMinutes.ValueInt64()
+	}
+	if !m.EventsBatchIntervalSeconds.IsNull() && !m.EventsBatchIntervalSeconds.IsUnknown() {
+		out["events_batch_interval_seconds"] = m.EventsBatchIntervalSeconds.ValueInt64()
+	}
+	if !m.OwnDomain.IsNull() && !m.OwnDomain.IsUnknown() {
+		out["own_domain"] = m.OwnDomain.ValueString()
+	}
+	return out
+}
+
+// flattenApplicationJsTagConfiguration refreshes a typed ApplicationJsTagConfiguration object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenApplicationJsTagConfiguration(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ApplicationJsTagConfigurationModel
+	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
+	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
+	m.Collect = types.ObjectNull(applicationJsTagConfigurationCollectAttrTypes())
+	m.Sampling = types.ObjectNull(applicationJsTagConfigurationSamplingAttrTypes())
+	m.ExcludeSelectors = types.ListNull(types.StringType)
+	m.MaskSelectors = types.ListNull(types.StringType)
+	m.SharedSessionDomains = types.ListNull(types.StringType)
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if raw, ok := raw["collect"].(map[string]interface{}); ok {
+		m.Collect = flattenApplicationJsTagConfigurationCollect(ctx, m.Collect, raw)
+	}
+	if raw, ok := raw["sampling"].(map[string]interface{}); ok {
+		m.Sampling = flattenApplicationJsTagConfigurationSampling(ctx, m.Sampling, raw)
+	}
+	if raw, ok := raw["exclude_selectors"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.ExcludeSelectors = lv
+	}
+	if raw, ok := raw["mask_selectors"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.MaskSelectors = lv
+	}
+	if raw, ok := raw["shared_session_domains"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.SharedSessionDomains = lv
+	}
+	if v, ok := boolFromAPI(raw["accept_incoming_sessions"]); ok {
+		m.AcceptIncomingSessions = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["decorate_forms"]); ok {
+		m.DecorateForms = types.BoolValue(v)
+	}
+	if rawValue, exists := raw["custom_config"]; exists {
+		if rawValue == nil {
+			m.CustomConfig = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["custom_config"]); ok {
+				m.CustomConfig = types.StringValue(v)
+			}
+		}
+	}
+	if v, ok := int64FromAPI(raw["session_timeout_minutes"]); ok {
+		m.SessionTimeoutMinutes = types.Int64Value(v)
+	}
+	if v, ok := int64FromAPI(raw["events_batch_interval_seconds"]); ok {
+		m.EventsBatchIntervalSeconds = types.Int64Value(v)
+	}
+	if rawValue, exists := raw["own_domain"]; exists {
+		if rawValue == nil {
+			m.OwnDomain = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["own_domain"]); ok {
+				m.OwnDomain = types.StringValue(v)
+			}
+		}
+	}
+	obj, _ := types.ObjectValueFrom(ctx, applicationJsTagConfigurationAttrTypes(), m)
+	return obj
+}
+
+type ApplicationJsTagConfigurationCollectModel struct {
+	Errors           types.Bool `tfsdk:"errors"`
+	WebVitals        types.Bool `tfsdk:"web_vitals"`
+	Console          types.Bool `tfsdk:"console"`
+	Memory           types.Bool `tfsdk:"memory"`
+	Analytics        types.Bool `tfsdk:"analytics"`
+	AnonymousEvents  types.Bool `tfsdk:"anonymous_events"`
+	Replays          types.Bool `tfsdk:"replays"`
+	IdentifiedEvents types.Bool `tfsdk:"identified_events"`
+	Fingerprint      types.Bool `tfsdk:"fingerprint"`
+}
+
+func applicationJsTagConfigurationCollectAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"errors":            types.BoolType,
+		"web_vitals":        types.BoolType,
+		"console":           types.BoolType,
+		"memory":            types.BoolType,
+		"analytics":         types.BoolType,
+		"anonymous_events":  types.BoolType,
+		"replays":           types.BoolType,
+		"identified_events": types.BoolType,
+		"fingerprint":       types.BoolType,
+	}
+}
+
+// expandApplicationJsTagConfigurationCollect marshals a nested ApplicationJsTagConfigurationCollect object into its request map.
+func expandApplicationJsTagConfigurationCollect(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ApplicationJsTagConfigurationCollectModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Errors.IsNull() && !m.Errors.IsUnknown() {
+		out["errors"] = m.Errors.ValueBool()
+	}
+	if !m.WebVitals.IsNull() && !m.WebVitals.IsUnknown() {
+		out["web_vitals"] = m.WebVitals.ValueBool()
+	}
+	if !m.Console.IsNull() && !m.Console.IsUnknown() {
+		out["console"] = m.Console.ValueBool()
+	}
+	if !m.Memory.IsNull() && !m.Memory.IsUnknown() {
+		out["memory"] = m.Memory.ValueBool()
+	}
+	if !m.Analytics.IsNull() && !m.Analytics.IsUnknown() {
+		out["analytics"] = m.Analytics.ValueBool()
+	}
+	if !m.AnonymousEvents.IsNull() && !m.AnonymousEvents.IsUnknown() {
+		out["anonymous_events"] = m.AnonymousEvents.ValueBool()
+	}
+	if !m.Replays.IsNull() && !m.Replays.IsUnknown() {
+		out["replays"] = m.Replays.ValueBool()
+	}
+	if !m.IdentifiedEvents.IsNull() && !m.IdentifiedEvents.IsUnknown() {
+		out["identified_events"] = m.IdentifiedEvents.ValueBool()
+	}
+	if !m.Fingerprint.IsNull() && !m.Fingerprint.IsUnknown() {
+		out["fingerprint"] = m.Fingerprint.ValueBool()
+	}
+	return out
+}
+
+// flattenApplicationJsTagConfigurationCollect refreshes a typed ApplicationJsTagConfigurationCollect object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenApplicationJsTagConfigurationCollect(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ApplicationJsTagConfigurationCollectModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := boolFromAPI(raw["errors"]); ok {
+		m.Errors = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["web_vitals"]); ok {
+		m.WebVitals = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["console"]); ok {
+		m.Console = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["memory"]); ok {
+		m.Memory = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["analytics"]); ok {
+		m.Analytics = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["anonymous_events"]); ok {
+		m.AnonymousEvents = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["replays"]); ok {
+		m.Replays = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["identified_events"]); ok {
+		m.IdentifiedEvents = types.BoolValue(v)
+	}
+	if v, ok := boolFromAPI(raw["fingerprint"]); ok {
+		m.Fingerprint = types.BoolValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, applicationJsTagConfigurationCollectAttrTypes(), m)
+	return obj
+}
+
+type ApplicationJsTagConfigurationSamplingModel struct {
+	Errors    types.Int64 `tfsdk:"errors"`
+	Replays   types.Int64 `tfsdk:"replays"`
+	WebEvents types.Int64 `tfsdk:"web_events"`
+}
+
+func applicationJsTagConfigurationSamplingAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"errors":     types.Int64Type,
+		"replays":    types.Int64Type,
+		"web_events": types.Int64Type,
+	}
+}
+
+// expandApplicationJsTagConfigurationSampling marshals a nested ApplicationJsTagConfigurationSampling object into its request map.
+func expandApplicationJsTagConfigurationSampling(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ApplicationJsTagConfigurationSamplingModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Errors.IsNull() && !m.Errors.IsUnknown() {
+		out["errors"] = m.Errors.ValueInt64()
+	}
+	if !m.Replays.IsNull() && !m.Replays.IsUnknown() {
+		out["replays"] = m.Replays.ValueInt64()
+	}
+	if !m.WebEvents.IsNull() && !m.WebEvents.IsUnknown() {
+		out["web_events"] = m.WebEvents.ValueInt64()
+	}
+	return out
+}
+
+// flattenApplicationJsTagConfigurationSampling refreshes a typed ApplicationJsTagConfigurationSampling object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenApplicationJsTagConfigurationSampling(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ApplicationJsTagConfigurationSamplingModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := int64FromAPI(raw["errors"]); ok {
+		m.Errors = types.Int64Value(v)
+	}
+	if v, ok := int64FromAPI(raw["replays"]); ok {
+		m.Replays = types.Int64Value(v)
+	}
+	if v, ok := int64FromAPI(raw["web_events"]); ok {
+		m.WebEvents = types.Int64Value(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, applicationJsTagConfigurationSamplingAttrTypes(), m)
+	return obj
+}
+
+type ApplicationQueryCollectionsModel struct {
+	Database         types.String `tfsdk:"database"`
+	Table            types.String `tfsdk:"table"`
+	Recent           types.Map    `tfsdk:"recent"`
+	S3               types.String `tfsdk:"s3"`
+	AppFilter        types.String `tfsdk:"app_filter"`
+	MetricsAppFilter types.String `tfsdk:"metrics_app_filter"`
+}
+
+func applicationQueryCollectionsAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"database":           types.StringType,
+		"table":              types.StringType,
+		"recent":             types.MapType{ElemType: types.StringType},
+		"s3":                 types.StringType,
+		"app_filter":         types.StringType,
+		"metrics_app_filter": types.StringType,
+	}
+}
+
+// expandApplicationQueryCollections marshals a nested ApplicationQueryCollections object into its request map.
+func expandApplicationQueryCollections(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ApplicationQueryCollectionsModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Database.IsNull() && !m.Database.IsUnknown() {
+		out["database"] = m.Database.ValueString()
+	}
+	if !m.Table.IsNull() && !m.Table.IsUnknown() {
+		out["table"] = m.Table.ValueString()
+	}
+	if !m.Recent.IsNull() && !m.Recent.IsUnknown() {
+		vals := map[string]string{}
+		m.Recent.ElementsAs(ctx, &vals, false)
+		out["recent"] = vals
+	}
+	if !m.S3.IsNull() && !m.S3.IsUnknown() {
+		out["s3"] = m.S3.ValueString()
+	}
+	if !m.AppFilter.IsNull() && !m.AppFilter.IsUnknown() {
+		out["app_filter"] = m.AppFilter.ValueString()
+	}
+	if !m.MetricsAppFilter.IsNull() && !m.MetricsAppFilter.IsUnknown() {
+		out["metrics_app_filter"] = m.MetricsAppFilter.ValueString()
+	}
+	return out
+}
+
+// flattenApplicationQueryCollections refreshes a typed ApplicationQueryCollections object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenApplicationQueryCollections(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ApplicationQueryCollectionsModel
+	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
+	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
+	m.Recent = types.MapNull(types.StringType)
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["database"]); ok {
+		m.Database = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["table"]); ok {
+		m.Table = types.StringValue(v)
+	}
+	if raw, ok := raw["recent"].(map[string]interface{}); ok {
+		vals := make(map[string]string, len(raw))
+		for k, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals[k] = ev
+			}
+		}
+		mv, _ := types.MapValueFrom(ctx, types.StringType, vals)
+		m.Recent = mv
+	}
+	if v, ok := stringFromAPI(raw["s3"]); ok {
+		m.S3 = types.StringValue(v)
+	}
+	if rawValue, exists := raw["app_filter"]; exists {
+		if rawValue == nil {
+			m.AppFilter = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["app_filter"]); ok {
+				m.AppFilter = types.StringValue(v)
+			}
+		}
+	}
+	if rawValue, exists := raw["metrics_app_filter"]; exists {
+		if rawValue == nil {
+			m.MetricsAppFilter = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["metrics_app_filter"]); ok {
+				m.MetricsAppFilter = types.StringValue(v)
+			}
+		}
+	}
+	obj, _ := types.ObjectValueFrom(ctx, applicationQueryCollectionsAttrTypes(), m)
+	return obj
+}
+
 func (r *ApplicationResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_application"
 }
 
 func (r *ApplicationResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "An error-tracking application: a stream of exceptions, releases, and web events from one service.",
+		Description:         "An error-tracking application collects the exceptions, releases and web events of one service.",
+		MarkdownDescription: "An error-tracking application collects the exceptions, releases and web events of one service.",
 		Attributes: map[string]schema.Attribute{
 			"id":                       schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"application_group_id":     schema.StringAttribute{Optional: true, Description: "Application group this application belongs to. Send null to ungroup; an unknown or out-of-team group id 404s rather than accepting it (unlike the legacy API, \"0\" no longer ungroups)."},
-			"code_mapping_source_root": schema.StringAttribute{Optional: true, Description: "Repository source root used to map an exception back to a source file."},
-			"code_mapping_stack_root":  schema.StringAttribute{Optional: true, Description: "Stack-trace root path used to map an exception back to a source file."},
-			"correlate_with_source_id": schema.StringAttribute{Optional: true, Description: "Telemetry source whose logs and traces are correlated with these errors. Fixed at creation; sending it on update always 422s, even to the same value.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_application"}}},
+			"ai_prompt_template":       schema.StringAttribute{Optional: true, Computed: true, Description: "The AI prompt used to fix this application's errors. It holds the default prompt when the application has none of its own. A blank prompt is refused."},
+			"application_group_id":     schema.StringAttribute{Optional: true, Description: "The ID of the application group to put this application in, from List application groups (https://betterstack.com/docs/errors/api/applications-groups/list/). Remove the argument to move it out of its group.", MarkdownDescription: "The ID of the application group to put this application in, from [List application groups](https://betterstack.com/docs/errors/api/applications-groups/list/). Remove the argument to move it out of its group."},
+			"code_mapping_source_root": schema.StringAttribute{Optional: true, Description: "The path from your repository's root to the deployed source code, such as apps/backend/. A stack frame's path under code_mapping_stack_root is looked up under this path in the linked repository.", MarkdownDescription: "The path from your repository's root to the deployed source code, such as `apps/backend/`. A stack frame's path under `code_mapping_stack_root` is looked up under this path in the linked repository."},
+			"code_mapping_stack_root":  schema.StringAttribute{Optional: true, Description: "The absolute path to the root of the stack trace on your server, such as /usr/src/app/. Stack frames under it are mapped to files in the linked repository.", MarkdownDescription: "The absolute path to the root of the stack trace on your server, such as `/usr/src/app/`. Stack frames under it are mapped to files in the linked repository."},
+			"correlate_with_source_id": schema.StringAttribute{Optional: true, Description: "The telemetry source, from List sources (https://betterstack.com/docs/logs/api/list-all-existing-sources/), whose logs and traces are correlated with these errors.", MarkdownDescription: "The telemetry source, from [List sources](https://betterstack.com/docs/logs/api/list-all-existing-sources/), whose logs and traces are correlated with these errors.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_application"}}},
 			"created_at":               schema.StringAttribute{Computed: true, Description: "When the application was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"custom_bucket": schema.SingleNestedAttribute{Optional: true, Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_application"}}}, "endpoint": schema.StringAttribute{Optional: true, Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_application"}}}, "access_key_id": schema.StringAttribute{Optional: true, Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_application"}}}, "secret_access_key": schema.StringAttribute{Optional: true, Computed: true, Sensitive: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_application"}}}, "keep_data_after_retention": schema.BoolAttribute{Optional: true, Computed: true, PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown(), replaceWarningBool{boolplanmodifier.RequiresReplaceIfConfigured(), "betterstack_application"}}}}, Description: "Custom S3-compatible archival bucket, set on create when your plan includes custom buckets. secret_access_key is write-only and never returned. An update may send only access_key_id and secret_access_key together, which rotates the key pair after probing it against the bucket.", PlanModifiers: []planmodifier.Object{replaceWarningObject{objectplanmodifier.RequiresReplaceIf(func(_ context.Context, req planmodifier.ObjectRequest, resp *objectplanmodifier.RequiresReplaceIfFuncResponse) {
-				resp.RequiresReplace = req.PlanValue.IsNull() || req.StateValue.IsNull() || req.PlanValue.IsUnknown()
-			}, "Changing the presence or size of this immutable container requires replacement.", "Changing the presence or size of this immutable container requires replacement."), "betterstack_application"}}},
-			"data_region": schema.StringAttribute{Optional: true, Computed: true, Description: "The data region, as the source picker names it: `europe`, `us`, `singapore` or a dedicated cluster's name. It reads back as that name. The older ids `germany`, `us_east` and `us_west` are also accepted. An application created with `correlate_with_source_id` takes that source's region, and a different region here is refused. Set on create only: sending it on update is refused. Omit it to use the organization's default.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIf(func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
+			"custom_bucket": schema.SingleNestedAttribute{Optional: true, Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Computed: true, Description: "The bucket's name, which Better Stack reads from endpoint.", MarkdownDescription: "The bucket's name, which Better Stack reads from `endpoint`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "endpoint": schema.StringAttribute{Optional: true, Computed: true, Description: "The S3-compatible endpoint URL of the bucket. It can't be changed after the bucket is set.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_application"}}}, "access_key_id": schema.StringAttribute{Optional: true, Computed: true, Description: "The access key ID Better Stack uses to write to the bucket."}, "secret_access_key": schema.StringAttribute{Optional: true, Computed: true, Description: "The secret access key for access_key_id. It's write-only.", MarkdownDescription: "The secret access key for `access_key_id`. It's write-only.", Sensitive: true}, "keep_data_after_retention": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether data stays in the bucket after the retention period. It can't be changed after the bucket is set.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown(), replaceWarningBool{boolplanmodifier.RequiresReplaceIfConfigured(), "betterstack_application"}}}}, Description: "Your own S3-compatible bucket to archive data in, or null when the application uses Better Stack storage. Changing only access_key_id and secret_access_key rotates the bucket's key pair.", MarkdownDescription: "Your own S3-compatible bucket to archive data in, or `null` when the application uses Better Stack storage. Changing only `access_key_id` and `secret_access_key` rotates the bucket's key pair.", PlanModifiers: []planmodifier.Object{replaceWarningObject{objectplanmodifier.RequiresReplaceIf(func(_ context.Context, req planmodifier.ObjectRequest, resp *objectplanmodifier.RequiresReplaceIfFuncResponse) {
+				resp.RequiresReplace = req.PlanValue.IsNull() != req.StateValue.IsNull()
+			}, "Adding or removing this object requires replacement.", "Adding or removing this object requires replacement."), "betterstack_application"}}},
+			"data_region": schema.StringAttribute{Optional: true, Computed: true, Description: "The data region. It's europe, us, singapore or a dedicated cluster's name from List data regions (https://betterstack.com/docs/errors/api/data-regions/). An application created with correlate_with_source_id uses that source's region, and a different region here is refused. Omit it to use the organization's default.", MarkdownDescription: "The data region. It's `europe`, `us`, `singapore` or a dedicated cluster's name from [List data regions](https://betterstack.com/docs/errors/api/data-regions/). An application created with `correlate_with_source_id` uses that source's region, and a different region here is refused. Omit it to use the organization's default.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIf(func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
 				resp.RequiresReplace = !req.ConfigValue.IsNull() && !sameAliasedValue(map[string]string{"germany": "europe", "us_east": "us", "us_west": "us"}, req.StateValue.ValueString(), req.PlanValue.ValueString())
 			}, "Changing this to a value that reads back differently requires replacement.", "Changing this to a value that reads back differently requires replacement."), "betterstack_application"}}},
-			"deletion_protection":           schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "While true (the default), destroying or replacing this application fails, in a plan or in a pulumi destroy. Kept in Terraform or Pulumi state only: the API never sees it. Set it to false and apply that before deleting or replacing it on purpose."},
-			"errors_retention":              schema.Int64Attribute{Optional: true, Computed: true, Description: "Days to retain errors: one of the windows your plan offers, or the value already stored.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
-			"github_repository_name":        schema.StringAttribute{Optional: true, Description: "Linked GitHub repository (owner/name) for source-code mapping, from the team's connected repositories. Mutually exclusive with gitlab_repository_name; an empty string disconnects it."},
-			"gitlab_repository_name":        schema.StringAttribute{Optional: true, Description: "Linked GitLab repository (group/name) for source-code mapping, from the team's connected repositories. Mutually exclusive with github_repository_name; an empty string disconnects it."},
-			"ingesting_host":                schema.StringAttribute{Computed: true, Description: "Host to send data to."},
-			"ingesting_paused":              schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Pause ingestion for this application."},
-			"js_tag_token":                  schema.StringAttribute{Computed: true, Description: "Browser-tag token, distinct from token: the ?t= value the /b.js browser tag is loaded with. Null for a platform with no browser tag.", Sensitive: true},
-			"name":                          schema.StringAttribute{Required: true, Description: "Application name."},
-			"platform":                      schema.StringAttribute{Required: true, Description: "SDK/framework platform. Fixed at creation. Set to a value the errors platform catalog doesn't know and it is still stored and honored end-to-end; the model itself only rejects blank or \"collector\".", Validators: []validator.String{stringvalidator.OneOf("react_errors", "vue_errors", "angular_errors", "react_native_errors", "ember_errors", "solid_errors", "svelte_errors", "sveltekit_errors", "next_js_errors", "nuxt_errors", "remix_errors", "gatsby_errors", "astro_errors", "solidstart_errors", "javascript_errors", "dart_errors", "tanstack_start_react_errors", "react_router_framework_errors", "unity_errors", "android_errors", "ios_errors", "flutter_errors", "asp_dot_net_errors", "asp_dot_net_core_errors", "dot_net_errors", "dot_net_http_errors", "django_errors", "fastapi_errors", "flask_errors", "falcon_errors", "bottle_errors", "asgi_errors", "sanic_errors", "starlette_errors", "tornado_errors", "chalice_errors", "wsgi_errors", "python_errors", "express_errors", "fastify_errors", "nest_js_errors", "koa_errors", "hapi_errors", "node_errors", "bun_errors", "deno_errors", "laravel_errors", "symfony_errors", "php_errors", "spring_errors", "spring_boot_errors", "java_errors", "rails_errors", "rack_middleware_errors", "ruby_errors", "echo_errors", "gin_errors", "fiber_errors", "go_errors", "negroni_errors", "rust_errors", "elixir_errors", "powershell_errors", "rq_errors", "celery_errors", "quart_errors", "pyramid_errors", "connect_errors", "iris_errors", "tryton_errors", "log4j_errors", "logback_errors", "aiohttp_errors", "fasthttp_errors", "dot_net_maui_errors", "unreal_engine_errors", "qt_errors", "electron_errors", "macos_errors", "windows_forms_errors", "wpf_errors", "godot_errors", "minidump_errors", "aws_lambda_dot_net_errors", "aws_lambda_node_errors", "aws_lambda_python_errors", "azure_functions_node_errors", "google_cloud_function_dot_net_errors", "google_cloud_function_node_errors", "google_cloud_function_python_errors", "serverless_python_errors", "cloudflare_pages_errors", "kotlin_errors", "native_errors", "cli_errors")}, PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_application"}}},
-			"table_name":                    schema.StringAttribute{Computed: true, Description: "Underlying table name."},
-			"team_id":                       schema.StringAttribute{Computed: true, Description: "Team that owns the application, as its t-prefixed Better Stack id (t123).", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"team_name":                     schema.StringAttribute{Computed: true, Description: "Name of the team that owns the application."},
-			"token":                         schema.StringAttribute{Computed: true, Description: "Ingestion token (the SDK's DSN).", Sensitive: true},
-			"updated_at":                    schema.StringAttribute{Computed: true, Description: "When the application was last updated."},
-			"vrl_transformation_exceptions": schema.StringAttribute{Optional: true, Computed: true, Description: "Server-side VRL program applied to exception events. Reads back the seeded platform default when no program has been set, never null.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"vrl_transformation_logs":       schema.StringAttribute{Optional: true, Computed: true, Description: "Server-side VRL program applied to log events collected alongside errors.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"vrl_transformation_replays":    schema.StringAttribute{Optional: true, Computed: true, Description: "Server-side VRL program applied to session-replay events.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"vrl_transformation_spans":      schema.StringAttribute{Optional: true, Computed: true, Description: "Server-side VRL program applied to trace spans collected alongside errors.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"vrl_transformation_web_events": schema.StringAttribute{Optional: true, Computed: true, Description: "Server-side VRL program applied to web-vitals/web events.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"deletion_protection":                  schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether destroying or replacing this application is refused. Defaults to true. Set it to false and apply before you delete or replace it on purpose. It's kept in state and never sent to Better Stack.", MarkdownDescription: "Whether destroying or replacing this application is refused. Defaults to `true`. Set it to `false` and apply before you delete or replace it on purpose. It's kept in state and never sent to Better Stack."},
+			"errors_retention":                     schema.Int64Attribute{Optional: true, Computed: true, Description: "Days to keep errors. Accepts one of the retention periods your plan offers, or the value already set. Defaults to your plan's default retention, or to a longer one the team's other applications already use.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
+			"github_repository_name":               schema.StringAttribute{Optional: true, Description: "The linked GitHub repository for source-code mapping, as owner/name, such as acme/web. Connect it to your team with the GitHub integration (https://betterstack.com/docs/errors/integrations/github/) first. Set it to an empty string to disconnect it. Can't be set together with gitlab_repository_name.", MarkdownDescription: "The linked GitHub repository for source-code mapping, as `owner/name`, such as `acme/web`. Connect it to your team with the [GitHub integration](https://betterstack.com/docs/errors/integrations/github/) first. Set it to an empty string to disconnect it. Can't be set together with `gitlab_repository_name`."},
+			"gitlab_repository_name":               schema.StringAttribute{Optional: true, Description: "The linked GitLab repository for source-code mapping, as group/name, such as acme/web, from the team's connected repositories. Set it to an empty string to disconnect it. Can't be set together with github_repository_name.", MarkdownDescription: "The linked GitLab repository for source-code mapping, as `group/name`, such as `acme/web`, from the team's connected repositories. Set it to an empty string to disconnect it. Can't be set together with `github_repository_name`."},
+			"ingesting_host":                       schema.StringAttribute{Computed: true, Description: "Host to send data to.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"ingesting_paused":                     schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether ingestion is paused for this application."},
+			"js_tag_configuration":                 schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"collect": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"errors": schema.BoolAttribute{Optional: true, Computed: true, Description: "Collect frontend errors."}, "web_vitals": schema.BoolAttribute{Optional: true, Computed: true, Description: "Record web vitals."}, "console": schema.BoolAttribute{Optional: true, Computed: true, Description: "Collect console.log calls.", MarkdownDescription: "Collect `console.log` calls."}, "memory": schema.BoolAttribute{Optional: true, Computed: true, Description: "Record JavaScript heap memory, in Chrome only."}, "analytics": schema.BoolAttribute{Optional: true, Computed: true, Description: "Record website analytics."}, "anonymous_events": schema.BoolAttribute{Optional: true, Computed: true, Description: "Capture anonymous user events."}, "replays": schema.BoolAttribute{Optional: true, Computed: true, Description: "Record session replays."}, "identified_events": schema.BoolAttribute{Optional: true, Computed: true, Description: "Capture identified user events."}, "fingerprint": schema.BoolAttribute{Optional: true, Computed: true, Description: "Collect the browser fingerprint."}}, Description: "The features the JavaScript tag collects, each on or off."}, "sampling": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"errors": schema.Int64Attribute{Optional: true, Computed: true, Description: "Percentage of errors sent, from 0 to 100."}, "replays": schema.Int64Attribute{Optional: true, Computed: true, Description: "Percentage of sessions recorded as session replays, from 0 to 100."}, "web_events": schema.Int64Attribute{Optional: true, Computed: true, Description: "Percentage of sessions that send web events, from 0 to 100."}}, Description: "Sampling rates of the JavaScript tag, as percentages."}, "exclude_selectors": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "CSS selectors of elements excluded from session replays and autocapture."}, "mask_selectors": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "CSS selectors of elements whose text session replays mask."}, "shared_session_domains": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Your other domains to share sessions with."}, "accept_incoming_sessions": schema.BoolAttribute{Optional: true, Computed: true, Description: "Continue sessions that arrive from your other domains."}, "decorate_forms": schema.BoolAttribute{Optional: true, Computed: true, Description: "Also share sessions through forms that submit to your other domains."}, "custom_config": schema.StringAttribute{Optional: true, Computed: true, Description: "JavaScript code the tag runs when it loads."}, "session_timeout_minutes": schema.Int64Attribute{Optional: true, Computed: true, Description: "Session timeout in minutes, from 1 to 60."}, "events_batch_interval_seconds": schema.Int64Attribute{Optional: true, Computed: true, Description: "Seconds between batches of events, at least 2."}, "own_domain": schema.StringAttribute{Optional: true, Computed: true, Description: "Your own subdomain to serve the tag from. Its CNAME record must point to proxy.betterstack.net.", MarkdownDescription: "Your own subdomain to serve the tag from. Its CNAME record must point to `proxy.betterstack.net`."}}, Description: "Settings of the JavaScript tag, as on the application's Frontend page. It's null for an application without a JavaScript tag.", MarkdownDescription: "Settings of the JavaScript tag, as on the application's **Frontend** page. It's `null` for an application without a JavaScript tag."},
+			"js_tag_own_domain_status":             schema.StringAttribute{Computed: true, Description: "Whether the CNAME record of your own subdomain points to proxy.betterstack.net. It's null when js_tag_configuration has no own_domain.\n\n- checking: Better Stack hasn't checked the CNAME record since the subdomain last changed.\n- missing: The subdomain has no CNAME record.\n- invalid: The CNAME record doesn't point to proxy.betterstack.net.\n- valid: The CNAME record points to proxy.betterstack.net, so the tag is served from the subdomain.", MarkdownDescription: "Whether the CNAME record of your own subdomain points to `proxy.betterstack.net`. It's `null` when `js_tag_configuration` has no `own_domain`.\n\n- `checking`: Better Stack hasn't checked the CNAME record since the subdomain last changed.\n- `missing`: The subdomain has no CNAME record.\n- `invalid`: The CNAME record doesn't point to `proxy.betterstack.net`.\n- `valid`: The CNAME record points to `proxy.betterstack.net`, so the tag is served from the subdomain."},
+			"js_tag_token":                         schema.StringAttribute{Computed: true, Description: "Token of the browser tag, separate from token. It's the ?t= value the /b.js browser tag is loaded with. null for a platform without a browser tag.", MarkdownDescription: "Token of the browser tag, separate from `token`. It's the `?t=` value the `/b.js` browser tag is loaded with. `null` for a platform without a browser tag.", Sensitive: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"name":                                 schema.StringAttribute{Required: true, Description: "Application name."},
+			"parent_source_id":                     schema.StringAttribute{Computed: true, Description: "The source this application is connected to, whose collections query_collections names. null when it isn't connected to a source.", MarkdownDescription: "The source this application is connected to, whose collections `query_collections` names. `null` when it isn't connected to a source."},
+			"platform":                             schema.StringAttribute{Required: true, Description: "The SDK or framework the application reports errors from.", Validators: []validator.String{stringvalidator.OneOf("aiohttp_errors", "android_errors", "angular_errors", "asgi_errors", "asp_dot_net_core_errors", "asp_dot_net_errors", "astro_errors", "aws_lambda_dot_net_errors", "aws_lambda_node_errors", "aws_lambda_python_errors", "azure_functions_node_errors", "bottle_errors", "bun_errors", "celery_errors", "chalice_errors", "cli_errors", "cloudflare_pages_errors", "connect_errors", "dart_errors", "deno_errors", "django_errors", "dot_net_errors", "dot_net_http_errors", "dot_net_maui_errors", "echo_errors", "electron_errors", "elixir_errors", "ember_errors", "express_errors", "falcon_errors", "fastapi_errors", "fasthttp_errors", "fastify_errors", "fiber_errors", "flask_errors", "flutter_errors", "gatsby_errors", "gin_errors", "go_errors", "godot_errors", "google_cloud_function_dot_net_errors", "google_cloud_function_node_errors", "google_cloud_function_python_errors", "hapi_errors", "ios_errors", "iris_errors", "java_errors", "javascript_errors", "koa_errors", "kotlin_errors", "laravel_errors", "log4j_errors", "logback_errors", "macos_errors", "minidump_errors", "native_errors", "negroni_errors", "nest_js_errors", "next_js_errors", "node_errors", "nuxt_errors", "php_errors", "powershell_errors", "pyramid_errors", "python_errors", "qt_errors", "quart_errors", "rack_middleware_errors", "rails_errors", "react_errors", "react_native_errors", "react_router_framework_errors", "remix_errors", "rq_errors", "ruby_errors", "rust_errors", "sanic_errors", "serverless_python_errors", "solid_errors", "solidstart_errors", "spring_boot_errors", "spring_errors", "starlette_errors", "svelte_errors", "sveltekit_errors", "symfony_errors", "tanstack_start_react_errors", "tornado_errors", "tryton_errors", "unity_errors", "unreal_engine_errors", "vue_errors", "windows_forms_errors", "wpf_errors", "wsgi_errors")}, PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_application"}}},
+			"query_collections":                    schema.SingleNestedAttribute{Computed: true, Attributes: map[string]schema.Attribute{"database": schema.StringAttribute{Computed: true, Description: "The ClickHouse database that holds the application's data."}, "table": schema.StringAttribute{Computed: true, Description: "The physical table, as database.table.", MarkdownDescription: "The physical table, as `database.table`."}, "recent": schema.MapAttribute{Computed: true, ElementType: types.StringType, Description: "The collection of the last 30 minutes for each row type the application holds, keyed by row type, such as exceptions or metrics.", MarkdownDescription: "The collection of the last 30 minutes for each row type the application holds, keyed by row type, such as `exceptions` or `metrics`."}, "s3": schema.StringAttribute{Computed: true, Description: "The collection that holds older rows of every type."}, "app_filter": schema.StringAttribute{Computed: true, Description: "The condition that keeps only the application's rows in its parent's raw collections. null unless the application is connected to a source.", MarkdownDescription: "The condition that keeps only the application's rows in its parent's raw collections. `null` unless the application is connected to a source."}, "metrics_app_filter": schema.StringAttribute{Computed: true, Description: "The condition that keeps only the application's rows in its parent's metrics collection. null unless the application is connected to a source.", MarkdownDescription: "The condition that keeps only the application's rows in its parent's metrics collection. `null` unless the application is connected to a source."}}, Description: "ClickHouse names to query the application's data by.", PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()}},
+			"replays_retention":                    schema.Int64Attribute{Optional: true, Computed: true, Description: "Days to keep session replays. Accepts one of the retention periods your plan offers, or the value already set. A change applies to every application connected to the same source. Only an application that records session replays accepts it."},
+			"source_types":                         schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "Row types the application holds, such as exceptions, logs, metrics, replays, spans or web_events, sorted by name.", MarkdownDescription: "Row types the application holds, such as `exceptions`, `logs`, `metrics`, `replays`, `spans` or `web_events`, sorted by name."},
+			"spike_protection_baseline_multiplier": schema.Int64Attribute{Optional: true, Description: "The baseline multiplier of spike protection, from 0 to 100. Lower values start sampling sooner, and higher values allow bigger bursts before sampling starts. It's null while spike protection is off. Remove the argument to turn spike protection off.", MarkdownDescription: "The baseline multiplier of spike protection, from 0 to 100. Lower values start sampling sooner, and higher values allow bigger bursts before sampling starts. It's `null` while spike protection is off. Remove the argument to turn spike protection off."},
+			"table_name":                           schema.StringAttribute{Computed: true, Description: "The application's table name, which identifies its data in SQL queries.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"team_id":                              schema.StringAttribute{Optional: true, Computed: true, Description: "The team that owns the application, such as t123. Defaults to the provider's team_id. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", MarkdownDescription: "The team that owns the application, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_application"}}},
+			"team_name":                            schema.StringAttribute{Computed: true, Description: "Name of the team that owns the application.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"token":                                schema.StringAttribute{Computed: true, Description: "Ingestion token. It's the DSN to configure your SDK with.", Sensitive: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"updated_at":                           schema.StringAttribute{Computed: true, Description: "When the application was last updated."},
+			"vrl_transformation_exceptions":        schema.StringAttribute{Optional: true, Computed: true, Description: "The VRL program that groups incoming exceptions into errors. A new application starts with its platform's default grouping, which groups exceptions by error name and call stack on most platforms. Read more about exception grouping (https://betterstack.com/docs/errors/using-the-product/exception-grouping/). Set it to an empty string to remove it.", MarkdownDescription: "The VRL program that groups incoming exceptions into errors. A new application starts with its platform's default grouping, which groups exceptions by error name and call stack on most platforms. Read more about [exception grouping](https://betterstack.com/docs/errors/using-the-product/exception-grouping/). Set it to an empty string to remove it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"vrl_transformation_logs":              schema.StringAttribute{Optional: true, Computed: true, Description: "The VRL program applied to logs collected alongside errors, during ingestion. Read more about VRL transformations (https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/). Set it to an empty string to remove it.", MarkdownDescription: "The VRL program applied to logs collected alongside errors, during ingestion. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/). Set it to an empty string to remove it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"vrl_transformation_replays":           schema.StringAttribute{Optional: true, Computed: true, Description: "The VRL program applied to session replays during ingestion. Set it to an empty string to remove it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"vrl_transformation_spans":             schema.StringAttribute{Optional: true, Computed: true, Description: "The VRL program applied to spans collected alongside errors, during ingestion. Set it to an empty string to remove it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"vrl_transformation_web_events":        schema.StringAttribute{Optional: true, Computed: true, Description: "The VRL program applied to web events, such as page views and web vitals, during ingestion. A new application starts with the default web events program. Set it to an empty string to remove it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"web_events_retention":                 schema.Int64Attribute{Optional: true, Computed: true, Description: "Days to keep web events. Accepts one of the retention periods your plan offers, or the value already set. A connected application's web events retention is set on its connected source.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -193,7 +649,7 @@ func (r *ApplicationResource) body(ctx context.Context, m ApplicationModel) map[
 		body["platform"] = m.Platform.ValueString()
 	}
 	if !m.ApplicationGroupId.IsNull() && !m.ApplicationGroupId.IsUnknown() {
-		body["application_group_id"] = idToAPI(m.ApplicationGroupId.ValueString())
+		body["application_group_id"] = m.ApplicationGroupId.ValueString()
 	}
 	if !m.IngestingPaused.IsNull() && !m.IngestingPaused.IsUnknown() {
 		body["ingesting_paused"] = m.IngestingPaused.ValueBool()
@@ -201,11 +657,17 @@ func (r *ApplicationResource) body(ctx context.Context, m ApplicationModel) map[
 	if !m.ErrorsRetention.IsNull() && !m.ErrorsRetention.IsUnknown() {
 		body["errors_retention"] = m.ErrorsRetention.ValueInt64()
 	}
+	if !m.WebEventsRetention.IsNull() && !m.WebEventsRetention.IsUnknown() {
+		body["web_events_retention"] = m.WebEventsRetention.ValueInt64()
+	}
+	if !m.ReplaysRetention.IsNull() && !m.ReplaysRetention.IsUnknown() {
+		body["replays_retention"] = m.ReplaysRetention.ValueInt64()
+	}
 	if !m.DataRegion.IsNull() && !m.DataRegion.IsUnknown() {
 		body["data_region"] = m.DataRegion.ValueString()
 	}
 	if !m.CorrelateWithSourceId.IsNull() && !m.CorrelateWithSourceId.IsUnknown() {
-		body["correlate_with_source_id"] = idToAPI(m.CorrelateWithSourceId.ValueString())
+		body["correlate_with_source_id"] = m.CorrelateWithSourceId.ValueString()
 	}
 	if !m.GithubRepositoryName.IsNull() && !m.GithubRepositoryName.IsUnknown() {
 		body["github_repository_name"] = m.GithubRepositoryName.ValueString()
@@ -237,6 +699,15 @@ func (r *ApplicationResource) body(ctx context.Context, m ApplicationModel) map[
 	if !m.VrlTransformationSpans.IsNull() && !m.VrlTransformationSpans.IsUnknown() {
 		body["vrl_transformation_spans"] = m.VrlTransformationSpans.ValueString()
 	}
+	if !m.SpikeProtectionBaselineMultiplier.IsNull() && !m.SpikeProtectionBaselineMultiplier.IsUnknown() {
+		body["spike_protection_baseline_multiplier"] = m.SpikeProtectionBaselineMultiplier.ValueInt64()
+	}
+	if !m.AiPromptTemplate.IsNull() && !m.AiPromptTemplate.IsUnknown() {
+		body["ai_prompt_template"] = m.AiPromptTemplate.ValueString()
+	}
+	if !m.JsTagConfiguration.IsNull() && !m.JsTagConfiguration.IsUnknown() {
+		body["js_tag_configuration"] = expandApplicationJsTagConfiguration(ctx, m.JsTagConfiguration)
+	}
 	return body
 }
 
@@ -247,13 +718,19 @@ func (r *ApplicationResource) bodyForUpdate(ctx context.Context, m ApplicationMo
 		body["name"] = m.Name.ValueString()
 	}
 	if !m.ApplicationGroupId.IsNull() && !m.ApplicationGroupId.IsUnknown() {
-		body["application_group_id"] = idToAPI(m.ApplicationGroupId.ValueString())
+		body["application_group_id"] = m.ApplicationGroupId.ValueString()
 	}
 	if !m.IngestingPaused.IsNull() && !m.IngestingPaused.IsUnknown() {
 		body["ingesting_paused"] = m.IngestingPaused.ValueBool()
 	}
 	if !m.ErrorsRetention.IsNull() && !m.ErrorsRetention.IsUnknown() {
 		body["errors_retention"] = m.ErrorsRetention.ValueInt64()
+	}
+	if !m.WebEventsRetention.IsNull() && !m.WebEventsRetention.IsUnknown() {
+		body["web_events_retention"] = m.WebEventsRetention.ValueInt64()
+	}
+	if !m.ReplaysRetention.IsNull() && !m.ReplaysRetention.IsUnknown() {
+		body["replays_retention"] = m.ReplaysRetention.ValueInt64()
 	}
 	if !m.GithubRepositoryName.IsNull() && !m.GithubRepositoryName.IsUnknown() {
 		body["github_repository_name"] = m.GithubRepositoryName.ValueString()
@@ -266,6 +743,9 @@ func (r *ApplicationResource) bodyForUpdate(ctx context.Context, m ApplicationMo
 	}
 	if !m.CodeMappingSourceRoot.IsNull() && !m.CodeMappingSourceRoot.IsUnknown() {
 		body["code_mapping_source_root"] = m.CodeMappingSourceRoot.ValueString()
+	}
+	if !m.CustomBucket.IsNull() && !m.CustomBucket.IsUnknown() {
+		body["custom_bucket"] = expandApplicationCustomBucketForUpdate(ctx, m.CustomBucket)
 	}
 	if !m.VrlTransformationExceptions.IsNull() && !m.VrlTransformationExceptions.IsUnknown() {
 		body["vrl_transformation_exceptions"] = m.VrlTransformationExceptions.ValueString()
@@ -281,6 +761,15 @@ func (r *ApplicationResource) bodyForUpdate(ctx context.Context, m ApplicationMo
 	}
 	if !m.VrlTransformationSpans.IsNull() && !m.VrlTransformationSpans.IsUnknown() {
 		body["vrl_transformation_spans"] = m.VrlTransformationSpans.ValueString()
+	}
+	if !m.SpikeProtectionBaselineMultiplier.IsNull() && !m.SpikeProtectionBaselineMultiplier.IsUnknown() {
+		body["spike_protection_baseline_multiplier"] = m.SpikeProtectionBaselineMultiplier.ValueInt64()
+	}
+	if !m.AiPromptTemplate.IsNull() && !m.AiPromptTemplate.IsUnknown() {
+		body["ai_prompt_template"] = m.AiPromptTemplate.ValueString()
+	}
+	if !m.JsTagConfiguration.IsNull() && !m.JsTagConfiguration.IsUnknown() {
+		body["js_tag_configuration"] = expandApplicationJsTagConfiguration(ctx, m.JsTagConfiguration)
 	}
 	return body
 }
@@ -303,6 +792,9 @@ func (r *ApplicationResource) updateBody(ctx context.Context, config, plan, stat
 	if !state.CodeMappingSourceRoot.IsNull() && !state.CodeMappingSourceRoot.IsUnknown() && plan.CodeMappingSourceRoot.IsNull() {
 		body["code_mapping_source_root"] = nil
 	}
+	if !state.SpikeProtectionBaselineMultiplier.IsNull() && !state.SpikeProtectionBaselineMultiplier.IsUnknown() && plan.SpikeProtectionBaselineMultiplier.IsNull() {
+		body["spike_protection_baseline_multiplier"] = nil
+	}
 	return body
 }
 
@@ -316,8 +808,16 @@ func (r *ApplicationResource) Create(ctx context.Context, req resource.CreateReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
 	out, err := r.client.Create(ctx, applicationBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating application", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating application", err, req.Plan.Raw.Type())
 		return
@@ -342,9 +842,22 @@ func (r *ApplicationResource) Read(ctx context.Context, req resource.ReadRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, applicationBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), applicationBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading application", err, req.State.Raw.Type())
 		return
@@ -388,9 +901,21 @@ func populateApplication(ctx context.Context, m *ApplicationModel, attrs map[str
 	if v, ok := int64FromAPI(attrs["errors_retention"]); ok {
 		m.ErrorsRetention = types.Int64Value(v)
 	}
+	if v, ok := int64FromAPI(attrs["web_events_retention"]); ok {
+		m.WebEventsRetention = types.Int64Value(v)
+	}
+	if rawValue, exists := attrs["replays_retention"]; exists {
+		if rawValue == nil {
+			m.ReplaysRetention = types.Int64Null()
+		} else {
+			if v, ok := int64FromAPI(attrs["replays_retention"]); ok {
+				m.ReplaysRetention = types.Int64Value(v)
+			}
+		}
+	}
 	if m.DataRegion.IsNull() || m.DataRegion.IsUnknown() {
 		if v, ok := stringFromAPI(attrs["data_region"]); ok {
-			m.DataRegion = types.StringValue(v)
+			m.DataRegion = aliasedValue(map[string]string{"germany": "europe", "us_east": "us", "us_west": "us"}, m.DataRegion, v)
 		}
 	}
 	if rawValue, exists := attrs["correlate_with_source_id"]; exists {
@@ -448,19 +973,77 @@ func populateApplication(ctx context.Context, m *ApplicationModel, attrs map[str
 		}
 	}
 	if v, ok := stringFromAPI(attrs["vrl_transformation_exceptions"]); ok {
-		m.VrlTransformationExceptions = types.StringValue(v)
+		m.VrlTransformationExceptions = vrlValue(m.VrlTransformationExceptions, v)
 	}
 	if v, ok := stringFromAPI(attrs["vrl_transformation_replays"]); ok {
-		m.VrlTransformationReplays = types.StringValue(v)
+		m.VrlTransformationReplays = vrlValue(m.VrlTransformationReplays, v)
 	}
 	if v, ok := stringFromAPI(attrs["vrl_transformation_web_events"]); ok {
-		m.VrlTransformationWebEvents = types.StringValue(v)
+		m.VrlTransformationWebEvents = vrlValue(m.VrlTransformationWebEvents, v)
 	}
 	if v, ok := stringFromAPI(attrs["vrl_transformation_logs"]); ok {
-		m.VrlTransformationLogs = types.StringValue(v)
+		m.VrlTransformationLogs = vrlValue(m.VrlTransformationLogs, v)
 	}
 	if v, ok := stringFromAPI(attrs["vrl_transformation_spans"]); ok {
-		m.VrlTransformationSpans = types.StringValue(v)
+		m.VrlTransformationSpans = vrlValue(m.VrlTransformationSpans, v)
+	}
+	if rawValue, exists := attrs["spike_protection_baseline_multiplier"]; exists {
+		if rawValue == nil {
+			m.SpikeProtectionBaselineMultiplier = types.Int64Null()
+		} else {
+			if v, ok := int64FromAPI(attrs["spike_protection_baseline_multiplier"]); ok {
+				m.SpikeProtectionBaselineMultiplier = types.Int64Value(v)
+			}
+		}
+	}
+	if rawValue, exists := attrs["ai_prompt_template"]; exists {
+		if rawValue == nil {
+			m.AiPromptTemplate = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["ai_prompt_template"]); ok {
+				m.AiPromptTemplate = types.StringValue(v)
+			}
+		}
+	}
+	if rawValue, exists := attrs["js_tag_configuration"]; exists {
+		if rawValue == nil {
+			m.JsTagConfiguration = types.ObjectNull(applicationJsTagConfigurationAttrTypes())
+		} else {
+			if raw, ok := attrs["js_tag_configuration"].(map[string]interface{}); ok {
+				m.JsTagConfiguration = flattenApplicationJsTagConfiguration(ctx, m.JsTagConfiguration, raw)
+			}
+		}
+	}
+	if rawValue, exists := attrs["js_tag_own_domain_status"]; exists {
+		if rawValue == nil {
+			m.JsTagOwnDomainStatus = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["js_tag_own_domain_status"]); ok {
+				m.JsTagOwnDomainStatus = types.StringValue(v)
+			}
+		}
+	}
+	if raw, ok := attrs["source_types"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.SourceTypes = lv
+	}
+	if rawValue, exists := attrs["parent_source_id"]; exists {
+		if rawValue == nil {
+			m.ParentSourceId = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["parent_source_id"]); ok {
+				m.ParentSourceId = types.StringValue(v)
+			}
+		}
+	}
+	if raw, ok := attrs["query_collections"].(map[string]interface{}); ok {
+		m.QueryCollections = flattenApplicationQueryCollections(ctx, m.QueryCollections, raw)
 	}
 	if v, ok := stringFromAPI(attrs["token"]); ok {
 		m.Token = types.StringValue(v)
@@ -480,17 +1063,17 @@ func populateApplication(ctx context.Context, m *ApplicationModel, attrs map[str
 	if v, ok := stringFromAPI(attrs["ingesting_host"]); ok {
 		m.IngestingHost = types.StringValue(v)
 	}
-	if v, ok := stringFromAPI(attrs["team_id"]); ok {
-		m.TeamId = types.StringValue(v)
-	}
-	if v, ok := stringFromAPI(attrs["team_name"]); ok {
-		m.TeamName = types.StringValue(v)
-	}
 	if v, ok := stringFromAPI(attrs["created_at"]); ok {
 		m.CreatedAt = datetimeValue(m.CreatedAt, v)
 	}
 	if v, ok := stringFromAPI(attrs["updated_at"]); ok {
 		m.UpdatedAt = datetimeValue(m.UpdatedAt, v)
+	}
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(attrs["team_name"]); ok {
+		m.TeamName = types.StringValue(v)
 	}
 }
 
@@ -498,13 +1081,14 @@ func (r *ApplicationResource) mergeResponse(ctx context.Context, m ApplicationMo
 	if raw, ok := attrs["custom_bucket"]; ok && !m.CustomBucket.IsNull() && !m.CustomBucket.IsUnknown() {
 		if tv, err := m.CustomBucket.ToTerraformValue(ctx); err == nil {
 			if prior, err := tftypesToAPI(tv); err == nil {
-				attrs["custom_bucket"] = mergeAPIRead(raw, prior, apiValueShape{Fields: map[string]apiValueShape{"name": apiValueShape{}, "endpoint": apiValueShape{}, "access_key_id": apiValueShape{}, "secret_access_key": apiValueShape{WriteOnly: true}, "keep_data_after_retention": apiValueShape{}}})
+				attrs["custom_bucket"] = mergeAPIRead(raw, prior, apiValueShape{Fields: map[string]apiValueShape{"name": apiValueShape{ReadOnly: true}, "endpoint": apiValueShape{}, "access_key_id": apiValueShape{}, "secret_access_key": apiValueShape{WriteOnly: true}, "keep_data_after_retention": apiValueShape{}}})
 			}
 		}
 	}
 }
 
 func (r *ApplicationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	defer rememberConfigured(ctx, req.Config, resp.Private, applicationKeptOnRemoval, &resp.Diagnostics)
 	var plan ApplicationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -520,6 +1104,12 @@ func (r *ApplicationResource) Update(ctx context.Context, req resource.UpdateReq
 	if !plan.IngestingPaused.Equal(state.IngestingPaused) {
 		request.IngestingPaused = plan.IngestingPaused
 	}
+	// Some of this object's keys are set on create only and the rest are sent only when they
+	// changed, so an unrelated change never resends them.
+	if plan.CustomBucket.Equal(state.CustomBucket) {
+		request.CustomBucket = types.ObjectNull(request.CustomBucket.AttributeTypes(ctx))
+	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, err := r.client.Update(ctx, applicationBinding, vars, r.updateBody(ctx, request, plan, state))
@@ -543,6 +1133,7 @@ func (r *ApplicationResource) Delete(ctx context.Context, req resource.DeleteReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	if err := r.client.Delete(ctx, applicationBinding, vars); err != nil {
@@ -551,15 +1142,18 @@ func (r *ApplicationResource) Delete(ctx context.Context, req resource.DeleteReq
 }
 
 // Attributes whose removal from the configuration keeps the server's value (no default, no null).
-var applicationKeptOnRemoval = []string{"errors_retention", "vrl_transformation_exceptions", "vrl_transformation_logs", "vrl_transformation_replays", "vrl_transformation_spans", "vrl_transformation_web_events"}
+var applicationKeptOnRemoval = []string{"ai_prompt_template", "errors_retention", "js_tag_configuration", "replays_retention", "vrl_transformation_exceptions", "vrl_transformation_logs", "vrl_transformation_replays", "vrl_transformation_spans", "vrl_transformation_web_events", "web_events_retention"}
 
 func (r *ApplicationResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseUnnamedTeam(ctx, req, resp, r.client, "application")
 	refuseProtectedDestroy(ctx, req, resp, "application")
 	warnKeptOnRemoval(ctx, "betterstack_application", req, resp, applicationKeptOnRemoval)
 }
 
 func (r *ApplicationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("ingesting_paused"), false)...)
 }
 
 var _ resource.ResourceWithMoveState = &ApplicationResource{}
@@ -568,6 +1162,6 @@ var _ resource.ResourceWithMoveState = &ApplicationResource{}
 // logtail_errors_application (registry.terraform.io/BetterStackHQ/logtail).
 func (r *ApplicationResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"singleton\",\"path\":\"custom_bucket\"},{\"op\":\"sentinel_null\",\"path\":\"application_group_id\",\"value\":0},{\"op\":\"sentinel_null\",\"path\":\"correlate_with_source_id\",\"value\":0},{\"op\":\"string_id\",\"path\":\"application_group_id\"},{\"op\":\"string_id\",\"path\":\"correlate_with_source_id\"}],\"ignored_fields\":[\"team_id\",\"team_name\"],\"instructions\":[\"Keep every attribute: the legacy provider wrote the same application fields. Turn the one-element custom_bucket block into an object, preserving the existing secret_access_key input. Configure the application's team on the provider and remove obsolete team_name inputs; computed team_id refreshes from the API as t123. Retain the existing resource state so create-only values are not lost. Import uses the existing id.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_errors_application\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"description\":\"ID of the application group this application belongs to. Set to `0` to remove from a group.\",\"diff_suppress_func\":\"provider.init.func10\",\"name\":\"application_group_id\",\"optional\":true,\"type\":\"int\",\"note\":\"0 = detach\",\"json\":\"application_group_id\"},{\"description\":\"Source code root path that replaces the stack trace root prefix. Used to map container or build paths to the corresponding repository paths for git blame.\",\"name\":\"code_mapping_source_root\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Stack trace root path prefix to match. When a stack trace file starts with this prefix, it will be replaced with the source code root to map to the correct repository path.\",\"name\":\"code_mapping_stack_root\",\"optional\":true,\"type\":\"string\"},{\"description\":\"ID of an existing source to correlate errors from this application with, for log and trace correlation. Cannot be changed after the application is created.\",\"name\":\"correlate_with_source_id\",\"optional\":true,\"type\":\"int\",\"note\":\"immutable after create\"},{\"computed\":true,\"description\":\"The time when this application was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"description\":\"Optional custom S3-compatible bucket configuration for the application. Can only be set when creating the application and cannot be added, changed, or removed afterwards - recreate the application to use a different bucket. Better Stack validates the credentials by writing and reading a test object in the bucket during creation.\",\"max_items\":1,\"name\":\"custom_bucket\",\"optional\":true,\"type\":\"list(object)\",\"note\":\"reuses the sourceCustomBucket struct; same 5 sub-attrs\"},{\"description\":\"Access key ID\",\"name\":\"custom_bucket.access_key_id\",\"required\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\"},{\"description\":\"Bucket endpoint including the bucket name, e.g. `https://s3.us-east-1.amazonaws.com/my-bucket` or `https://my-bucket.s3.us-east-1.amazonaws.com`.\",\"name\":\"custom_bucket.endpoint\",\"required\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\"},{\"default\":false,\"description\":\"Whether we should keep data in the bucket after the retention period.\",\"name\":\"custom_bucket.keep_data_after_retention\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"deprecated\":\"Do not set the bucket name - it is always derived from `endpoint`. This attribute will be removed in a future release.\",\"description\":\"Bucket name derived from `endpoint`. Deprecated - do not set this attribute.\",\"name\":\"custom_bucket.name\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Secret access key\",\"name\":\"custom_bucket.secret_access_key\",\"required\":true,\"sensitive\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\"},{\"computed\":true,\"description\":\"Data region or private cluster name to create the application in. Permitted values for most plans are: `us_west`, `germany`, `singapore`. This value can only be set at creation time and cannot be changed afterwards. The API returns the specific cluster name, which may differ from the value you provide (for example, `germany` may read back as `eu-nbg-2`).  \\nWhen importing an existing application, leave `data_region` unset in your configuration - Terraform reads it from the API. Pinning it to an identifier that differs from the stored cluster name produces a spurious `data_region cannot be changed after application is created` error.\",\"name\":\"data_region\",\"optional\":true,\"type\":\"string\",\"note\":\"create-only\"},{\"computed\":true,\"description\":\"Error data retention period in days. Default retention is 90 days.\",\"name\":\"errors_retention\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntBetween.func48\"},{\"computed\":true,\"conflicts_with\":[\"gitlab_repository_name\"],\"description\":\"Full name of a GitHub repository (e.g. `owner/repo`) to connect to this application for source links, git blame, and AI-assisted fixes. The repository must already be connected to your team's GitHub integration. Set to an empty string to disconnect. Mutually exclusive with `gitlab_repository_name`.\",\"name\":\"github_repository_name\",\"optional\":true,\"type\":\"string\",\"note\":\"empty string disconnects\"},{\"computed\":true,\"conflicts_with\":[\"github_repository_name\"],\"description\":\"Full name of a GitLab repository (e.g. `group/project`) to connect to this application for source links, git blame, and AI-assisted fixes. The repository must already be connected to your team's GitLab integration. Set to an empty string to disconnect. Mutually exclusive with `github_repository_name`.\",\"name\":\"gitlab_repository_name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this application.\",\"name\":\"id\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The host where the errors should be sent. See documentation for your specific platform for details.\",\"name\":\"ingesting_host\",\"type\":\"string\"},{\"computed\":true,\"description\":\"This property allows you to temporarily pause data ingesting for this application.\",\"name\":\"ingesting_paused\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"The public JavaScript tag token embedded in the browser snippet for RUM and browser-side error tracking. Distinct from `token`, which is used for server-side data ingestion.\",\"name\":\"js_tag_token\",\"type\":\"string\",\"note\":\"browser/RUM tag token, distinct from token\",\"json\":\"js_tag_token\"},{\"description\":\"Application name. Must be unique within your team.\",\"name\":\"name\",\"required\":true,\"type\":\"string\",\"json\":\"name\"},{\"description\":\"The platform type for the application. This helps configure appropriate SDKs and integrations. You can't update this value later. Valid values are:\\n    - `aiohttp_errors`\\n    - `android_errors`\\n    - `angular_errors`\\n    - `asgi_errors`\\n    - `asp_dot_net_core_errors`\\n    - `asp_dot_net_errors`\\n    - `astro_errors`\\n    - `aws_lambda_dot_net_errors`\\n    - `aws_lambda_node_errors`\\n    - `aws_lambda_python_errors`\\n    - `azure_functions_node_errors`\\n    - `bottle_errors`\\n    - `bun_errors`\\n    - `celery_errors`\\n    - `chalice_errors`\\n    - `cli_errors`\\n    - `cloudflare_pages_errors`\\n    - `connect_errors`\\n    - `dart_errors`\\n    - `deno_errors`\\n    - `django_errors`\\n    - `dot_net_errors`\\n    - `dot_net_http_errors`\\n    - `dot_net_maui_errors`\\n    - `echo_errors`\\n    - `electron_errors`\\n    - `elixir_errors`\\n    - `ember_errors`\\n    - `express_errors`\\n    - `falcon_errors`\\n    - `fastapi_errors`\\n    - `fasthttp_errors`\\n    - `fastify_errors`\\n    - `fiber_errors`\\n    - `flask_errors`\\n    - `flutter_errors`\\n    - `gatsby_errors`\\n    - `gin_errors`\\n    - `go_errors`\\n    - `godot_errors`\\n    - `google_cloud_function_dot_net_errors`\\n    - `google_cloud_function_node_errors`\\n    - `google_cloud_function_python_errors`\\n    - `hapi_errors`\\n    - `ios_errors`\\n    - `iris_errors`\\n    - `java_errors`\\n    - `javascript_errors`\\n    - `koa_errors`\\n    - `kotlin_errors`\\n    - `laravel_errors`\\n    - `log4j_errors`\\n    - `logback_errors`\\n    - `macos_errors`\\n    - `minidump_errors`\\n    - `native_errors`\\n    - `negroni_errors`\\n    - `nest_js_errors`\\n    - `next_js_errors`\\n    - `node_errors`\\n    - `nuxt_errors`\\n    - `php_errors`\\n    - `powershell_errors`\\n    - `pyramid_errors`\\n    - `python_errors`\\n    - `qt_errors`\\n    - `quart_errors`\\n    - `rack_middleware_errors`\\n    - `rails_errors`\\n    - `react_errors`\\n    - `react_native_errors`\\n    - `react_router_framework_errors`\\n    - `remix_errors`\\n    - `rq_errors`\\n    - `ruby_errors`\\n    - `rust_errors`\\n    - `sanic_errors`\\n    - `serverless_python_errors`\\n    - `solid_errors`\\n    - `solidstart_errors`\\n    - `spring_boot_errors`\\n    - `spring_errors`\\n    - `starlette_errors`\\n    - `svelte_errors`\\n    - `sveltekit_errors`\\n    - `symfony_errors`\\n    - `tanstack_start_react_errors`\\n    - `tornado_errors`\\n    - `tryton_errors`\\n    - `unity_errors`\\n    - `unreal_engine_errors`\\n    - `vue_errors`\\n    - `windows_forms_errors`\\n    - `wpf_errors`\\n    - `wsgi_errors`\",\"force_new\":true,\"name\":\"platform\",\"required\":true,\"type\":\"string\",\"validate_diag_func\":\"provider.init.func9\",\"note\":\"97 allowed values (resource_errors_application.go:20-116)\",\"json\":\"platform\"},{\"computed\":true,\"description\":\"The table name generated for this application.\",\"name\":\"table_name\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The team ID for this resource.\",\"name\":\"team_id\",\"type\":\"string\",\"json\":\"team_id\",\"go_type\":\"*StringOrInt\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.init.teamNameSchema.func47\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\",\"json\":\"team_name\"},{\"computed\":true,\"description\":\"The token of this application. This token is used to identify and route the data you will send to Better Stack.\",\"name\":\"token\",\"type\":\"string\",\"json\":\"token\"},{\"computed\":true,\"description\":\"The time when this application was updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"VRL transformation applied to exceptions on Better Stack's servers during ingestion. This is what controls how exceptions are grouped into errors. Leave unset to keep the grouping unmanaged - the attribute reads back the effective program, including the default grouping for the application's platform. Set to an empty string to remove the grouping program entirely (exceptions stop being grouped by it - this is rarely what you want; to return to the default grouping, use the application's Exception grouping editor). Read more about [customizing exception grouping](https://betterstack.com/docs/errors/using-the-product/exception-grouping/#customize-exception-grouping).\",\"diff_suppress_func\":\"provider.suppressEquivalentVRL\",\"name\":\"vrl_transformation_exceptions\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"VRL transformation applied to logs on Better Stack's servers during ingestion. Leave unset to keep the transformation unmanaged; set to an empty string to remove it. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.suppressEquivalentVRL\",\"name\":\"vrl_transformation_logs\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"VRL transformation applied to session replays on Better Stack's servers during ingestion. Leave unset to keep the transformation unmanaged; set to an empty string to remove it. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.suppressEquivalentVRL\",\"name\":\"vrl_transformation_replays\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"VRL transformation applied to traces (spans) on Better Stack's servers during ingestion. Leave unset to keep the transformation unmanaged; set to an empty string to remove it. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.suppressEquivalentVRL\",\"name\":\"vrl_transformation_spans\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"VRL transformation applied to web events (page views and web vitals) on Better Stack's servers during ingestion. Leave unset to keep the transformation unmanaged; set to an empty string to remove it. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.suppressEquivalentVRL\",\"name\":\"vrl_transformation_web_events\",\"optional\":true,\"type\":\"string\"}],\"response_projections\":[]}"),
+		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"singleton\",\"path\":\"custom_bucket\"},{\"op\":\"sentinel_null\",\"path\":\"application_group_id\",\"value\":0},{\"op\":\"sentinel_null\",\"path\":\"correlate_with_source_id\",\"value\":0},{\"op\":\"string_id\",\"path\":\"application_group_id\"},{\"op\":\"string_id\",\"path\":\"correlate_with_source_id\"}],\"ignored_fields\":[\"team_id\",\"team_name\",\"custom_bucket[].name\"],\"instructions\":[\"Keep every attribute. Turn the one-element custom_bucket block into an object, keeping the existing secret_access_key input. Configure the application's team on the provider and remove obsolete team_name inputs. The computed team_id refreshes as t123. Keep the existing resource state so create-only values are not lost. Import uses the existing ID. Remove name from custom_bucket: Better Stack reads the bucket name from its endpoint.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_errors_application\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"defaults\":{\"ingesting_paused\":false},\"source_attributes\":[{\"description\":\"ID of the application group this application belongs to. Set to `0` to remove from a group.\",\"diff_suppress_func\":\"provider.init.func10\",\"name\":\"application_group_id\",\"optional\":true,\"type\":\"int\",\"note\":\"0 = detach\",\"json\":\"application_group_id\"},{\"description\":\"Source code root path that replaces the stack trace root prefix. Used to map container or build paths to the corresponding repository paths for git blame.\",\"name\":\"code_mapping_source_root\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Stack trace root path prefix to match. When a stack trace file starts with this prefix, it will be replaced with the source code root to map to the correct repository path.\",\"name\":\"code_mapping_stack_root\",\"optional\":true,\"type\":\"string\"},{\"description\":\"ID of an existing source to correlate errors from this application with, for log and trace correlation. Cannot be changed after the application is created.\",\"name\":\"correlate_with_source_id\",\"optional\":true,\"type\":\"int\",\"note\":\"immutable after create\"},{\"computed\":true,\"description\":\"The time when this application was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"description\":\"Optional custom S3-compatible bucket configuration for the application. Can only be set when creating the application and cannot be added, changed, or removed afterwards - recreate the application to use a different bucket. Better Stack validates the credentials by writing and reading a test object in the bucket during creation.\",\"max_items\":1,\"name\":\"custom_bucket\",\"optional\":true,\"type\":\"list(object)\",\"note\":\"reuses the sourceCustomBucket struct; same 5 sub-attrs\"},{\"description\":\"Access key ID\",\"name\":\"custom_bucket.access_key_id\",\"required\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\"},{\"description\":\"Bucket endpoint including the bucket name, e.g. `https://s3.us-east-1.amazonaws.com/my-bucket` or `https://my-bucket.s3.us-east-1.amazonaws.com`.\",\"name\":\"custom_bucket.endpoint\",\"required\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\"},{\"default\":false,\"description\":\"Whether we should keep data in the bucket after the retention period.\",\"name\":\"custom_bucket.keep_data_after_retention\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"deprecated\":\"Do not set the bucket name - it is always derived from `endpoint`. This attribute will be removed in a future release.\",\"description\":\"Bucket name derived from `endpoint`. Deprecated - do not set this attribute.\",\"name\":\"custom_bucket.name\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Secret access key\",\"name\":\"custom_bucket.secret_access_key\",\"required\":true,\"sensitive\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\"},{\"computed\":true,\"description\":\"Data region or private cluster name to create the application in. Permitted values for most plans are: `us_west`, `germany`, `singapore`. This value can only be set at creation time and cannot be changed afterwards. The API returns the specific cluster name, which may differ from the value you provide (for example, `germany` may read back as `eu-nbg-2`).  \\nWhen importing an existing application, leave `data_region` unset in your configuration - Terraform reads it from the API. Pinning it to an identifier that differs from the stored cluster name produces a spurious `data_region cannot be changed after application is created` error.\",\"name\":\"data_region\",\"optional\":true,\"type\":\"string\",\"note\":\"create-only\"},{\"computed\":true,\"description\":\"Error data retention period in days. Default retention is 90 days.\",\"name\":\"errors_retention\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntBetween.func48\"},{\"computed\":true,\"conflicts_with\":[\"gitlab_repository_name\"],\"description\":\"Full name of a GitHub repository (e.g. `owner/repo`) to connect to this application for source links, git blame, and AI-assisted fixes. The repository must already be connected to your team's GitHub integration. Set to an empty string to disconnect. Mutually exclusive with `gitlab_repository_name`.\",\"name\":\"github_repository_name\",\"optional\":true,\"type\":\"string\",\"note\":\"empty string disconnects\"},{\"computed\":true,\"conflicts_with\":[\"github_repository_name\"],\"description\":\"Full name of a GitLab repository (e.g. `group/project`) to connect to this application for source links, git blame, and AI-assisted fixes. The repository must already be connected to your team's GitLab integration. Set to an empty string to disconnect. Mutually exclusive with `github_repository_name`.\",\"name\":\"gitlab_repository_name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this application.\",\"name\":\"id\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The host where the errors should be sent. See documentation for your specific platform for details.\",\"name\":\"ingesting_host\",\"type\":\"string\"},{\"computed\":true,\"description\":\"This property allows you to temporarily pause data ingesting for this application.\",\"name\":\"ingesting_paused\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"The public JavaScript tag token embedded in the browser snippet for RUM and browser-side error tracking. Distinct from `token`, which is used for server-side data ingestion.\",\"name\":\"js_tag_token\",\"type\":\"string\",\"note\":\"browser/RUM tag token, distinct from token\",\"json\":\"js_tag_token\"},{\"description\":\"Application name. Must be unique within your team.\",\"name\":\"name\",\"required\":true,\"type\":\"string\",\"json\":\"name\"},{\"description\":\"The platform type for the application. This helps configure appropriate SDKs and integrations. You can't update this value later. Valid values are:\\n    - `aiohttp_errors`\\n    - `android_errors`\\n    - `angular_errors`\\n    - `asgi_errors`\\n    - `asp_dot_net_core_errors`\\n    - `asp_dot_net_errors`\\n    - `astro_errors`\\n    - `aws_lambda_dot_net_errors`\\n    - `aws_lambda_node_errors`\\n    - `aws_lambda_python_errors`\\n    - `azure_functions_node_errors`\\n    - `bottle_errors`\\n    - `bun_errors`\\n    - `celery_errors`\\n    - `chalice_errors`\\n    - `cli_errors`\\n    - `cloudflare_pages_errors`\\n    - `connect_errors`\\n    - `dart_errors`\\n    - `deno_errors`\\n    - `django_errors`\\n    - `dot_net_errors`\\n    - `dot_net_http_errors`\\n    - `dot_net_maui_errors`\\n    - `echo_errors`\\n    - `electron_errors`\\n    - `elixir_errors`\\n    - `ember_errors`\\n    - `express_errors`\\n    - `falcon_errors`\\n    - `fastapi_errors`\\n    - `fasthttp_errors`\\n    - `fastify_errors`\\n    - `fiber_errors`\\n    - `flask_errors`\\n    - `flutter_errors`\\n    - `gatsby_errors`\\n    - `gin_errors`\\n    - `go_errors`\\n    - `godot_errors`\\n    - `google_cloud_function_dot_net_errors`\\n    - `google_cloud_function_node_errors`\\n    - `google_cloud_function_python_errors`\\n    - `hapi_errors`\\n    - `ios_errors`\\n    - `iris_errors`\\n    - `java_errors`\\n    - `javascript_errors`\\n    - `koa_errors`\\n    - `kotlin_errors`\\n    - `laravel_errors`\\n    - `log4j_errors`\\n    - `logback_errors`\\n    - `macos_errors`\\n    - `minidump_errors`\\n    - `native_errors`\\n    - `negroni_errors`\\n    - `nest_js_errors`\\n    - `next_js_errors`\\n    - `node_errors`\\n    - `nuxt_errors`\\n    - `php_errors`\\n    - `powershell_errors`\\n    - `pyramid_errors`\\n    - `python_errors`\\n    - `qt_errors`\\n    - `quart_errors`\\n    - `rack_middleware_errors`\\n    - `rails_errors`\\n    - `react_errors`\\n    - `react_native_errors`\\n    - `react_router_framework_errors`\\n    - `remix_errors`\\n    - `rq_errors`\\n    - `ruby_errors`\\n    - `rust_errors`\\n    - `sanic_errors`\\n    - `serverless_python_errors`\\n    - `solid_errors`\\n    - `solidstart_errors`\\n    - `spring_boot_errors`\\n    - `spring_errors`\\n    - `starlette_errors`\\n    - `svelte_errors`\\n    - `sveltekit_errors`\\n    - `symfony_errors`\\n    - `tanstack_start_react_errors`\\n    - `tornado_errors`\\n    - `tryton_errors`\\n    - `unity_errors`\\n    - `unreal_engine_errors`\\n    - `vue_errors`\\n    - `windows_forms_errors`\\n    - `wpf_errors`\\n    - `wsgi_errors`\",\"force_new\":true,\"name\":\"platform\",\"required\":true,\"type\":\"string\",\"validate_diag_func\":\"provider.init.func9\",\"note\":\"97 allowed values (resource_errors_application.go:20-116)\",\"json\":\"platform\"},{\"computed\":true,\"description\":\"The table name generated for this application.\",\"name\":\"table_name\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The team ID for this resource.\",\"name\":\"team_id\",\"type\":\"string\",\"json\":\"team_id\",\"go_type\":\"*StringOrInt\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.init.teamNameSchema.func47\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\",\"json\":\"team_name\"},{\"computed\":true,\"description\":\"The token of this application. This token is used to identify and route the data you will send to Better Stack.\",\"name\":\"token\",\"type\":\"string\",\"json\":\"token\"},{\"computed\":true,\"description\":\"The time when this application was updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"VRL transformation applied to exceptions on Better Stack's servers during ingestion. This is what controls how exceptions are grouped into errors. Leave unset to keep the grouping unmanaged - the attribute reads back the effective program, including the default grouping for the application's platform. Set to an empty string to remove the grouping program entirely (exceptions stop being grouped by it - this is rarely what you want; to return to the default grouping, use the application's Exception grouping editor). Read more about [customizing exception grouping](https://betterstack.com/docs/errors/using-the-product/exception-grouping/#customize-exception-grouping).\",\"diff_suppress_func\":\"provider.suppressEquivalentVRL\",\"name\":\"vrl_transformation_exceptions\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"VRL transformation applied to logs on Better Stack's servers during ingestion. Leave unset to keep the transformation unmanaged; set to an empty string to remove it. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.suppressEquivalentVRL\",\"name\":\"vrl_transformation_logs\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"VRL transformation applied to session replays on Better Stack's servers during ingestion. Leave unset to keep the transformation unmanaged; set to an empty string to remove it. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.suppressEquivalentVRL\",\"name\":\"vrl_transformation_replays\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"VRL transformation applied to traces (spans) on Better Stack's servers during ingestion. Leave unset to keep the transformation unmanaged; set to an empty string to remove it. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.suppressEquivalentVRL\",\"name\":\"vrl_transformation_spans\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"VRL transformation applied to web events (page views and web vitals) on Better Stack's servers during ingestion. Leave unset to keep the transformation unmanaged; set to an empty string to remove it. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.suppressEquivalentVRL\",\"name\":\"vrl_transformation_web_events\",\"optional\":true,\"type\":\"string\"}],\"response_projections\":[]}"),
 	}
 }

@@ -268,23 +268,24 @@ func (r *ErrorsSlackIntegrationResource) Metadata(ctx context.Context, req resou
 
 func (r *ErrorsSlackIntegrationResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "An Error tracking Slack integration: the Slack channel that gets error notifications, which errors reach it and how updates are posted.",
+		Description:         "An Error tracking Slack integration. It sets the Slack channel that gets error notifications, which errors reach it and how updates are posted.",
+		MarkdownDescription: "An Error tracking Slack integration. It sets the Slack channel that gets error notifications, which errors reach it and how updates are posted.",
 		Attributes: map[string]schema.Attribute{
 			// The declared lifecycle addresses an existing object, so identity is configured.
-			"id":                             schema.StringAttribute{Required: true, Description: "Existing remote object ID to adopt; no remote object is created.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_errors_slack_integration"}}},
-			"affected_users_threshold_count": schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Total number of affected users for `notifications.affected_users_threshold`."},
+			"id":                             schema.StringAttribute{Required: true, Description: "ID of the object in Better Stack this resource takes over. Changing it takes over that object instead. The previous one keeps its settings in Better Stack.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_errors_slack_integration"}}},
+			"affected_users_threshold_count": schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Total number of affected users for notifications.affected_users_threshold. A positive whole number.", MarkdownDescription: "Total number of affected users for `notifications.affected_users_threshold`. A positive whole number."},
 			"ai_sre_on_mention":              schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Start an AI SRE conversation when Better Stack is tagged in the channel."},
-			"applications":                   schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"application_id": schema.StringAttribute{Optional: true, Computed: true, Description: "ID of an Error tracking application in the token's team."}, "environments": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Environments to act on errors from. Empty means every environment."}}}, Description: "Applications this integration acts on, each with its environments. Empty means any application. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"broadcast_updates":              schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "With `thread_based`: also send important updates (resolved and re-opened errors, spikes, occurrence milestones) to the channel."},
-			"notifications":                  schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"spikes": schema.BoolAttribute{Optional: true, Computed: true, Description: "Application has a spike in errors."}, "spike_protection": schema.BoolAttribute{Optional: true, Computed: true, Description: "Spike protection starts sampling exceptions."}, "new_releases": schema.BoolAttribute{Optional: true, Computed: true, Description: "New release is observed."}, "new_errors": schema.BoolAttribute{Optional: true, Computed: true, Description: "New error occurs."}, "occurrence_milestones": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches an occurrence milestone (10, 100, 200, 500...)."}, "occurrence_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error occurs `occurrence_threshold_count` times within `occurrence_threshold_interval`."}, "automatically_reopened": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error is automatically re-opened."}, "affected_users_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches `affected_users_threshold_count` affected users."}}, Description: "\"Notify me when\": which events post to the channel. An update changes only the toggles sent.", PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()}},
-			"occurrence_threshold_count":     schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Number of occurrences for `notifications.occurrence_threshold`."},
-			"occurrence_threshold_interval":  schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("minute"), Description: "Time window for `notifications.occurrence_threshold`.", Validators: []validator.String{stringvalidator.OneOf("minute", "hour", "day", "week")}},
-			"post_updates":                   schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("single_channel"), Description: "`single_channel` posts every update to the channel. `thread_based` posts new errors to the channel and their updates in a thread.", Validators: []validator.String{stringvalidator.OneOf("single_channel", "thread_based")}},
+			"applications":                   schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"application_id": schema.StringAttribute{Optional: true, Computed: true, Description: "ID of an Error tracking application in the token's team."}, "environments": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Environments whose errors it posts. Empty means every environment."}}}, Description: "Applications whose errors this integration posts, each with its environments. Empty means any application. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"broadcast_updates":              schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "With thread_based, also send important updates to the channel. Those are resolved and re-opened errors, spikes, and errors reaching an occurrence milestone.", MarkdownDescription: "With `thread_based`, also send important updates to the channel. Those are resolved and re-opened errors, spikes, and errors reaching an occurrence milestone."},
+			"notifications":                  schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"spikes": schema.BoolAttribute{Optional: true, Computed: true, Description: "Application has a spike in errors."}, "spike_protection": schema.BoolAttribute{Optional: true, Computed: true, Description: "Spike protection starts sampling exceptions."}, "new_releases": schema.BoolAttribute{Optional: true, Computed: true, Description: "New release is observed."}, "new_errors": schema.BoolAttribute{Optional: true, Computed: true, Description: "New error occurs."}, "occurrence_milestones": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches an occurrence milestone of 10, 100, 200, 500 and so on."}, "occurrence_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error occurs occurrence_threshold_count times within occurrence_threshold_interval.", MarkdownDescription: "Error occurs `occurrence_threshold_count` times within `occurrence_threshold_interval`."}, "automatically_reopened": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error is automatically re-opened."}, "affected_users_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches affected_users_threshold_count affected users.", MarkdownDescription: "Error reaches `affected_users_threshold_count` affected users."}}, Description: "Which events post to the channel, as under Notify me when in the web app. An update changes only the toggles sent.", MarkdownDescription: "Which events post to the channel, as under **Notify me when** in the web app. An update changes only the toggles sent.", PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()}},
+			"occurrence_threshold_count":     schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Number of occurrences for notifications.occurrence_threshold. A positive whole number.", MarkdownDescription: "Number of occurrences for `notifications.occurrence_threshold`. A positive whole number."},
+			"occurrence_threshold_interval":  schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("minute"), Description: "Time window for notifications.occurrence_threshold.", MarkdownDescription: "Time window for `notifications.occurrence_threshold`.", Validators: []validator.String{stringvalidator.OneOf("minute", "hour", "day", "week")}},
+			"post_updates":                   schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("single_channel"), Description: "How updates are posted to Slack.\n\n- single_channel: Posts every update to the channel.\n- thread_based: Posts each new error to the channel and its updates in a thread.", MarkdownDescription: "How updates are posted to Slack.\n\n- `single_channel`: Posts every update to the channel.\n- `thread_based`: Posts each new error to the channel and its updates in a thread.", Validators: []validator.String{stringvalidator.OneOf("single_channel", "thread_based")}},
 			"slack_channel_name":             schema.StringAttribute{Computed: true, Description: "Slack channel errors are posted to."},
 			"slack_team_name":                schema.StringAttribute{Computed: true, Description: "Slack workspace of the channel."},
-			"tag_filter":                     schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"tag": schema.StringAttribute{Optional: true, Computed: true, Description: "Exception tag, such as environment or level."}, "values": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Matches any of these values."}}}, Description: "Acts on an error only when one of its exceptions has every tag listed, each with one of its values. Empty means every error. At most 10 tags with 50 values each, 200 characters per tag or value, each tag once. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"team_id":                        schema.StringAttribute{Computed: true, Description: "ID of the team that owns the integration, as the web app shows it (t123).", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"team_name":                      schema.StringAttribute{Computed: true, Description: "Name of the team that owns the integration."},
+			"tag_filter":                     schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"tag": schema.StringAttribute{Optional: true, Computed: true, Description: "Exception tag, such as environment or level."}, "values": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Matches any of these values."}}}, Description: "Posts an error only when one of its exceptions has every tag listed, each with one of its values. Empty means every error. At most 10 tags with 50 values each, 200 characters per tag or value, each tag once. An update replaces the whole list. The new_releases and spike_protection notifications and state changes are posted whatever the tags.", MarkdownDescription: "Posts an error only when one of its exceptions has every tag listed, each with one of its values. Empty means every error. At most 10 tags with 50 values each, 200 characters per tag or value, each tag once. An update replaces the whole list. The `new_releases` and `spike_protection` notifications and state changes are posted whatever the tags.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"team_id":                        schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the team that owns the integration, such as t123. Defaults to the provider's team_id. Set it when the object is in another team. Changing it replaces the resource, which takes over the object in that team instead.", MarkdownDescription: "ID of the team that owns the integration, such as `t123`. Defaults to the provider's `team_id`. Set it when the object is in another team. Changing it replaces the resource, which takes over the object in that team instead.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_errors_slack_integration"}}},
+			"team_name":                      schema.StringAttribute{Computed: true, Description: "Name of the team that owns the integration.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -358,6 +359,7 @@ func (r *ErrorsSlackIntegrationResource) Create(ctx context.Context, req resourc
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, found, err := r.client.Get(ctx, errorsSlackIntegrationBinding, vars)
@@ -382,6 +384,13 @@ func (r *ErrorsSlackIntegrationResource) Create(ctx context.Context, req resourc
 		return
 	}
 	out, err = r.client.Update(ctx, errorsSlackIntegrationBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating errors_slack_integration", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating errors_slack_integration", err, req.Plan.Raw.Type())
 		return
@@ -402,9 +411,22 @@ func (r *ErrorsSlackIntegrationResource) Read(ctx context.Context, req resource.
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, errorsSlackIntegrationBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), errorsSlackIntegrationBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading errors_slack_integration", err, req.State.Raw.Type())
 		return
@@ -422,12 +444,6 @@ func (r *ErrorsSlackIntegrationResource) Read(ctx context.Context, req resource.
 func populateErrorsSlackIntegration(ctx context.Context, m *ErrorsSlackIntegrationModel, attrs map[string]interface{}) {
 	if attrs == nil {
 		return
-	}
-	if v, ok := stringFromAPI(attrs["team_id"]); ok {
-		m.TeamId = types.StringValue(v)
-	}
-	if v, ok := stringFromAPI(attrs["team_name"]); ok {
-		m.TeamName = types.StringValue(v)
 	}
 	if raw, ok := attrs["applications"].([]interface{}); ok {
 		items := make([]types.Object, 0, len(raw))
@@ -478,9 +494,16 @@ func populateErrorsSlackIntegration(ctx context.Context, m *ErrorsSlackIntegrati
 	if v, ok := boolFromAPI(attrs["ai_sre_on_mention"]); ok {
 		m.AiSreOnMention = types.BoolValue(v)
 	}
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(attrs["team_name"]); ok {
+		m.TeamName = types.StringValue(v)
+	}
 }
 
 func (r *ErrorsSlackIntegrationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	defer rememberConfigured(ctx, req.Config, resp.Private, errorsSlackIntegrationKeptOnRemoval, &resp.Diagnostics)
 	var plan ErrorsSlackIntegrationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -511,6 +534,7 @@ func (r *ErrorsSlackIntegrationResource) Update(ctx context.Context, req resourc
 	if !plan.PostUpdates.Equal(state.PostUpdates) {
 		request.PostUpdates = plan.PostUpdates
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, err := r.client.Update(ctx, errorsSlackIntegrationBinding, vars, r.body(ctx, request))
@@ -533,9 +557,27 @@ func (r *ErrorsSlackIntegrationResource) Delete(ctx context.Context, req resourc
 var errorsSlackIntegrationKeptOnRemoval = []string{"applications", "notifications", "tag_filter"}
 
 func (r *ErrorsSlackIntegrationResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseUnnamedTeam(ctx, req, resp, r.client, "errors slack integration")
 	warnKeptOnRemoval(ctx, "betterstack_errors_slack_integration", req, resp, errorsSlackIntegrationKeptOnRemoval)
 }
 
 func (r *ErrorsSlackIntegrationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("occurrence_threshold_count"), 10)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("occurrence_threshold_interval"), "minute")...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("affected_users_threshold_count"), 10)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("post_updates"), "single_channel")...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("broadcast_updates"), true)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("ai_sre_on_mention"), true)...)
+}
+
+var _ resource.ResourceWithMoveState = &ErrorsSlackIntegrationResource{}
+
+// MoveState accepts `moved {}` blocks from the superseded provider resource(s):
+// logtail_errors_slack_integration (registry.terraform.io/BetterStackHQ/logtail).
+func (r *ErrorsSlackIntegrationResource) MoveState(ctx context.Context) []resource.StateMover {
+	return []resource.StateMover{
+		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"singleton\",\"path\":\"notifications\"},{\"op\":\"string_id\",\"path\":\"applications[].application_id\"}],\"ignored_fields\":[\"integration_id\",\"team_id\",\"team_name\"],\"instructions\":[\"Rename to betterstack_errors_slack_integration, keeping the integration ID, which the legacy provider stored as both id and integration_id. Drop integration_id, convert the single notifications block to an object and replace team_name with the provider's team.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_errors_slack_integration\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"defaults\":{\"occurrence_threshold_count\":10,\"occurrence_threshold_interval\":\"minute\",\"affected_users_threshold_count\":10,\"post_updates\":\"single_channel\",\"broadcast_updates\":true,\"ai_sre_on_mention\":true},\"source_attributes\":[{\"computed\":true,\"description\":\"How many affected users trigger the `affected_users_threshold` notification.\",\"name\":\"affected_users_threshold_count\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"Whether tagging Better Stack in the channel starts an AI SRE conversation.\",\"name\":\"ai_sre_on_mention\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"The Errors applications whose errors reach the integration, each as `{ application_id = …, environments = […] }` with `environments = []` for every environment. Set to `[]` to include every application.\",\"name\":\"applications\",\"optional\":true,\"type\":\"set(object)\"},{\"name\":\"applications.application_id\",\"optional\":true,\"type\":\"int\"},{\"name\":\"applications.environments\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"With `post_updates = \\\"thread_based\\\"`, whether important updates (resolved and re-opened errors, spikes and occurrence milestones) are also sent to the channel.\",\"name\":\"broadcast_updates\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"The ID of the integration, the same as `integration_id`.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"The ID of the existing Slack integration to manage, as in the URL of its Configure page in Error tracking › Integrations, or as listed by `GET /api/v1/slack-integrations`. Changing it adopts a different integration and leaves the previous one as it is.\",\"name\":\"integration_id\",\"required\":true,\"type\":\"int\"},{\"max_items\":1,\"name\":\"notifications\",\"optional\":true,\"type\":\"list(object)\"},{\"computed\":true,\"description\":\"Notify when an error affects more than `affected_users_threshold_count` users.\",\"name\":\"notifications.affected_users_threshold\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when an error is automatically re-opened.\",\"name\":\"notifications.automatically_reopened\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when a new error occurs.\",\"name\":\"notifications.new_errors\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when a new release is observed.\",\"name\":\"notifications.new_releases\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when an error reaches an occurrence milestone (10, 100, 200, 500, …).\",\"name\":\"notifications.occurrence_milestones\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when an error occurs more than `occurrence_threshold_count` times per `occurrence_threshold_interval`.\",\"name\":\"notifications.occurrence_threshold\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when spike protection starts sampling exceptions.\",\"name\":\"notifications.spike_protection\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when the application has a spike in errors.\",\"name\":\"notifications.spikes\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"How many occurrences per `occurrence_threshold_interval` trigger the `occurrence_threshold` notification.\",\"name\":\"occurrence_threshold_count\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The interval of `occurrence_threshold_count`: `minute`, `hour`, `day` or `week`.\",\"name\":\"occurrence_threshold_interval\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"How updates are posted: `single_channel` posts every update to the channel directly, `thread_based` posts new errors to the channel and their updates in a thread.\",\"name\":\"post_updates\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The Slack channel the integration posts to.\",\"name\":\"slack_channel_name\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The Slack workspace the integration posts to.\",\"name\":\"slack_team_name\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Only errors whose tags match every row reach the integration, each row as `{ tag = \\\"region\\\", values = [\\\"eu\\\"] }`. Set to `[]` to remove the filter.\",\"name\":\"tag_filter\",\"optional\":true,\"type\":\"list(object)\"},{\"name\":\"tag_filter.tag\",\"optional\":true,\"type\":\"string\"},{\"name\":\"tag_filter.values\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"The ID of the team the integration belongs to.\",\"name\":\"team_id\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The name of the team the integration belongs to.\",\"name\":\"team_name\",\"type\":\"string\"}],\"response_projections\":[]}"),
+	}
 }

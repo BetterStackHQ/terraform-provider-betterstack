@@ -32,7 +32,3 @@ Set `id`, or filter attributes matching exactly one record.
 
 - `description` (String) What the template visualizes.
 - `categories` (List of String) Categories the template is filed under.
-
-## Endpoints
-
-- `GET /api/v4/dashboards/templates`

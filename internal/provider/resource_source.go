@@ -14,12 +14,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 )
 
@@ -38,28 +40,24 @@ func NewSourceResource() resource.Resource {
 
 type SourceModel struct {
 	Id                             types.String `tfsdk:"id"`
-	AwsAccountId                   types.String `tfsdk:"aws_account_id"`
-	AwsAutoSubLogGroups            types.Bool   `tfsdk:"aws_auto_sub_log_groups"`
-	AwsExternalId                  types.String `tfsdk:"aws_external_id"`
-	AwsRoleArn                     types.String `tfsdk:"aws_role_arn"`
 	BlockedMetrics                 types.List   `tfsdk:"blocked_metrics"`
+	Cluster                        types.String `tfsdk:"cluster"`
 	ConnectedSourceIds             types.List   `tfsdk:"connected_source_ids"`
 	CreatedAt                      types.String `tfsdk:"created_at"`
 	CustomBucket                   types.Object `tfsdk:"custom_bucket"`
 	DataRegion                     types.String `tfsdk:"data_region"`
 	DeletionProtection             types.Bool   `tfsdk:"deletion_protection"`
-	GcpAccountId                   types.String `tfsdk:"gcp_account_id"`
-	GcpLogFilter                   types.String `tfsdk:"gcp_log_filter"`
 	GcpMetricsFilters              types.List   `tfsdk:"gcp_metrics_filters"`
-	GcpProjectId                   types.String `tfsdk:"gcp_project_id"`
-	GcpProjectNumber               types.String `tfsdk:"gcp_project_number"`
 	IngestingHost                  types.String `tfsdk:"ingesting_host"`
 	IngestingPaused                types.Bool   `tfsdk:"ingesting_paused"`
 	LiveTailPattern                types.String `tfsdk:"live_tail_pattern"`
+	LiveTailPatternSpans           types.String `tfsdk:"live_tail_pattern_spans"`
 	LogsRetention                  types.Int64  `tfsdk:"logs_retention"`
 	MetricsRetention               types.Int64  `tfsdk:"metrics_retention"`
 	Name                           types.String `tfsdk:"name"`
+	ParentSourceId                 types.String `tfsdk:"parent_source_id"`
 	Platform                       types.String `tfsdk:"platform"`
+	QueryCollections               types.Object `tfsdk:"query_collections"`
 	ScrapeFrequencySecs            types.Int64  `tfsdk:"scrape_frequency_secs"`
 	ScrapeRequestBasicAuthPassword types.String `tfsdk:"scrape_request_basic_auth_password"`
 	ScrapeRequestBasicAuthUser     types.String `tfsdk:"scrape_request_basic_auth_user"`
@@ -68,6 +66,7 @@ type SourceModel struct {
 	ServiceFields                  types.List   `tfsdk:"service_fields"`
 	SkipSslVerify                  types.Bool   `tfsdk:"skip_ssl_verify"`
 	SourceGroupId                  types.String `tfsdk:"source_group_id"`
+	SourceTypes                    types.List   `tfsdk:"source_types"`
 	TableName                      types.String `tfsdk:"table_name"`
 	TeamId                         types.String `tfsdk:"team_id"`
 	TeamName                       types.String `tfsdk:"team_name"`
@@ -195,9 +194,6 @@ func expandSourceCustomBucket(ctx context.Context, o types.Object) map[string]in
 	var m SourceCustomBucketModel
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
-	if !m.Name.IsNull() && !m.Name.IsUnknown() {
-		out["name"] = m.Name.ValueString()
-	}
 	if !m.Endpoint.IsNull() && !m.Endpoint.IsUnknown() {
 		out["endpoint"] = m.Endpoint.ValueString()
 	}
@@ -209,6 +205,24 @@ func expandSourceCustomBucket(ctx context.Context, o types.Object) map[string]in
 	}
 	if !m.KeepDataAfterRetention.IsNull() && !m.KeepDataAfterRetention.IsUnknown() {
 		out["keep_data_after_retention"] = m.KeepDataAfterRetention.ValueBool()
+	}
+	return out
+}
+
+// expandSourceCustomBucketForUpdate marshals the keys an update takes: a key set on create only
+// replaces the resource when it changes, so an update never sends it.
+func expandSourceCustomBucketForUpdate(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m SourceCustomBucketModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.AccessKeyId.IsNull() && !m.AccessKeyId.IsUnknown() {
+		out["access_key_id"] = m.AccessKeyId.ValueString()
+	}
+	if !m.SecretAccessKey.IsNull() && !m.SecretAccessKey.IsUnknown() {
+		out["secret_access_key"] = m.SecretAccessKey.ValueString()
 	}
 	return out
 }
@@ -282,54 +296,156 @@ func flattenSourceServiceFields(ctx context.Context, prior types.Object, raw map
 	return obj
 }
 
+type SourceQueryCollectionsModel struct {
+	Database         types.String `tfsdk:"database"`
+	Table            types.String `tfsdk:"table"`
+	Recent           types.Map    `tfsdk:"recent"`
+	S3               types.String `tfsdk:"s3"`
+	AppFilter        types.String `tfsdk:"app_filter"`
+	MetricsAppFilter types.String `tfsdk:"metrics_app_filter"`
+}
+
+func sourceQueryCollectionsAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"database":           types.StringType,
+		"table":              types.StringType,
+		"recent":             types.MapType{ElemType: types.StringType},
+		"s3":                 types.StringType,
+		"app_filter":         types.StringType,
+		"metrics_app_filter": types.StringType,
+	}
+}
+
+// expandSourceQueryCollections marshals a nested SourceQueryCollections object into its request map.
+func expandSourceQueryCollections(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m SourceQueryCollectionsModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Database.IsNull() && !m.Database.IsUnknown() {
+		out["database"] = m.Database.ValueString()
+	}
+	if !m.Table.IsNull() && !m.Table.IsUnknown() {
+		out["table"] = m.Table.ValueString()
+	}
+	if !m.Recent.IsNull() && !m.Recent.IsUnknown() {
+		vals := map[string]string{}
+		m.Recent.ElementsAs(ctx, &vals, false)
+		out["recent"] = vals
+	}
+	if !m.S3.IsNull() && !m.S3.IsUnknown() {
+		out["s3"] = m.S3.ValueString()
+	}
+	if !m.AppFilter.IsNull() && !m.AppFilter.IsUnknown() {
+		out["app_filter"] = m.AppFilter.ValueString()
+	}
+	if !m.MetricsAppFilter.IsNull() && !m.MetricsAppFilter.IsUnknown() {
+		out["metrics_app_filter"] = m.MetricsAppFilter.ValueString()
+	}
+	return out
+}
+
+// flattenSourceQueryCollections refreshes a typed SourceQueryCollections object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenSourceQueryCollections(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m SourceQueryCollectionsModel
+	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
+	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
+	m.Recent = types.MapNull(types.StringType)
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["database"]); ok {
+		m.Database = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["table"]); ok {
+		m.Table = types.StringValue(v)
+	}
+	if raw, ok := raw["recent"].(map[string]interface{}); ok {
+		vals := make(map[string]string, len(raw))
+		for k, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals[k] = ev
+			}
+		}
+		mv, _ := types.MapValueFrom(ctx, types.StringType, vals)
+		m.Recent = mv
+	}
+	if v, ok := stringFromAPI(raw["s3"]); ok {
+		m.S3 = types.StringValue(v)
+	}
+	if rawValue, exists := raw["app_filter"]; exists {
+		if rawValue == nil {
+			m.AppFilter = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["app_filter"]); ok {
+				m.AppFilter = types.StringValue(v)
+			}
+		}
+	}
+	if rawValue, exists := raw["metrics_app_filter"]; exists {
+		if rawValue == nil {
+			m.MetricsAppFilter = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["metrics_app_filter"]); ok {
+				m.MetricsAppFilter = types.StringValue(v)
+			}
+		}
+	}
+	obj, _ := types.ObjectValueFrom(ctx, sourceQueryCollectionsAttrTypes(), m)
+	return obj
+}
+
 func (r *SourceResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_source"
 }
 
 func (r *SourceResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A telemetry source: a stream of logs, metrics, or traces ingested into Better Stack.",
+		Description:         "A telemetry source, a stream of logs, metrics, or traces ingested into Better Stack.",
+		MarkdownDescription: "A telemetry source, a stream of logs, metrics, or traces ingested into Better Stack.",
 		Attributes: map[string]schema.Attribute{
-			"id":                      schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"aws_account_id":          schema.StringAttribute{Optional: true, Computed: true, Description: "ID of an AWS account already connected to Better Stack, to reuse it. Only for the `aws` platform.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"aws_auto_sub_log_groups": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether to subscribe new CloudWatch log groups automatically when they're discovered. Only for the `aws` platform, and returned only on AWS sources.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
-			"aws_external_id":         schema.StringAttribute{Optional: true, Computed: true, Description: "External ID from Better Stack's CloudFormation stack. Only for the `aws` platform.", Sensitive: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"aws_role_arn":            schema.StringAttribute{Optional: true, Computed: true, Description: "ARN of the IAM role from Better Stack's CloudFormation stack. Only for the `aws` platform.", Sensitive: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"blocked_metrics":         schema.ListAttribute{Optional: true, Computed: true, Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})), ElementType: types.StringType, Description: "Metric names to drop when they're ingested."},
-			"connected_source_ids":    schema.ListAttribute{Optional: true, Computed: true, Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})), ElementType: types.StringType, Description: "IDs of the sources connected to this one, for example to link spans and logs. An update replaces all connected sources. A connection goes both ways."},
-			"created_at":              schema.StringAttribute{Computed: true, Description: "When the source was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"custom_bucket":           schema.SingleNestedAttribute{Optional: true, Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true}, "endpoint": schema.StringAttribute{Optional: true, Computed: true}, "access_key_id": schema.StringAttribute{Optional: true, Computed: true}, "secret_access_key": schema.StringAttribute{Optional: true, Computed: true, Sensitive: true}, "keep_data_after_retention": schema.BoolAttribute{Optional: true, Computed: true}}, Description: "Your own S3-compatible bucket to archive data in. Set it on create. An update can send only `access_key_id` and `secret_access_key`, both together, to rotate the key pair. `secret_access_key` is never returned."},
-			"data_region": schema.StringAttribute{Optional: true, Computed: true, Description: "The data region, as the source picker names it: `europe`, `us`, `singapore` or a dedicated cluster's name. It reads back as that name. The older ids `germany`, `us_east` and `us_west` are also accepted. Set on create only. Omit it to use the organization's default.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIf(func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
+			"id":                   schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"blocked_metrics":      schema.ListAttribute{Optional: true, Computed: true, Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})), ElementType: types.StringType, Description: "Metric names marked as spam, which are dropped when they're ingested. Read more about marking metrics as spam (https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/mark-metrics-as-spam/).", MarkdownDescription: "Metric names marked as spam, which are dropped when they're ingested. Read more about [marking metrics as spam](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/mark-metrics-as-spam/)."},
+			"cluster":              schema.StringAttribute{Computed: true, Description: "The cluster the source's data is stored on, by its name. To connect Grafana to this data, send it as the cluster of Create a connection (https://betterstack.com/docs/logs/api/connections/create/).", MarkdownDescription: "The cluster the source's data is stored on, by its name. To connect Grafana to this data, send it as the `cluster` of [Create a connection](https://betterstack.com/docs/logs/api/connections/create/)."},
+			"connected_source_ids": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "IDs of the sources connected to this one to correlate their logs and traces. A connection goes both ways. The source joins the listed sources and the sources they're already connected to. An update removes no existing connection, and [] disconnects the source.", MarkdownDescription: "IDs of the sources connected to this one to correlate their logs and traces. A connection goes both ways. The source joins the listed sources and the sources they're already connected to. An update removes no existing connection, and `[]` disconnects the source.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"created_at":           schema.StringAttribute{Computed: true, Description: "When the source was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"custom_bucket": schema.SingleNestedAttribute{Optional: true, Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Computed: true, Description: "The bucket's name, which Better Stack reads from endpoint.", MarkdownDescription: "The bucket's name, which Better Stack reads from `endpoint`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "endpoint": schema.StringAttribute{Optional: true, Computed: true, Description: "The S3-compatible endpoint URL of the bucket. It can't be changed after the bucket is set.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_source"}}}, "access_key_id": schema.StringAttribute{Optional: true, Computed: true, Description: "The access key ID Better Stack uses to write to the bucket."}, "secret_access_key": schema.StringAttribute{Optional: true, Computed: true, Description: "The secret access key for access_key_id. Write-only, so it's never returned.", MarkdownDescription: "The secret access key for `access_key_id`. Write-only, so it's never returned.", Sensitive: true}, "keep_data_after_retention": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether data stays in the bucket after the retention period. It can't be changed after the bucket is set.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown(), replaceWarningBool{boolplanmodifier.RequiresReplaceIfConfigured(), "betterstack_source"}}}}, Description: "Your own S3-compatible bucket to archive data in, or null when the source uses Better Stack storage. Read more about hosting data in your own bucket (https://betterstack.com/docs/logs/host-data-in-your-own-bucket/). The bucket can't be changed after the source is created. An update that sets only access_key_id and secret_access_key rotates its key pair. We check the new pair against the bucket first and refuse the whole request when it fails. A bucket that several sources share is rotated for all of them.", MarkdownDescription: "Your own S3-compatible bucket to archive data in, or `null` when the source uses Better Stack storage. Read more about [hosting data in your own bucket](https://betterstack.com/docs/logs/host-data-in-your-own-bucket/). The bucket can't be changed after the source is created. An update that sets only `access_key_id` and `secret_access_key` rotates its key pair. We check the new pair against the bucket first and refuse the whole request when it fails. A bucket that several sources share is rotated for all of them.", PlanModifiers: []planmodifier.Object{replaceWarningObject{objectplanmodifier.RequiresReplaceIf(func(_ context.Context, req planmodifier.ObjectRequest, resp *objectplanmodifier.RequiresReplaceIfFuncResponse) {
+				resp.RequiresReplace = req.PlanValue.IsNull() != req.StateValue.IsNull()
+			}, "Adding or removing this object requires replacement.", "Adding or removing this object requires replacement."), "betterstack_source"}}},
+			"data_region": schema.StringAttribute{Optional: true, Computed: true, Description: "The data region, europe, us, singapore or a dedicated cluster's name from List data regions (https://betterstack.com/docs/logs/api/data-regions/). It reads back as that name. It can't be changed after the source is created. Defaults to the organization's default data region.", MarkdownDescription: "The data region, `europe`, `us`, `singapore` or a dedicated cluster's name from [List data regions](https://betterstack.com/docs/logs/api/data-regions/). It reads back as that name. It can't be changed after the source is created. Defaults to the organization's default data region.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIf(func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
 				resp.RequiresReplace = !req.ConfigValue.IsNull() && !sameAliasedValue(map[string]string{"germany": "europe", "us_east": "us", "us_west": "us"}, req.StateValue.ValueString(), req.PlanValue.ValueString())
 			}, "Changing this to a value that reads back differently requires replacement.", "Changing this to a value that reads back differently requires replacement."), "betterstack_source"}}},
-			"deletion_protection":                schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "While true (the default), destroying or replacing this source fails, in a plan or in a pulumi destroy. Kept in Terraform or Pulumi state only: the API never sees it. Set it to false and apply that before deleting or replacing it on purpose."},
-			"gcp_account_id":                     schema.StringAttribute{Optional: true, Computed: true, Description: "ID of a GCP account already connected to Better Stack, to reuse it. Only for the `gcp` platform.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"gcp_log_filter":                     schema.StringAttribute{Optional: true, Description: "Google Cloud Logging query that selects which logs the source receives. `null` forwards every log, which is the default. Google Cloud checks the query when it's saved and refuses an invalid one. Set it once the source's GCP project is connected, in a later request than the one that connects it. Only for the `gcp` platform."},
-			"gcp_metrics_filters":                schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"include": schema.StringAttribute{Optional: true, Computed: true}, "exclude": schema.StringAttribute{Optional: true, Computed: true}}}, Description: "Which Google Cloud metrics the source collects. Each rule has one key, `include` or `exclude`, holding a regular expression that must match the whole metric type, or `*` for every metric. All rules use the same key. An empty list collects no metrics, which is the default. `GET /api/v4/sources/:source_id/gcp-metrics` lists the metrics and whether these rules collect each. Only for the `gcp` platform.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"gcp_project_id":                     schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the GCP project to connect. Only for the `gcp` platform.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"gcp_project_number":                 schema.StringAttribute{Optional: true, Computed: true, Description: "Number of the GCP project to connect. Only for the `gcp` platform.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"ingesting_host":                     schema.StringAttribute{Computed: true, Description: "Host to send data to."},
-			"ingesting_paused":                   schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Pause ingestion for this source."},
-			"live_tail_pattern":                  schema.StringAttribute{Optional: true, Computed: true, Description: "The pattern Live tail shows each log line with.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"logs_retention":                     schema.Int64Attribute{Optional: true, Computed: true, Description: "Days to keep logs. Refused with 422 on a plan with fixed retention, or for a number of days the plan doesn't offer.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
-			"metrics_retention":                  schema.Int64Attribute{Optional: true, Computed: true, Description: "Days to keep metrics. Refused with 422 on a plan with fixed retention, or for a number of days the plan doesn't offer.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
+			"deletion_protection":                schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether destroying or replacing this source is refused. Defaults to true. Set it to false and apply before you delete or replace it on purpose. It's kept in state and never sent to Better Stack.", MarkdownDescription: "Whether destroying or replacing this source is refused. Defaults to `true`. Set it to `false` and apply before you delete or replace it on purpose. It's kept in state and never sent to Better Stack."},
+			"gcp_metrics_filters":                schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"include": schema.StringAttribute{Optional: true, Computed: true, Description: "A regular expression for metric types to collect, or * for every metric.", MarkdownDescription: "A regular expression for metric types to collect, or `*` for every metric."}, "exclude": schema.StringAttribute{Optional: true, Computed: true, Description: "A regular expression for metric types to leave out. Every other metric is collected."}}}, Description: "Which Google Cloud metrics the source collects. Each rule has one key, include or exclude, holding a regular expression that must match the whole metric type, or * for every metric. All rules use the same key. An empty list collects no metrics, which is the default. The source's list of GCP metrics shows the metrics and whether these rules collect each. Only for the gcp platform.", MarkdownDescription: "Which Google Cloud metrics the source collects. Each rule has one key, `include` or `exclude`, holding a regular expression that must match the whole metric type, or `*` for every metric. All rules use the same key. An empty list collects no metrics, which is the default. The source's list of GCP metrics shows the metrics and whether these rules collect each. Only for the `gcp` platform.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"ingesting_host":                     schema.StringAttribute{Computed: true, Description: "Host to send data to. null for the prometheus_scrape and cloudflare_prometheus_exporter platforms, whose data Better Stack scrapes.", MarkdownDescription: "Host to send data to. `null` for the `prometheus_scrape` and `cloudflare_prometheus_exporter` platforms, whose data Better Stack scrapes.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"ingesting_paused":                   schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether ingestion is paused for this source."},
+			"live_tail_pattern":                  schema.StringAttribute{Optional: true, Computed: true, Description: "The pattern Live tail shows each log line with. Columns are wrapped in braces, such as PID: {message_json.pid} {level} {message}. It's null when the source doesn't receive logs. See Formatting logs (https://betterstack.com/docs/logs/using-logtail/formatting-logs/). A source that doesn't receive logs refuses it.", MarkdownDescription: "The pattern Live tail shows each log line with. Columns are wrapped in braces, such as `PID: {message_json.pid} {level} {message}`. It's `null` when the source doesn't receive logs. See [Formatting logs](https://betterstack.com/docs/logs/using-logtail/formatting-logs/). A source that doesn't receive logs refuses it."},
+			"live_tail_pattern_spans":            schema.StringAttribute{Optional: true, Computed: true, Description: "The pattern Live tail shows each span with. Columns are wrapped in braces, such as {span.name} {duration}. It's null when the source doesn't receive spans. See Formatting logs (https://betterstack.com/docs/logs/using-logtail/formatting-logs/). A source that doesn't receive spans refuses it.", MarkdownDescription: "The pattern Live tail shows each span with. Columns are wrapped in braces, such as `{span.name} {duration}`. It's `null` when the source doesn't receive spans. See [Formatting logs](https://betterstack.com/docs/logs/using-logtail/formatting-logs/). A source that doesn't receive spans refuses it."},
+			"logs_retention":                     schema.Int64Attribute{Optional: true, Computed: true, Description: "Days logs are kept, one of the retention periods your plan offers.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
+			"metrics_retention":                  schema.Int64Attribute{Optional: true, Computed: true, Description: "Days metrics are kept, one of the retention periods your plan offers.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
 			"name":                               schema.StringAttribute{Required: true, Description: "Source name."},
-			"platform":                           schema.StringAttribute{Required: true, Description: "The platform the source ingests from. Can't be changed after the source is created. `collector` is refused: create a collector with POST /api/v4/collectors, which creates its own source.", Validators: []validator.String{stringvalidator.OneOf("apache2", "aws", "aws_cloudwatch", "aws_ecs", "aws_elb", "aws_fargate", "azure", "azure_logs", "cloudflare_logpush", "cloudflare_prometheus_exporter", "cloudflare_worker", "datadog_agent", "digitalocean", "docker", "dokku", "dotnet", "elasticsearch", "erlang", "fastly", "filebeat", "flights", "fluentbit", "fluentd", "fly_io", "gcp", "go", "google_cloud_pubsub", "haproxy", "heroku", "http", "java", "javascript", "kubernetes", "logstash", "minio", "mongodb", "mysql", "nginx", "open_telemetry", "php", "postgresql", "prometheus", "prometheus_scrape", "python", "rabbitmq", "redis", "render", "rsyslog", "ruby", "syslog-ng", "traefik", "ubuntu", "vector", "vercel_integration", "winlogbeat")}, PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_source"}}},
-			"scrape_frequency_secs":              schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(15), Description: "Seconds between scrapes."},
-			"scrape_request_basic_auth_password": schema.StringAttribute{Optional: true, Description: "Password for basic authentication on scrape requests. Returned on reads, except on a source another team shares with yours.", Sensitive: true},
-			"scrape_request_basic_auth_user":     schema.StringAttribute{Optional: true, Description: "Username for basic authentication on scrape requests."},
-			"scrape_request_headers":             schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true}, "value": schema.StringAttribute{Optional: true, Computed: true}}}, Description: "Custom headers sent with each scrape request, each with a `name` and a `value`.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"scrape_urls":                        schema.ListAttribute{Optional: true, Computed: true, Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})), ElementType: types.StringType, Description: "URLs to scrape. Only for platforms that scrape, such as `prometheus_scrape`."},
-			"service_fields":                     schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name_key": schema.StringAttribute{Optional: true, Computed: true}, "type_key": schema.StringAttribute{Optional: true, Computed: true}}}, Description: "Log fields that break data down by service, each with a `name_key` and a `type_key`. An update replaces all of them. `type_key` can be `null`.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"skip_ssl_verify":                    schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Skip TLS verification when scraping."},
-			"source_group_id":                    schema.StringAttribute{Optional: true, Description: "Source group this source belongs to. Send `null` or `\"0\"` to remove it from its group."},
-			"table_name":                         schema.StringAttribute{Computed: true, Description: "Underlying table name."},
-			"team_id":                            schema.StringAttribute{Computed: true, Description: "Team that owns the source, as its `t`-prefixed Better Stack team ID, such as `t123`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"team_name":                          schema.StringAttribute{Computed: true, Description: "Name of the team that owns the source."},
-			"token":                              schema.StringAttribute{Computed: true, Description: "Ingestion token. Returned on every read, so you can configure log shippers with it.", Sensitive: true},
+			"parent_source_id":                   schema.StringAttribute{Computed: true, Description: "Source this source shares its table with when it's connected to one, whose collections query_collections names, or null otherwise.", MarkdownDescription: "Source this source shares its table with when it's connected to one, whose collections `query_collections` names, or `null` otherwise."},
+			"platform":                           schema.StringAttribute{Required: true, Description: "The platform the source ingests from. For a collector, use Create a collector (https://betterstack.com/docs/logs/api/create-a-collector/), which creates its own source. Can't be changed after the source is created.", MarkdownDescription: "The platform the source ingests from. For a collector, use [Create a collector](https://betterstack.com/docs/logs/api/create-a-collector/), which creates its own source. Can't be changed after the source is created.", Validators: []validator.String{stringvalidator.OneOf("apache2", "aws", "aws_cloudwatch", "aws_ecs", "aws_elb", "aws_fargate", "azure", "azure_logs", "claude_platform", "cloudflare_logpush", "cloudflare_prometheus_exporter", "cloudflare_worker", "datadog_agent", "digitalocean", "docker", "dokku", "dotnet", "elasticsearch", "erlang", "fastly", "filebeat", "flights", "fluentbit", "fluentd", "fly_io", "gcp", "go", "google_cloud_pubsub", "haproxy", "heroku", "http", "java", "javascript", "kubernetes", "logstash", "minio", "mongodb", "mysql", "nginx", "open_telemetry", "oracle_cloud", "php", "postgresql", "prometheus", "prometheus_scrape", "python", "rabbitmq", "redis", "render", "rsyslog", "ruby", "syslog-ng", "traefik", "ubuntu", "vector", "vercel_integration", "winlogbeat")}, PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_source"}}},
+			"query_collections":                  schema.SingleNestedAttribute{Computed: true, Attributes: map[string]schema.Attribute{"database": schema.StringAttribute{Computed: true, Description: "The ClickHouse database that holds the source's data."}, "table": schema.StringAttribute{Computed: true, Description: "The physical table, as database.table.", MarkdownDescription: "The physical table, as `database.table`."}, "recent": schema.MapAttribute{Computed: true, ElementType: types.StringType, Description: "The collection of the last 30 minutes for each row type the source holds, keyed by row type, such as logs or metrics.", MarkdownDescription: "The collection of the last 30 minutes for each row type the source holds, keyed by row type, such as `logs` or `metrics`."}, "s3": schema.StringAttribute{Computed: true, Description: "The collection that holds older rows of every type."}, "app_filter": schema.StringAttribute{Computed: true, Description: "The condition that keeps only the source's rows in its parent's raw collections. null unless the source is connected to a source.", MarkdownDescription: "The condition that keeps only the source's rows in its parent's raw collections. `null` unless the source is connected to a source."}, "metrics_app_filter": schema.StringAttribute{Computed: true, Description: "The condition that keeps only the source's rows in its parent's metrics collection. null unless the source is connected to a source.", MarkdownDescription: "The condition that keeps only the source's rows in its parent's metrics collection. `null` unless the source is connected to a source."}}, Description: "ClickHouse names to query the source's data by. A connected source reads its parent's collections, so app_filter for the raw collections and metrics_app_filter for the metrics collection hold the condition that keeps only its rows. Both are null otherwise.", MarkdownDescription: "ClickHouse names to query the source's data by. A connected source reads its parent's collections, so `app_filter` for the raw collections and `metrics_app_filter` for the metrics collection hold the condition that keeps only its rows. Both are `null` otherwise.", PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()}},
+			"scrape_frequency_secs":              schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(15), Description: "Seconds between scrapes. Only for the prometheus_scrape and cloudflare_prometheus_exporter platforms.", MarkdownDescription: "Seconds between scrapes. Only for the `prometheus_scrape` and `cloudflare_prometheus_exporter` platforms.", Validators: []validator.Int64{int64validator.OneOf(15, 30, 60, 120, 300)}},
+			"scrape_request_basic_auth_password": schema.StringAttribute{Optional: true, Description: "Password for basic authentication on scrape requests. It isn't returned after it's saved. Only for the prometheus_scrape and cloudflare_prometheus_exporter platforms.", MarkdownDescription: "Password for basic authentication on scrape requests. It isn't returned after it's saved. Only for the `prometheus_scrape` and `cloudflare_prometheus_exporter` platforms.", Sensitive: true},
+			"scrape_request_basic_auth_user":     schema.StringAttribute{Optional: true, Description: "Username for basic authentication on scrape requests. Only for the prometheus_scrape and cloudflare_prometheus_exporter platforms.", MarkdownDescription: "Username for basic authentication on scrape requests. Only for the `prometheus_scrape` and `cloudflare_prometheus_exporter` platforms."},
+			"scrape_request_headers":             schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true, Description: "The header's name."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The header's value.", Sensitive: true}}}, Description: "Custom headers sent with each scrape request, each with a name and a value. Only for the prometheus_scrape and cloudflare_prometheus_exporter platforms.", MarkdownDescription: "Custom headers sent with each scrape request, each with a `name` and a `value`. Only for the `prometheus_scrape` and `cloudflare_prometheus_exporter` platforms.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"scrape_urls":                        schema.ListAttribute{Optional: true, Computed: true, Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})), ElementType: types.StringType, Description: "URLs Better Stack scrapes. Only for the prometheus_scrape and cloudflare_prometheus_exporter platforms.", MarkdownDescription: "URLs Better Stack scrapes. Only for the `prometheus_scrape` and `cloudflare_prometheus_exporter` platforms."},
+			"service_fields":                     schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name_key": schema.StringAttribute{Optional: true, Computed: true, Description: "The field to extract the service name from, such as service.name.", MarkdownDescription: "The field to extract the service name from, such as `service.name`."}, "type_key": schema.StringAttribute{Optional: true, Computed: true, Description: "The field to extract the service's platform from, such as service.type. Better Stack matches platforms like Nginx, PostgreSQL or Redis in its value.", MarkdownDescription: "The field to extract the service's platform from, such as `service.type`. Better Stack matches platforms like Nginx, PostgreSQL or Redis in its value."}}}, Description: "Log fields that break data down by service. Each entry needs a name_key, and type_key can be null to skip it. An update replaces the existing list, and [] removes them all.", MarkdownDescription: "Log fields that break data down by service. Each entry needs a `name_key`, and `type_key` can be `null` to skip it. An update replaces the existing list, and `[]` removes them all.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"skip_ssl_verify":                    schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether to skip TLS certificate verification when scraping. Only for the prometheus_scrape and cloudflare_prometheus_exporter platforms.", MarkdownDescription: "Whether to skip TLS certificate verification when scraping. Only for the `prometheus_scrape` and `cloudflare_prometheus_exporter` platforms."},
+			"source_group_id":                    schema.StringAttribute{Optional: true, Description: "Source group this source belongs to, or null when it's in no group. Get the IDs via List source groups (https://betterstack.com/docs/logs/api/list-all-existing-source-groups/).", MarkdownDescription: "Source group this source belongs to, or `null` when it's in no group. Get the IDs via [List source groups](https://betterstack.com/docs/logs/api/list-all-existing-source-groups/)."},
+			"source_types":                       schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "Row types the source holds, such as logs, spans, metrics, exceptions or web_events, sorted by name.", MarkdownDescription: "Row types the source holds, such as `logs`, `spans`, `metrics`, `exceptions` or `web_events`, sorted by name."},
+			"table_name":                         schema.StringAttribute{Computed: true, Description: "Underlying table name.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"team_id":                            schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns the source, such as t123. Defaults to the provider's team_id. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", MarkdownDescription: "Team that owns the source, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_source"}}},
+			"team_name":                          schema.StringAttribute{Computed: true, Description: "Name of the team that owns the source.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"token":                              schema.StringAttribute{Computed: true, Description: "Ingestion token. Returned on every read.", Sensitive: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"updated_at":                         schema.StringAttribute{Computed: true, Description: "When the source was last updated."},
-			"vrl_transformation_logs":            schema.StringAttribute{Optional: true, Computed: true, Description: "VRL program Better Stack runs on each log line as it's ingested. Send `null` to reset it to the platform's default, or `\"\"` for an empty program.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"vrl_transformation_spans":           schema.StringAttribute{Optional: true, Computed: true, Description: "VRL program Better Stack runs on each span as it's ingested. Send `null` to reset it to the platform's default, or `\"\"` for an empty program.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"vrl_transformation_logs":            schema.StringAttribute{Optional: true, Computed: true, Description: "VRL program Better Stack runs on each log line as it's ingested. null restores the platform's default program, and \"\" is an empty program. Read more about VRL transformations (https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).", MarkdownDescription: "VRL program Better Stack runs on each log line as it's ingested. `null` restores the platform's default program, and `\"\"` is an empty program. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"vrl_transformation_spans":           schema.StringAttribute{Optional: true, Computed: true, Description: "VRL program Better Stack runs on each span as it's ingested. null restores the platform's default program, and \"\" is an empty program. Read more about VRL transformations (https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).", MarkdownDescription: "VRL program Better Stack runs on each span as it's ingested. `null` restores the platform's default program, and `\"\"` is an empty program. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -356,7 +472,7 @@ func (r *SourceResource) body(ctx context.Context, m SourceModel) map[string]int
 		body["data_region"] = m.DataRegion.ValueString()
 	}
 	if !m.SourceGroupId.IsNull() && !m.SourceGroupId.IsUnknown() {
-		body["source_group_id"] = idToAPI(m.SourceGroupId.ValueString())
+		body["source_group_id"] = m.SourceGroupId.ValueString()
 	}
 	if !m.IngestingPaused.IsNull() && !m.IngestingPaused.IsUnknown() {
 		body["ingesting_paused"] = m.IngestingPaused.ValueBool()
@@ -369,6 +485,9 @@ func (r *SourceResource) body(ctx context.Context, m SourceModel) map[string]int
 	}
 	if !m.LiveTailPattern.IsNull() && !m.LiveTailPattern.IsUnknown() {
 		body["live_tail_pattern"] = m.LiveTailPattern.ValueString()
+	}
+	if !m.LiveTailPatternSpans.IsNull() && !m.LiveTailPatternSpans.IsUnknown() {
+		body["live_tail_pattern_spans"] = m.LiveTailPatternSpans.ValueString()
 	}
 	if !m.VrlTransformationLogs.IsNull() && !m.VrlTransformationLogs.IsUnknown() {
 		body["vrl_transformation_logs"] = m.VrlTransformationLogs.ValueString()
@@ -407,27 +526,6 @@ func (r *SourceResource) body(ctx context.Context, m SourceModel) map[string]int
 	if !m.SkipSslVerify.IsNull() && !m.SkipSslVerify.IsUnknown() {
 		body["skip_ssl_verify"] = m.SkipSslVerify.ValueBool()
 	}
-	if !m.AwsAccountId.IsNull() && !m.AwsAccountId.IsUnknown() {
-		body["aws_account_id"] = m.AwsAccountId.ValueString()
-	}
-	if !m.AwsRoleArn.IsNull() && !m.AwsRoleArn.IsUnknown() {
-		body["aws_role_arn"] = m.AwsRoleArn.ValueString()
-	}
-	if !m.AwsExternalId.IsNull() && !m.AwsExternalId.IsUnknown() {
-		body["aws_external_id"] = m.AwsExternalId.ValueString()
-	}
-	if !m.AwsAutoSubLogGroups.IsNull() && !m.AwsAutoSubLogGroups.IsUnknown() {
-		body["aws_auto_sub_log_groups"] = m.AwsAutoSubLogGroups.ValueBool()
-	}
-	if !m.GcpAccountId.IsNull() && !m.GcpAccountId.IsUnknown() {
-		body["gcp_account_id"] = m.GcpAccountId.ValueString()
-	}
-	if !m.GcpProjectId.IsNull() && !m.GcpProjectId.IsUnknown() {
-		body["gcp_project_id"] = m.GcpProjectId.ValueString()
-	}
-	if !m.GcpProjectNumber.IsNull() && !m.GcpProjectNumber.IsUnknown() {
-		body["gcp_project_number"] = m.GcpProjectNumber.ValueString()
-	}
 	if !m.GcpMetricsFilters.IsNull() && !m.GcpMetricsFilters.IsUnknown() {
 		items := make([]map[string]interface{}, 0, len(m.GcpMetricsFilters.Elements()))
 		for _, el := range m.GcpMetricsFilters.Elements() {
@@ -443,11 +541,7 @@ func (r *SourceResource) body(ctx context.Context, m SourceModel) map[string]int
 	if !m.ConnectedSourceIds.IsNull() && !m.ConnectedSourceIds.IsUnknown() {
 		var vals []string
 		m.ConnectedSourceIds.ElementsAs(ctx, &vals, false)
-		wire := make([]interface{}, len(vals))
-		for i, v := range vals {
-			wire[i] = idToAPI(v)
-		}
-		body["connected_source_ids"] = wire
+		body["connected_source_ids"] = vals
 	}
 	if !m.ServiceFields.IsNull() && !m.ServiceFields.IsUnknown() {
 		items := make([]map[string]interface{}, 0, len(m.ServiceFields.Elements()))
@@ -468,7 +562,7 @@ func (r *SourceResource) bodyForUpdate(ctx context.Context, m SourceModel) map[s
 		body["name"] = m.Name.ValueString()
 	}
 	if !m.SourceGroupId.IsNull() && !m.SourceGroupId.IsUnknown() {
-		body["source_group_id"] = idToAPI(m.SourceGroupId.ValueString())
+		body["source_group_id"] = m.SourceGroupId.ValueString()
 	}
 	if !m.IngestingPaused.IsNull() && !m.IngestingPaused.IsUnknown() {
 		body["ingesting_paused"] = m.IngestingPaused.ValueBool()
@@ -481,6 +575,9 @@ func (r *SourceResource) bodyForUpdate(ctx context.Context, m SourceModel) map[s
 	}
 	if !m.LiveTailPattern.IsNull() && !m.LiveTailPattern.IsUnknown() {
 		body["live_tail_pattern"] = m.LiveTailPattern.ValueString()
+	}
+	if !m.LiveTailPatternSpans.IsNull() && !m.LiveTailPatternSpans.IsUnknown() {
+		body["live_tail_pattern_spans"] = m.LiveTailPatternSpans.ValueString()
 	}
 	if !m.VrlTransformationLogs.IsNull() && !m.VrlTransformationLogs.IsUnknown() {
 		body["vrl_transformation_logs"] = m.VrlTransformationLogs.ValueString()
@@ -519,27 +616,6 @@ func (r *SourceResource) bodyForUpdate(ctx context.Context, m SourceModel) map[s
 	if !m.SkipSslVerify.IsNull() && !m.SkipSslVerify.IsUnknown() {
 		body["skip_ssl_verify"] = m.SkipSslVerify.ValueBool()
 	}
-	if !m.AwsAccountId.IsNull() && !m.AwsAccountId.IsUnknown() {
-		body["aws_account_id"] = m.AwsAccountId.ValueString()
-	}
-	if !m.AwsRoleArn.IsNull() && !m.AwsRoleArn.IsUnknown() {
-		body["aws_role_arn"] = m.AwsRoleArn.ValueString()
-	}
-	if !m.AwsExternalId.IsNull() && !m.AwsExternalId.IsUnknown() {
-		body["aws_external_id"] = m.AwsExternalId.ValueString()
-	}
-	if !m.AwsAutoSubLogGroups.IsNull() && !m.AwsAutoSubLogGroups.IsUnknown() {
-		body["aws_auto_sub_log_groups"] = m.AwsAutoSubLogGroups.ValueBool()
-	}
-	if !m.GcpAccountId.IsNull() && !m.GcpAccountId.IsUnknown() {
-		body["gcp_account_id"] = m.GcpAccountId.ValueString()
-	}
-	if !m.GcpProjectId.IsNull() && !m.GcpProjectId.IsUnknown() {
-		body["gcp_project_id"] = m.GcpProjectId.ValueString()
-	}
-	if !m.GcpProjectNumber.IsNull() && !m.GcpProjectNumber.IsUnknown() {
-		body["gcp_project_number"] = m.GcpProjectNumber.ValueString()
-	}
 	if !m.GcpMetricsFilters.IsNull() && !m.GcpMetricsFilters.IsUnknown() {
 		items := make([]map[string]interface{}, 0, len(m.GcpMetricsFilters.Elements()))
 		for _, el := range m.GcpMetricsFilters.Elements() {
@@ -549,20 +625,13 @@ func (r *SourceResource) bodyForUpdate(ctx context.Context, m SourceModel) map[s
 		}
 		body["gcp_metrics_filters"] = items
 	}
-	if !m.GcpLogFilter.IsNull() && !m.GcpLogFilter.IsUnknown() {
-		body["gcp_log_filter"] = m.GcpLogFilter.ValueString()
-	}
 	if !m.CustomBucket.IsNull() && !m.CustomBucket.IsUnknown() {
-		body["custom_bucket"] = expandSourceCustomBucket(ctx, m.CustomBucket)
+		body["custom_bucket"] = expandSourceCustomBucketForUpdate(ctx, m.CustomBucket)
 	}
 	if !m.ConnectedSourceIds.IsNull() && !m.ConnectedSourceIds.IsUnknown() {
 		var vals []string
 		m.ConnectedSourceIds.ElementsAs(ctx, &vals, false)
-		wire := make([]interface{}, len(vals))
-		for i, v := range vals {
-			wire[i] = idToAPI(v)
-		}
-		body["connected_source_ids"] = wire
+		body["connected_source_ids"] = vals
 	}
 	if !m.ServiceFields.IsNull() && !m.ServiceFields.IsUnknown() {
 		items := make([]map[string]interface{}, 0, len(m.ServiceFields.Elements()))
@@ -572,15 +641,6 @@ func (r *SourceResource) bodyForUpdate(ctx context.Context, m SourceModel) map[s
 			}
 		}
 		body["service_fields"] = items
-	}
-	return body
-}
-
-// postCreateBody applies configured update-only inputs after the resource exists.
-func (r *SourceResource) postCreateBody(ctx context.Context, m SourceModel) map[string]interface{} {
-	body := map[string]interface{}{}
-	if !m.GcpLogFilter.IsNull() && !m.GcpLogFilter.IsUnknown() {
-		body["gcp_log_filter"] = m.GcpLogFilter.ValueString()
 	}
 	return body
 }
@@ -597,12 +657,6 @@ func (r *SourceResource) updateBody(ctx context.Context, config, plan, state Sou
 	if !state.ScrapeRequestBasicAuthPassword.IsNull() && !state.ScrapeRequestBasicAuthPassword.IsUnknown() && plan.ScrapeRequestBasicAuthPassword.IsNull() {
 		body["scrape_request_basic_auth_password"] = nil
 	}
-	if !state.GcpLogFilter.IsNull() && !state.GcpLogFilter.IsUnknown() && plan.GcpLogFilter.IsNull() {
-		body["gcp_log_filter"] = nil
-	}
-	if !state.CustomBucket.IsNull() && !state.CustomBucket.IsUnknown() && plan.CustomBucket.IsNull() {
-		body["custom_bucket"] = nil
-	}
 	return body
 }
 
@@ -613,7 +667,6 @@ func (r *SourceResource) Create(ctx context.Context, req resource.CreateRequest,
 	var request SourceModel
 	resp.Diagnostics.Append(configWithPlannedUnknowns(ctx, req.Config, req.Plan, nullValue(req.Plan.Raw.Type()), &request)...)
 	request.BlockedMetrics = plan.BlockedMetrics           // its schema default travels when unset, so removing the line resets it
-	request.ConnectedSourceIds = plan.ConnectedSourceIds   // its schema default travels when unset, so removing the line resets it
 	request.IngestingPaused = plan.IngestingPaused         // its schema default travels when unset, so removing the line resets it
 	request.ScrapeFrequencySecs = plan.ScrapeFrequencySecs // its schema default travels when unset, so removing the line resets it
 	request.ScrapeUrls = plan.ScrapeUrls                   // its schema default travels when unset, so removing the line resets it
@@ -621,8 +674,16 @@ func (r *SourceResource) Create(ctx context.Context, req resource.CreateRequest,
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
 	out, err := r.client.Create(ctx, sourceBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating source", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating source", err, req.Plan.Raw.Type())
 		return
@@ -639,31 +700,6 @@ func (r *SourceResource) Create(ctx context.Context, req resource.CreateRequest,
 	// State = the plan with every unknown resolved from the API response (or nulled); known planned
 	// values stay untouched so the apply result is always consistent with the plan.
 	resp.State.Raw = stateFromPlan(req.Plan.Raw, nullValue(req.Plan.Raw.Type()), out)
-	// Retain the created identity if applying update-only fields fails.
-	if pcBody := r.postCreateBody(ctx, request); len(pcBody) > 0 {
-		vars["id"] = id
-		pcOut, err := r.client.Update(ctx, sourceBinding, vars, pcBody)
-		if err != nil {
-			addAPIError(&resp.Diagnostics, "creating source (applying update-only fields)", err, req.Plan.Raw.Type())
-			// The object exists, so it stays in state — but with the update-only fields as the
-			// create actually left them. Keeping the planned values would report them as applied.
-			var saved SourceModel
-			resp.Diagnostics.Append(resp.State.Get(ctx, &saved)...)
-			populateSource(ctx, &saved, out)
-			resp.Diagnostics.Append(resp.State.Set(ctx, &saved)...)
-			return
-		}
-		if pcOut == nil {
-			pcOut = map[string]interface{}{}
-		}
-		var created SourceModel
-		resp.Diagnostics.Append(resp.State.Get(ctx, &created)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		r.mergeResponse(ctx, created, pcOut)
-		resp.State.Raw = stateFromPlan(req.Plan.Raw, resp.State.Raw, pcOut)
-	}
 }
 
 func (r *SourceResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -672,9 +708,22 @@ func (r *SourceResource) Read(ctx context.Context, req resource.ReadRequest, res
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, sourceBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), sourceBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading source", err, req.State.Raw.Type())
 		return
@@ -682,6 +731,10 @@ func (r *SourceResource) Read(ctx context.Context, req resource.ReadRequest, res
 	if !found {
 		resp.State.RemoveResource(ctx)
 		return
+	}
+	// Unset, it holds the API's whole list: compare the read with a configured list only.
+	if !configuredBefore(ctx, req.Private, "connected_source_ids") {
+		state.ConnectedSourceIds = types.ListNull(types.StringType)
 	}
 	populateSource(ctx, &state, out)
 	// The API never returns it: an imported object starts protected, as a created one does.
@@ -705,8 +758,11 @@ func populateSource(ctx context.Context, m *SourceModel, attrs map[string]interf
 	}
 	if m.DataRegion.IsNull() || m.DataRegion.IsUnknown() {
 		if v, ok := stringFromAPI(attrs["data_region"]); ok {
-			m.DataRegion = types.StringValue(v)
+			m.DataRegion = aliasedValue(map[string]string{"germany": "europe", "us_east": "us", "us_west": "us"}, m.DataRegion, v)
 		}
+	}
+	if v, ok := stringFromAPI(attrs["cluster"]); ok {
+		m.Cluster = types.StringValue(v)
 	}
 	if rawValue, exists := attrs["source_group_id"]; exists {
 		if rawValue == nil {
@@ -726,14 +782,29 @@ func populateSource(ctx context.Context, m *SourceModel, attrs map[string]interf
 	if v, ok := int64FromAPI(attrs["metrics_retention"]); ok {
 		m.MetricsRetention = types.Int64Value(v)
 	}
-	if v, ok := stringFromAPI(attrs["live_tail_pattern"]); ok {
-		m.LiveTailPattern = types.StringValue(v)
+	if rawValue, exists := attrs["live_tail_pattern"]; exists {
+		if rawValue == nil {
+			m.LiveTailPattern = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["live_tail_pattern"]); ok {
+				m.LiveTailPattern = types.StringValue(v)
+			}
+		}
+	}
+	if rawValue, exists := attrs["live_tail_pattern_spans"]; exists {
+		if rawValue == nil {
+			m.LiveTailPatternSpans = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["live_tail_pattern_spans"]); ok {
+				m.LiveTailPatternSpans = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := stringFromAPI(attrs["vrl_transformation_logs"]); ok {
-		m.VrlTransformationLogs = types.StringValue(v)
+		m.VrlTransformationLogs = vrlValue(m.VrlTransformationLogs, v)
 	}
 	if v, ok := stringFromAPI(attrs["vrl_transformation_spans"]); ok {
-		m.VrlTransformationSpans = types.StringValue(v)
+		m.VrlTransformationSpans = vrlValue(m.VrlTransformationSpans, v)
 	}
 	if raw, ok := attrs["blocked_metrics"].([]interface{}); ok {
 		vals := make([]string, 0, len(raw))
@@ -778,20 +849,8 @@ func populateSource(ctx context.Context, m *SourceModel, attrs map[string]interf
 			}
 		}
 	}
-	if rawValue, exists := attrs["scrape_request_basic_auth_password"]; exists {
-		if rawValue == nil {
-			m.ScrapeRequestBasicAuthPassword = types.StringNull()
-		} else {
-			if v, ok := stringFromAPI(attrs["scrape_request_basic_auth_password"]); ok {
-				m.ScrapeRequestBasicAuthPassword = types.StringValue(v)
-			}
-		}
-	}
 	if v, ok := boolFromAPI(attrs["skip_ssl_verify"]); ok {
 		m.SkipSslVerify = types.BoolValue(v)
-	}
-	if v, ok := boolFromAPI(attrs["aws_auto_sub_log_groups"]); ok {
-		m.AwsAutoSubLogGroups = types.BoolValue(v)
 	}
 	if raw, ok := attrs["gcp_metrics_filters"].([]interface{}); ok {
 		items := make([]types.Object, 0, len(raw))
@@ -803,15 +862,6 @@ func populateSource(ctx context.Context, m *SourceModel, attrs map[string]interf
 		}
 		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: sourceGcpMetricsFiltersAttrTypes()}, items)
 		m.GcpMetricsFilters = lv
-	}
-	if rawValue, exists := attrs["gcp_log_filter"]; exists {
-		if rawValue == nil {
-			m.GcpLogFilter = types.StringNull()
-		} else {
-			if v, ok := stringFromAPI(attrs["gcp_log_filter"]); ok {
-				m.GcpLogFilter = types.StringValue(v)
-			}
-		}
 	}
 	if rawValue, exists := attrs["custom_bucket"]; exists {
 		if rawValue == nil {
@@ -830,7 +880,7 @@ func populateSource(ctx context.Context, m *SourceModel, attrs map[string]interf
 			}
 		}
 		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
-		m.ConnectedSourceIds = lv
+		m.ConnectedSourceIds = supersetRead(m.ConnectedSourceIds, lv)
 	}
 	if raw, ok := attrs["service_fields"].([]interface{}); ok {
 		items := make([]types.Object, 0, len(raw))
@@ -843,20 +893,42 @@ func populateSource(ctx context.Context, m *SourceModel, attrs map[string]interf
 		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: sourceServiceFieldsAttrTypes()}, items)
 		m.ServiceFields = lv
 	}
+	if raw, ok := attrs["source_types"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.SourceTypes = lv
+	}
+	if rawValue, exists := attrs["parent_source_id"]; exists {
+		if rawValue == nil {
+			m.ParentSourceId = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["parent_source_id"]); ok {
+				m.ParentSourceId = types.StringValue(v)
+			}
+		}
+	}
+	if raw, ok := attrs["query_collections"].(map[string]interface{}); ok {
+		m.QueryCollections = flattenSourceQueryCollections(ctx, m.QueryCollections, raw)
+	}
 	if v, ok := stringFromAPI(attrs["token"]); ok {
 		m.Token = types.StringValue(v)
 	}
 	if v, ok := stringFromAPI(attrs["table_name"]); ok {
 		m.TableName = types.StringValue(v)
 	}
-	if v, ok := stringFromAPI(attrs["ingesting_host"]); ok {
-		m.IngestingHost = types.StringValue(v)
-	}
-	if v, ok := stringFromAPI(attrs["team_id"]); ok {
-		m.TeamId = types.StringValue(v)
-	}
-	if v, ok := stringFromAPI(attrs["team_name"]); ok {
-		m.TeamName = types.StringValue(v)
+	if rawValue, exists := attrs["ingesting_host"]; exists {
+		if rawValue == nil {
+			m.IngestingHost = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["ingesting_host"]); ok {
+				m.IngestingHost = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := stringFromAPI(attrs["created_at"]); ok {
 		m.CreatedAt = datetimeValue(m.CreatedAt, v)
@@ -864,61 +936,33 @@ func populateSource(ctx context.Context, m *SourceModel, attrs map[string]interf
 	if v, ok := stringFromAPI(attrs["updated_at"]); ok {
 		m.UpdatedAt = datetimeValue(m.UpdatedAt, v)
 	}
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(attrs["team_name"]); ok {
+		m.TeamName = types.StringValue(v)
+	}
 }
 
 func (r *SourceResource) mergeResponse(ctx context.Context, m SourceModel, attrs map[string]interface{}) {
-	if raw, ok := attrs["aws_account_id"]; ok && !m.AwsAccountId.IsNull() && !m.AwsAccountId.IsUnknown() {
-		if tv, err := m.AwsAccountId.ToTerraformValue(ctx); err == nil {
+	if raw, ok := attrs["scrape_request_basic_auth_password"]; ok && !m.ScrapeRequestBasicAuthPassword.IsNull() && !m.ScrapeRequestBasicAuthPassword.IsUnknown() {
+		if tv, err := m.ScrapeRequestBasicAuthPassword.ToTerraformValue(ctx); err == nil {
 			if prior, err := tftypesToAPI(tv); err == nil {
-				attrs["aws_account_id"] = mergeAPIRead(raw, prior, apiValueShape{WriteOnly: true})
-			}
-		}
-	}
-	if raw, ok := attrs["aws_role_arn"]; ok && !m.AwsRoleArn.IsNull() && !m.AwsRoleArn.IsUnknown() {
-		if tv, err := m.AwsRoleArn.ToTerraformValue(ctx); err == nil {
-			if prior, err := tftypesToAPI(tv); err == nil {
-				attrs["aws_role_arn"] = mergeAPIRead(raw, prior, apiValueShape{WriteOnly: true})
-			}
-		}
-	}
-	if raw, ok := attrs["aws_external_id"]; ok && !m.AwsExternalId.IsNull() && !m.AwsExternalId.IsUnknown() {
-		if tv, err := m.AwsExternalId.ToTerraformValue(ctx); err == nil {
-			if prior, err := tftypesToAPI(tv); err == nil {
-				attrs["aws_external_id"] = mergeAPIRead(raw, prior, apiValueShape{WriteOnly: true})
-			}
-		}
-	}
-	if raw, ok := attrs["gcp_account_id"]; ok && !m.GcpAccountId.IsNull() && !m.GcpAccountId.IsUnknown() {
-		if tv, err := m.GcpAccountId.ToTerraformValue(ctx); err == nil {
-			if prior, err := tftypesToAPI(tv); err == nil {
-				attrs["gcp_account_id"] = mergeAPIRead(raw, prior, apiValueShape{WriteOnly: true})
-			}
-		}
-	}
-	if raw, ok := attrs["gcp_project_id"]; ok && !m.GcpProjectId.IsNull() && !m.GcpProjectId.IsUnknown() {
-		if tv, err := m.GcpProjectId.ToTerraformValue(ctx); err == nil {
-			if prior, err := tftypesToAPI(tv); err == nil {
-				attrs["gcp_project_id"] = mergeAPIRead(raw, prior, apiValueShape{WriteOnly: true})
-			}
-		}
-	}
-	if raw, ok := attrs["gcp_project_number"]; ok && !m.GcpProjectNumber.IsNull() && !m.GcpProjectNumber.IsUnknown() {
-		if tv, err := m.GcpProjectNumber.ToTerraformValue(ctx); err == nil {
-			if prior, err := tftypesToAPI(tv); err == nil {
-				attrs["gcp_project_number"] = mergeAPIRead(raw, prior, apiValueShape{WriteOnly: true})
+				attrs["scrape_request_basic_auth_password"] = mergeAPIRead(raw, prior, apiValueShape{WriteOnly: true})
 			}
 		}
 	}
 	if raw, ok := attrs["custom_bucket"]; ok && !m.CustomBucket.IsNull() && !m.CustomBucket.IsUnknown() {
 		if tv, err := m.CustomBucket.ToTerraformValue(ctx); err == nil {
 			if prior, err := tftypesToAPI(tv); err == nil {
-				attrs["custom_bucket"] = mergeAPIRead(raw, prior, apiValueShape{Fields: map[string]apiValueShape{"name": apiValueShape{}, "endpoint": apiValueShape{}, "access_key_id": apiValueShape{}, "secret_access_key": apiValueShape{WriteOnly: true}, "keep_data_after_retention": apiValueShape{}}})
+				attrs["custom_bucket"] = mergeAPIRead(raw, prior, apiValueShape{Fields: map[string]apiValueShape{"name": apiValueShape{ReadOnly: true}, "endpoint": apiValueShape{}, "access_key_id": apiValueShape{}, "secret_access_key": apiValueShape{WriteOnly: true}, "keep_data_after_retention": apiValueShape{}}})
 			}
 		}
 	}
 }
 
 func (r *SourceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	defer rememberConfigured(ctx, req.Config, resp.Private, sourceKeptOnRemoval, &resp.Diagnostics)
 	var plan SourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -934,9 +978,6 @@ func (r *SourceResource) Update(ctx context.Context, req resource.UpdateRequest,
 	if !plan.BlockedMetrics.Equal(state.BlockedMetrics) {
 		request.BlockedMetrics = plan.BlockedMetrics
 	}
-	if !plan.ConnectedSourceIds.Equal(state.ConnectedSourceIds) {
-		request.ConnectedSourceIds = plan.ConnectedSourceIds
-	}
 	if !plan.IngestingPaused.Equal(state.IngestingPaused) {
 		request.IngestingPaused = plan.IngestingPaused
 	}
@@ -949,6 +990,12 @@ func (r *SourceResource) Update(ctx context.Context, req resource.UpdateRequest,
 	if !plan.SkipSslVerify.Equal(state.SkipSslVerify) {
 		request.SkipSslVerify = plan.SkipSslVerify
 	}
+	// Some of this object's keys are set on create only and the rest are sent only when they
+	// changed, so an unrelated change never resends them.
+	if plan.CustomBucket.Equal(state.CustomBucket) {
+		request.CustomBucket = types.ObjectNull(request.CustomBucket.AttributeTypes(ctx))
+	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, err := r.client.Update(ctx, sourceBinding, vars, r.updateBody(ctx, request, plan, state))
@@ -972,6 +1019,7 @@ func (r *SourceResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	if err := r.client.Delete(ctx, sourceBinding, vars); err != nil {
@@ -980,15 +1028,23 @@ func (r *SourceResource) Delete(ctx context.Context, req resource.DeleteRequest,
 }
 
 // Attributes whose removal from the configuration keeps the server's value (no default, no null).
-var sourceKeptOnRemoval = []string{"aws_account_id", "aws_auto_sub_log_groups", "aws_external_id", "aws_role_arn", "gcp_account_id", "gcp_metrics_filters", "gcp_project_id", "gcp_project_number", "live_tail_pattern", "logs_retention", "metrics_retention", "scrape_request_headers", "service_fields", "vrl_transformation_logs", "vrl_transformation_spans"}
+var sourceKeptOnRemoval = []string{"connected_source_ids", "gcp_metrics_filters", "live_tail_pattern", "live_tail_pattern_spans", "logs_retention", "metrics_retention", "scrape_request_headers", "service_fields", "vrl_transformation_logs", "vrl_transformation_spans"}
 
 func (r *SourceResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseUnnamedTeam(ctx, req, resp, r.client, "source")
 	refuseProtectedDestroy(ctx, req, resp, "source")
 	warnKeptOnRemoval(ctx, "betterstack_source", req, resp, sourceKeptOnRemoval)
+	warnSupersetRemoval(ctx, "betterstack_source", req, resp, []string{"connected_source_ids"})
 }
 
 func (r *SourceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("ingesting_paused"), false)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("blocked_metrics"), types.ListValueMust(types.StringType, []attr.Value{}))...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("scrape_urls"), types.ListValueMust(types.StringType, []attr.Value{}))...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("scrape_frequency_secs"), 15)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("skip_ssl_verify"), false)...)
 }
 
 var _ resource.ResourceWithMoveState = &SourceResource{}
@@ -997,6 +1053,6 @@ var _ resource.ResourceWithMoveState = &SourceResource{}
 // logtail_source (registry.terraform.io/BetterStackHQ/logtail).
 func (r *SourceResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"singleton\",\"path\":\"custom_bucket\"},{\"op\":\"sentinel_null\",\"path\":\"source_group_id\",\"value\":0},{\"op\":\"sentinel_null\",\"path\":\"vrl_transformation\",\"value\":\"\"},{\"op\":\"sentinel_null\",\"path\":\"vrl_transformation_logs\",\"value\":\"\"},{\"op\":\"rename\",\"path\":\"vrl_transformation\",\"to\":\"vrl_transformation_logs\"},{\"op\":\"string_id\",\"path\":\"source_group_id\"}],\"ignored_fields\":[\"team_id\",\"team_name\",\"code_mapping_stack_root\",\"code_mapping_source_root\"],\"instructions\":[\"Keep every attribute: the legacy provider wrote the same source fields to /api/v2/sources. Resolve the source with a read of /api/v4/sources/:id under the intended credential and verify its t-prefixed team_id before moving. Legacy numeric team_id and team_name are obsolete scope representations, not ids to prefix: put the verified team on the provider (using aliases for separate teams); computed team_id refreshes from the API.\",\"Convert custom_bucket from a one-element block to an object, retaining secret_access_key from the existing sensitive input. Keep the original source id. Convert the historical vrl_transformation alias to vrl_transformation_logs; conflicting nonempty values require operator resolution. Drop code_mapping_stack_root and code_mapping_source_root: a telemetry source refuses them, they belong to errors applications.\",\"A logtail_source_aws_account or logtail_source_gcp_project on this source folds into this block: its readable settings join it, its write-only linkage stays on the server; never import a second owner.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_source\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"description\":\"Metric names to mark as spam (one entry per metric). Listed metrics are rejected during ingestion and not billed.\",\"name\":\"blocked_metrics\",\"optional\":true,\"type\":\"list(string)\"},{\"description\":\"Source code root path that replaces the stack trace root prefix. Used to map container or build paths to the corresponding repository paths for git blame.\",\"name\":\"code_mapping_source_root\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Stack trace root path prefix to match. When a stack trace file starts with this prefix, it will be replaced with the source code root to map to the correct repository path.\",\"name\":\"code_mapping_stack_root\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this monitor group was created.\",\"name\":\"created_at\",\"type\":\"string\",\"note\":\"description string wrongly says 'this monitor group' (better-uptime leftover, published in docs)\",\"json\":\"created_at\"},{\"description\":\"Optional custom S3-compatible bucket configuration for the source. Can only be set when creating the source and cannot be added, changed, or removed afterwards - recreate the source to use a different bucket. Better Stack validates the credentials by writing and reading a test object in the bucket during creation.\",\"max_items\":1,\"name\":\"custom_bucket\",\"optional\":true,\"type\":\"list(object)\",\"note\":\"create-only, 422 on update\",\"json\":\"custom_bucket\"},{\"description\":\"Access key ID\",\"name\":\"custom_bucket.access_key_id\",\"required\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\"},{\"description\":\"Bucket endpoint including the bucket name, e.g. `https://s3.us-east-1.amazonaws.com/my-bucket` or `https://my-bucket.s3.us-east-1.amazonaws.com`.\",\"name\":\"custom_bucket.endpoint\",\"required\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\"},{\"default\":false,\"description\":\"Whether we should keep data in the bucket after the retention period.\",\"name\":\"custom_bucket.keep_data_after_retention\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"deprecated\":\"Do not set the bucket name - it is always derived from `endpoint`. This attribute will be removed in a future release.\",\"description\":\"Bucket name derived from `endpoint`. Deprecated - do not set this attribute.\",\"name\":\"custom_bucket.name\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Secret access key\",\"name\":\"custom_bucket.secret_access_key\",\"required\":true,\"sensitive\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\",\"note\":\"never returned; preserved from state\"},{\"computed\":true,\"description\":\"Data region or private cluster name to create the source in. Permitted values for most plans are: `us_west`, `germany`, `singapore`. This value can only be set at creation time and cannot be changed afterwards. The API returns the specific cluster name, which may differ from the value you provide (for example, `germany` may read back as `eu-nbg-2`).  \\nWhen importing an existing source, leave `data_region` unset in your configuration - Terraform reads it from the API. Pinning it to an identifier that differs from the stored cluster name produces a spurious `data_region cannot be changed after source is created` error.\",\"name\":\"data_region\",\"optional\":true,\"type\":\"string\",\"note\":\"create-only; never overwritten from the API once set\",\"json\":\"data_region\"},{\"computed\":true,\"description\":\"The ID of this source.\",\"name\":\"id\",\"type\":\"string\",\"json\":\"data.id\"},{\"computed\":true,\"description\":\"The host where the logs or metrics should be sent. See [documentation](https://betterstack.com/docs/logs/start/) for your specific source platform for details.\",\"name\":\"ingesting_host\",\"type\":\"string\",\"json\":\"ingesting_host\"},{\"computed\":true,\"description\":\"This property allows you to temporarily pause data ingesting for this source (e.g., when you are reaching your plan's usage quota and you want to prioritize some sources over others).\",\"name\":\"ingesting_paused\",\"optional\":true,\"type\":\"bool\",\"json\":\"ingesting_paused\"},{\"computed\":true,\"description\":\"Freeform text template for formatting Live tail output with columns wrapped in {column} brackets. Example: \\\"PID: {message_json.pid} {level} {message}\\\"\",\"name\":\"live_tail_pattern\",\"optional\":true,\"type\":\"string\",\"json\":\"live_tail_pattern\"},{\"computed\":true,\"description\":\"Data retention for logs in days. There might be additional charges for longer retention.\",\"name\":\"logs_retention\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntBetween.func58\",\"json\":\"logs_retention\"},{\"computed\":true,\"description\":\"Data retention for metrics in days. There might be additional charges for longer retention.\",\"name\":\"metrics_retention\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntBetween.func59\",\"json\":\"metrics_retention\"},{\"description\":\"The name of this source.\",\"name\":\"name\",\"required\":true,\"type\":\"string\",\"json\":\"name\"},{\"description\":\"The platform of this source. This value can be set only when you're creating a new source. You can't update this value later. Valid values are:\\n    - `apache2`\\n    - `aws`\\n    - `aws_cloudwatch`\\n    - `aws_ecs`\\n    - `aws_elb`\\n    - `aws_fargate`\\n    - `azure`\\n    - `azure_logs`\\n    - `cloudflare_logpush`\\n    - `cloudflare_prometheus_exporter`\\n    - `cloudflare_worker`\\n    - `datadog_agent`\\n    - `digitalocean`\\n    - `docker`\\n    - `dokku`\\n    - `dotnet`\\n    - `elasticsearch`\\n    - `erlang`\\n    - `fastly`\\n    - `filebeat`\\n    - `flights`\\n    - `fluentbit`\\n    - `fluentd`\\n    - `fly_io`\\n    - `gcp`\\n    - `go`\\n    - `google_cloud_pubsub`\\n    - `haproxy`\\n    - `heroku`\\n    - `http`\\n    - `java`\\n    - `javascript`\\n    - `kubernetes`\\n    - `logstash`\\n    - `minio`\\n    - `mongodb`\\n    - `mysql`\\n    - `nginx`\\n    - `open_telemetry`\\n    - `php`\\n    - `postgresql`\\n    - `prometheus`\\n    - `prometheus_scrape`\\n    - `python`\\n    - `rabbitmq`\\n    - `redis`\\n    - `render`\\n    - `rsyslog`\\n    - `ruby`\\n    - `syslog-ng`\\n    - `traefik`\\n    - `ubuntu`\\n    - `vector`\\n    - `vercel_integration`\\n    - `winlogbeat`\",\"force_new\":true,\"name\":\"platform\",\"required\":true,\"type\":\"string\",\"validate_diag_func\":\"provider.init.func14\",\"note\":\"54 allowed values (resource_source.go:17-73)\",\"json\":\"platform\"},{\"description\":\"For scrape platform types, how often to scrape the URLs.\",\"name\":\"scrape_frequency_secs\",\"optional\":true,\"type\":\"int\",\"json\":\"scrape_frequency_secs\"},{\"description\":\"Basic auth password for scraping.\",\"name\":\"scrape_request_basic_auth_password\",\"optional\":true,\"sensitive\":true,\"type\":\"string\",\"json\":\"scrape_request_basic_auth_password\"},{\"description\":\"Basic auth username for scraping.\",\"name\":\"scrape_request_basic_auth_user\",\"optional\":true,\"type\":\"string\",\"json\":\"scrape_request_basic_auth_user\"},{\"description\":\"An array of request headers, each containing `name` and `value` fields.\",\"name\":\"scrape_request_headers\",\"optional\":true,\"type\":\"list(map(string))\",\"note\":\"each entry must carry exactly name+value\",\"json\":\"scrape_request_headers\"},{\"description\":\"For scrape platform types, the set of urls to scrape.\",\"name\":\"scrape_urls\",\"optional\":true,\"type\":\"list(string)\",\"json\":\"scrape_urls\"},{\"computed\":true,\"description\":\"Should the scraper skip SSL certificate verification? Enable for endpoints with self-signed or invalid certificates.\",\"name\":\"skip_ssl_verify\",\"optional\":true,\"type\":\"bool\",\"json\":\"skip_ssl_verify\"},{\"description\":\"The ID of the source group this source belongs to.\",\"diff_suppress_func\":\"provider.init.func15\",\"name\":\"source_group_id\",\"optional\":true,\"type\":\"int\",\"note\":\"0 = detach; null = leave unmanaged\",\"json\":\"source_group_id\"},{\"computed\":true,\"description\":\"The table name generated for this source.\",\"name\":\"table_name\",\"type\":\"string\",\"json\":\"table_name\"},{\"computed\":true,\"description\":\"The team ID for this resource. Can be used with table_name in [Query API](https://betterstack.com/docs/logs/query-api/connect-remotely/).\",\"name\":\"team_id\",\"type\":\"string\",\"json\":\"team_id\",\"go_type\":\"*StringOrInt\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.init.teamNameSchema.func57\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\",\"note\":\"diff-suppressed once id is set; CustomizeDiff forbids changing it\",\"json\":\"team_name\"},{\"computed\":true,\"description\":\"The token of this source. This token is used to identify and route the data you will send to Better Stack.\",\"name\":\"token\",\"type\":\"string\",\"json\":\"token\"},{\"computed\":true,\"description\":\"The time when this monitor group was updated.\",\"name\":\"updated_at\",\"type\":\"string\",\"note\":\"same wrong description\",\"json\":\"updated_at\"},{\"computed\":true,\"description\":\"VRL transformation applied to logs on Better Stack's servers during ingestion. Leave unset to keep the transformation unmanaged (reading back whatever is configured, including platform defaults); set to an empty string to remove it. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.suppressEquivalentVRL\",\"name\":\"vrl_transformation_logs\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"VRL transformation applied to traces (spans) on Better Stack's servers during ingestion. Leave unset to keep the transformation unmanaged; set to an empty string to remove it. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.suppressEquivalentVRL\",\"name\":\"vrl_transformation_spans\",\"optional\":true,\"type\":\"string\"},{\"conflicts_with\":[\"vrl_transformation_logs\"],\"deprecated\":\"Use vrl_transformation_logs instead.\",\"description\":\"Deprecated alias for `vrl_transformation_logs`. VRL transformation applied to logs on Better Stack's servers during ingestion. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.suppressUnmanagedVRL\",\"name\":\"vrl_transformation\",\"optional\":true,\"type\":\"string\"}],\"response_projections\":[]}"),
+		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"singleton\",\"path\":\"custom_bucket\"},{\"op\":\"sentinel_null\",\"path\":\"source_group_id\",\"value\":0},{\"op\":\"string_id\",\"path\":\"source_group_id\"},{\"op\":\"sentinel_null\",\"path\":\"vrl_transformation\",\"value\":\"\"},{\"op\":\"sentinel_null\",\"path\":\"vrl_transformation_logs\",\"value\":\"\"},{\"op\":\"rename\",\"path\":\"vrl_transformation\",\"to\":\"vrl_transformation_logs\"},{\"op\":\"rename\",\"path\":\"live_tail_pattern\",\"to\":\"live_tail_pattern_spans\",\"when\":{\"path\":\"platform\",\"in\":[\"claude_platform\"]}},{\"op\":\"sentinel_null\",\"path\":\"scrape_frequency_secs\",\"value\":0},{\"op\":\"sentinel_null\",\"path\":\"scrape_request_basic_auth_user\",\"value\":\"\"},{\"op\":\"sentinel_null\",\"path\":\"scrape_request_basic_auth_password\",\"value\":\"\"}],\"ignored_fields\":[\"team_id\",\"team_name\",\"code_mapping_stack_root\",\"code_mapping_source_root\",\"custom_bucket[].name\"],\"instructions\":[\"Keep every attribute. Run `betterstack source get ID` with the token the provider will use and check its t-prefixed team_id before moving. The legacy numeric team_id and team_name are not IDs to prefix: put the checked team on the provider, or on the source's own team_id for a source in another team.\",\"Convert custom_bucket from a one-element block to an object, retaining secret_access_key from the existing sensitive input. Keep the original source id. Convert the historical vrl_transformation alias to vrl_transformation_logs; conflicting nonempty values require operator resolution. A claude_platform source receives spans and no logs, so its live_tail_pattern moves to live_tail_pattern_spans. A source that receives neither logs nor spans, such as one on prometheus_scrape, has no Live tail format: drop live_tail_pattern from its configuration. Drop code_mapping_stack_root and code_mapping_source_root: a telemetry source refuses them, they belong to errors applications. Remove name from custom_bucket: Better Stack reads the bucket name from its endpoint.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_source\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"defaults\":{\"ingesting_paused\":false,\"blocked_metrics\":[],\"scrape_urls\":[],\"scrape_frequency_secs\":15,\"skip_ssl_verify\":false},\"source_attributes\":[{\"description\":\"Metric names to mark as spam (one entry per metric). Listed metrics are rejected during ingestion and not billed.\",\"name\":\"blocked_metrics\",\"optional\":true,\"type\":\"list(string)\"},{\"description\":\"Source code root path that replaces the stack trace root prefix. Used to map container or build paths to the corresponding repository paths for git blame.\",\"name\":\"code_mapping_source_root\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Stack trace root path prefix to match. When a stack trace file starts with this prefix, it will be replaced with the source code root to map to the correct repository path.\",\"name\":\"code_mapping_stack_root\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this monitor group was created.\",\"name\":\"created_at\",\"type\":\"string\",\"note\":\"description string wrongly says 'this monitor group' (better-uptime leftover, published in docs)\",\"json\":\"created_at\"},{\"description\":\"Optional custom S3-compatible bucket configuration for the source. Can only be set when creating the source and cannot be added, changed, or removed afterwards - recreate the source to use a different bucket. Better Stack validates the credentials by writing and reading a test object in the bucket during creation.\",\"max_items\":1,\"name\":\"custom_bucket\",\"optional\":true,\"type\":\"list(object)\",\"note\":\"create-only, 422 on update\",\"json\":\"custom_bucket\"},{\"description\":\"Access key ID\",\"name\":\"custom_bucket.access_key_id\",\"required\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\"},{\"description\":\"Bucket endpoint including the bucket name, e.g. `https://s3.us-east-1.amazonaws.com/my-bucket` or `https://my-bucket.s3.us-east-1.amazonaws.com`.\",\"name\":\"custom_bucket.endpoint\",\"required\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\"},{\"default\":false,\"description\":\"Whether we should keep data in the bucket after the retention period.\",\"name\":\"custom_bucket.keep_data_after_retention\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"deprecated\":\"Do not set the bucket name - it is always derived from `endpoint`. This attribute will be removed in a future release.\",\"description\":\"Bucket name derived from `endpoint`. Deprecated - do not set this attribute.\",\"name\":\"custom_bucket.name\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Secret access key\",\"name\":\"custom_bucket.secret_access_key\",\"required\":true,\"sensitive\":true,\"type\":\"string\",\"validate_func\":\"validation.StringIsNotEmpty\",\"note\":\"never returned; preserved from state\"},{\"computed\":true,\"description\":\"Data region or private cluster name to create the source in. Permitted values for most plans are: `us_west`, `germany`, `singapore`. This value can only be set at creation time and cannot be changed afterwards. The API returns the specific cluster name, which may differ from the value you provide (for example, `germany` may read back as `eu-nbg-2`).  \\nWhen importing an existing source, leave `data_region` unset in your configuration - Terraform reads it from the API. Pinning it to an identifier that differs from the stored cluster name produces a spurious `data_region cannot be changed after source is created` error.\",\"name\":\"data_region\",\"optional\":true,\"type\":\"string\",\"note\":\"create-only; never overwritten from the API once set\",\"json\":\"data_region\"},{\"computed\":true,\"description\":\"The ID of this source.\",\"name\":\"id\",\"type\":\"string\",\"json\":\"data.id\"},{\"computed\":true,\"description\":\"The host where the logs or metrics should be sent. See [documentation](https://betterstack.com/docs/logs/start/) for your specific source platform for details.\",\"name\":\"ingesting_host\",\"type\":\"string\",\"json\":\"ingesting_host\"},{\"computed\":true,\"description\":\"This property allows you to temporarily pause data ingesting for this source (e.g., when you are reaching your plan's usage quota and you want to prioritize some sources over others).\",\"name\":\"ingesting_paused\",\"optional\":true,\"type\":\"bool\",\"json\":\"ingesting_paused\"},{\"computed\":true,\"description\":\"Freeform text template for formatting Live tail output with columns wrapped in {column} brackets. Example: \\\"PID: {message_json.pid} {level} {message}\\\"\",\"name\":\"live_tail_pattern\",\"optional\":true,\"type\":\"string\",\"json\":\"live_tail_pattern\"},{\"computed\":true,\"description\":\"Data retention for logs in days. There might be additional charges for longer retention.\",\"name\":\"logs_retention\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntBetween.func58\",\"json\":\"logs_retention\"},{\"computed\":true,\"description\":\"Data retention for metrics in days. There might be additional charges for longer retention.\",\"name\":\"metrics_retention\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntBetween.func59\",\"json\":\"metrics_retention\"},{\"description\":\"The name of this source.\",\"name\":\"name\",\"required\":true,\"type\":\"string\",\"json\":\"name\"},{\"description\":\"The platform of this source. This value can be set only when you're creating a new source. You can't update this value later. Valid values are:\\n    - `apache2`\\n    - `aws`\\n    - `aws_cloudwatch`\\n    - `aws_ecs`\\n    - `aws_elb`\\n    - `aws_fargate`\\n    - `azure`\\n    - `azure_logs`\\n    - `cloudflare_logpush`\\n    - `cloudflare_prometheus_exporter`\\n    - `cloudflare_worker`\\n    - `datadog_agent`\\n    - `digitalocean`\\n    - `docker`\\n    - `dokku`\\n    - `dotnet`\\n    - `elasticsearch`\\n    - `erlang`\\n    - `fastly`\\n    - `filebeat`\\n    - `flights`\\n    - `fluentbit`\\n    - `fluentd`\\n    - `fly_io`\\n    - `gcp`\\n    - `go`\\n    - `google_cloud_pubsub`\\n    - `haproxy`\\n    - `heroku`\\n    - `http`\\n    - `java`\\n    - `javascript`\\n    - `kubernetes`\\n    - `logstash`\\n    - `minio`\\n    - `mongodb`\\n    - `mysql`\\n    - `nginx`\\n    - `open_telemetry`\\n    - `php`\\n    - `postgresql`\\n    - `prometheus`\\n    - `prometheus_scrape`\\n    - `python`\\n    - `rabbitmq`\\n    - `redis`\\n    - `render`\\n    - `rsyslog`\\n    - `ruby`\\n    - `syslog-ng`\\n    - `traefik`\\n    - `ubuntu`\\n    - `vector`\\n    - `vercel_integration`\\n    - `winlogbeat`\",\"force_new\":true,\"name\":\"platform\",\"required\":true,\"type\":\"string\",\"validate_diag_func\":\"provider.init.func14\",\"note\":\"54 allowed values (resource_source.go:17-73)\",\"json\":\"platform\"},{\"description\":\"For scrape platform types, how often to scrape the URLs.\",\"name\":\"scrape_frequency_secs\",\"optional\":true,\"type\":\"int\",\"json\":\"scrape_frequency_secs\"},{\"description\":\"Basic auth password for scraping.\",\"name\":\"scrape_request_basic_auth_password\",\"optional\":true,\"sensitive\":true,\"type\":\"string\",\"json\":\"scrape_request_basic_auth_password\"},{\"description\":\"Basic auth username for scraping.\",\"name\":\"scrape_request_basic_auth_user\",\"optional\":true,\"type\":\"string\",\"json\":\"scrape_request_basic_auth_user\"},{\"description\":\"An array of request headers, each containing `name` and `value` fields.\",\"name\":\"scrape_request_headers\",\"optional\":true,\"type\":\"list(map(string))\",\"note\":\"each entry must carry exactly name+value\",\"json\":\"scrape_request_headers\"},{\"description\":\"For scrape platform types, the set of urls to scrape.\",\"name\":\"scrape_urls\",\"optional\":true,\"type\":\"list(string)\",\"json\":\"scrape_urls\"},{\"computed\":true,\"description\":\"Should the scraper skip SSL certificate verification? Enable for endpoints with self-signed or invalid certificates.\",\"name\":\"skip_ssl_verify\",\"optional\":true,\"type\":\"bool\",\"json\":\"skip_ssl_verify\"},{\"description\":\"The ID of the source group this source belongs to.\",\"diff_suppress_func\":\"provider.init.func15\",\"name\":\"source_group_id\",\"optional\":true,\"type\":\"int\",\"note\":\"0 = detach; null = leave unmanaged\",\"json\":\"source_group_id\"},{\"computed\":true,\"description\":\"The table name generated for this source.\",\"name\":\"table_name\",\"type\":\"string\",\"json\":\"table_name\"},{\"computed\":true,\"description\":\"The team ID for this resource. Can be used with table_name in [Query API](https://betterstack.com/docs/logs/query-api/connect-remotely/).\",\"name\":\"team_id\",\"type\":\"string\",\"json\":\"team_id\",\"go_type\":\"*StringOrInt\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.init.teamNameSchema.func57\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\",\"note\":\"diff-suppressed once id is set; CustomizeDiff forbids changing it\",\"json\":\"team_name\"},{\"computed\":true,\"description\":\"The token of this source. This token is used to identify and route the data you will send to Better Stack.\",\"name\":\"token\",\"type\":\"string\",\"json\":\"token\"},{\"computed\":true,\"description\":\"The time when this monitor group was updated.\",\"name\":\"updated_at\",\"type\":\"string\",\"note\":\"same wrong description\",\"json\":\"updated_at\"},{\"computed\":true,\"description\":\"VRL transformation applied to logs on Better Stack's servers during ingestion. Leave unset to keep the transformation unmanaged (reading back whatever is configured, including platform defaults); set to an empty string to remove it. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.suppressEquivalentVRL\",\"name\":\"vrl_transformation_logs\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"VRL transformation applied to traces (spans) on Better Stack's servers during ingestion. Leave unset to keep the transformation unmanaged; set to an empty string to remove it. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.suppressEquivalentVRL\",\"name\":\"vrl_transformation_spans\",\"optional\":true,\"type\":\"string\"},{\"conflicts_with\":[\"vrl_transformation_logs\"],\"deprecated\":\"Use vrl_transformation_logs instead.\",\"description\":\"Deprecated alias for `vrl_transformation_logs`. VRL transformation applied to logs on Better Stack's servers during ingestion. Read more about [VRL transformations](https://betterstack.com/docs/logs/using-logtail/transforming-ingested-data/logs-vrl/).\",\"diff_suppress_func\":\"provider.suppressUnmanagedVRL\",\"name\":\"vrl_transformation\",\"optional\":true,\"type\":\"string\"}],\"response_projections\":[]}"),
 	}
 }

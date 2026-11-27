@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
@@ -119,7 +120,7 @@ func expandCatalogRecordAttributesAttribute(ctx context.Context, o types.Object)
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
 	if !m.Id.IsNull() && !m.Id.IsUnknown() {
-		out["id"] = idToAPI(m.Id.ValueString())
+		out["id"] = m.Id.ValueString()
 	}
 	if !m.Name.IsNull() && !m.Name.IsUnknown() {
 		out["name"] = m.Name.ValueString()
@@ -204,8 +205,14 @@ func flattenCatalogRecordAttributesValues(ctx context.Context, prior types.Objec
 	if v, ok := stringFromAPI(raw["item_id"]); ok {
 		m.ItemId = types.StringValue(v)
 	}
-	if v, ok := stringFromAPI(raw["name"]); ok {
-		m.Name = types.StringValue(v)
+	if rawValue, exists := raw["name"]; exists {
+		if rawValue == nil {
+			m.Name = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["name"]); ok {
+				m.Name = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := stringFromAPI(raw["email"]); ok {
 		m.Email = types.StringValue(v)
@@ -220,11 +227,12 @@ func (r *CatalogRecordResource) Metadata(ctx context.Context, req resource.Metad
 
 func (r *CatalogRecordResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A catalog record: one entry in a catalog relation, with values for its attributes.",
+		Description:         "A catalog record is one entry in a catalog relation, with values for its attributes.",
+		MarkdownDescription: "A catalog record is one entry in a catalog relation, with values for its attributes.",
 		Attributes: map[string]schema.Attribute{
 			"id":                  schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"attributes":          schema.ListNestedAttribute{Required: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"attribute": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Optional: true, Computed: true}, "name": schema.StringAttribute{Optional: true, Computed: true}}, Description: "The catalog attribute to set, by id or name. Responses include both."}, "values": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true, Description: "`String`, or the type of the referenced item."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The text of a String value."}, "item_id": schema.StringAttribute{Optional: true, Computed: true, Description: "Id of the referenced item: a number, or a team's t-prefixed id."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "Referenced item's name."}, "email": schema.StringAttribute{Optional: true, Computed: true, Description: "Referenced user's e-mail."}}}, Description: "Values to set for this attribute. See the note on value shapes."}}}, Description: "Values for the record's attributes. Each entry sets one catalog attribute, by id or name, to one or more values. Required on create and update. An update replaces all of them."},
-			"catalog_relation_id": schema.StringAttribute{Required: true, Description: "Id of the parent this catalog relation belongs to.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_catalog_record"}}},
+			"attributes":          schema.ListNestedAttribute{Required: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"attribute": schema.SingleNestedAttribute{Required: true, Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Optional: true, Computed: true, Description: "The catalog attribute's ID."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The catalog attribute's name."}}, Description: "The catalog attribute to set, by id or name. Responses include both."}, "values": schema.ListNestedAttribute{Required: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true, Description: "String, or the type of the referenced item, which is one of User, Team, EscalationPolicy, OnCallSchedule, Monitor, SlackIntegration, LinearIntegration, JiraIntegration, MicrosoftTeamsIntegration, ZapierZap, OutgoingWebhook, PagerDutyIntegration or Source. Required except for {value}.", MarkdownDescription: "`String`, or the type of the referenced item, which is one of User, Team, EscalationPolicy, OnCallSchedule, Monitor, SlackIntegration, LinearIntegration, JiraIntegration, MicrosoftTeamsIntegration, ZapierZap, OutgoingWebhook, PagerDutyIntegration or Source. Required except for `{value}`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The text of a String value. Required when type is String.", MarkdownDescription: "The text of a String value. Required when `type` is `String`."}, "item_id": schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the referenced item. For a user it's u123 or their e-mail. For a team it's t123, and for any other item it's the item's own ID. Responses return users and teams in this form. Get a user's ID via List team members (https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via List teams (https://betterstack.com/docs/uptime/api/teams/list/). A reference needs one of item_id, name or email.", MarkdownDescription: "ID of the referenced item. For a user it's `u123` or their e-mail. For a team it's `t123`, and for any other item it's the item's own ID. Responses return users and teams in this form. Get a user's ID via [List team members](https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via [List teams](https://betterstack.com/docs/uptime/api/teams/list/). A reference needs one of `item_id`, `name` or `email`.", Validators: []validator.String{patternWhenString{Sibling: "type", Patterns: map[string]string{"User": "^(u[1-9][0-9]*|[^@/\\s]+@[^@/\\s]+)$", "Team": "^t[1-9][0-9]*$"}}}}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "Referenced item's name, or null when the item has no name or no longer exists. An item can also be found by its name instead of item_id. A monitor, a Slack integration and a Zapier Zap can't be looked up by name.", MarkdownDescription: "Referenced item's name, or `null` when the item has no name or no longer exists. An item can also be found by its name instead of `item_id`. A monitor, a Slack integration and a Zapier Zap can't be looked up by name."}, "email": schema.StringAttribute{Optional: true, Computed: true, Description: "Referenced user's e-mail, returned for a User. A user can also be found by e-mail."}}}, Description: "Values to set for this attribute."}}}, Description: "The record's values, one entry per attribute that has values. Each entry sets one catalog attribute, by id or name, to one or more values. Required on create and update, and an update replaces all of them."},
+			"catalog_relation_id": schema.StringAttribute{Required: true, Description: "The ID of the parent this catalog relation belongs to.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_catalog_record"}}},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -264,6 +272,13 @@ func (r *CatalogRecordResource) Create(ctx context.Context, req resource.CreateR
 	vars := map[string]string{}
 	vars["catalog_relation_id"] = plan.CatalogRelationId.ValueString()
 	out, err := r.client.Create(ctx, catalogRecordBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating catalog_record", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating catalog_record", err, req.Plan.Raw.Type())
 		return
@@ -324,6 +339,7 @@ func populateCatalogRecord(ctx context.Context, m *CatalogRecordModel, attrs map
 }
 
 func (r *CatalogRecordResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	var plan CatalogRecordModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request CatalogRecordModel
@@ -364,6 +380,7 @@ func (r *CatalogRecordResource) Delete(ctx context.Context, req resource.DeleteR
 // The object hangs off a parent collection, so its address is composite:
 // catalog_relation_id/id.
 func (r *CatalogRecordResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	parts := strings.Split(req.ID, "/")
 	if len(parts) != 2 {
 		resp.Diagnostics.AddError("importing catalog_record",

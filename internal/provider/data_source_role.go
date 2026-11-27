@@ -50,11 +50,12 @@ func (d *RoleDataSource) Metadata(ctx context.Context, req datasource.MetadataRe
 
 func (d *RoleDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A role in the organization: a system role, or a custom role built in the role editor.",
+		Description:         "A role in the organization, either a system role or a custom role built in the role editor.",
+		MarkdownDescription: "A role in the organization, either a system role or a custom role built in the role editor.",
 		Attributes: map[string]schema.Attribute{
 			"id":   schema.StringAttribute{Optional: true, Computed: true, Description: "Look up by id, or by name."},
 			"name": schema.StringAttribute{Optional: true, Computed: true, Description: "Role name."},
-			"role": schema.StringAttribute{Computed: true, Description: "The built-in role (admin, billing_admin, team_lead, responder, member), or \"custom\" for a role the organization made itself. A team member's `role` takes the same values."},
+			"role": schema.StringAttribute{Computed: true, Description: "Which built-in role this is. A team member's role has the same values.\n\n- admin: Can access every feature in every team, including billing, organization settings and API tokens.\n- billing_admin: Can manage subscriptions, invoices and payment settings for the whole organization, without access to operational features.\n- team_lead: Can access monitors, incidents, on-call, status pages, telemetry and AI SRE, invite team members and change their roles.\n- responder: Can access monitors, incidents, on-call, status pages, telemetry and AI SRE, and invite team members.\n- member: Can access sources, Live tail, dashboards, error tracking, session replays and AI SRE, without monitors, incidents or on-call.\n- custom: A role the organization made itself in the role editor.", MarkdownDescription: "Which built-in role this is. A team member's `role` has the same values.\n\n- `admin`: Can access every feature in every team, including billing, organization settings and API tokens.\n- `billing_admin`: Can manage subscriptions, invoices and payment settings for the whole organization, without access to operational features.\n- `team_lead`: Can access monitors, incidents, on-call, status pages, telemetry and AI SRE, invite team members and change their roles.\n- `responder`: Can access monitors, incidents, on-call, status pages, telemetry and AI SRE, and invite team members.\n- `member`: Can access sources, Live tail, dashboards, error tracking, session replays and AI SRE, without monitors, incidents or on-call.\n- `custom`: A role the organization made itself in the role editor."},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)

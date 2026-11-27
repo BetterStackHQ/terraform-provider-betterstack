@@ -21,21 +21,17 @@ data "betterstack_heartbeat_group" "example" {
 
 ### Required
 
-- `id` (String) The id of the heartbeat_group to look up.
+- `id` (String) The ID of the heartbeat group to look up.
+
+### Optional
+
+- `team_id` (String) Team that owns this heartbeat group, such as `t123`. Defaults to the provider's `team_id`. Set it to look the object up in another team.
 
 ### Read-Only
 
-- `team_name` (String) Name of the team that owns this heartbeat group.
 - `name` (String) Group name.
-- `sort_index` (Number) Display order within the team.
-- `paused` (Boolean) Set to `true` to pause every heartbeat in the group, or `false` to resume them all. Returned as `true` only when the group has heartbeats and all of them are paused. Accepted on create, but it has no effect there because a new group has no heartbeats.
+- `sort_index` (Number) The position of the group in your list of heartbeat groups, lower values first. `null` when no position was set.
+- `paused` (Boolean) Whether every heartbeat in the group is paused, `false` when the group has none.
 - `created_at` (String (RFC 3339)) When the group was created.
 - `updated_at` (String (RFC 3339)) When the group was last updated.
-
-## Endpoints
-
-- `GET /api/v3/heartbeat-groups`
-- `GET /api/v3/heartbeat-groups/:id`
-- `POST /api/v3/heartbeat-groups`
-- `PATCH /api/v3/heartbeat-groups/:id`
-- `DELETE /api/v3/heartbeat-groups/:id`
+- `team_name` (String) Name of the team that owns this heartbeat group.

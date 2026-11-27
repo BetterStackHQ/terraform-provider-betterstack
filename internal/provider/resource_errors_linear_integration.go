@@ -259,29 +259,30 @@ func (r *ErrorsLinearIntegrationResource) Metadata(ctx context.Context, req reso
 
 func (r *ErrorsLinearIntegrationResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "An Error tracking Linear integration: which errors it files as Linear issues, with which issue properties, and how it keeps them in sync.",
+		Description:         "An Error tracking Linear integration. It sets which errors it files as Linear issues, with which issue properties, and how it keeps them in sync.",
+		MarkdownDescription: "An Error tracking Linear integration. It sets which errors it files as Linear issues, with which issue properties, and how it keeps them in sync.",
 		Attributes: map[string]schema.Attribute{
 			// The declared lifecycle addresses an existing object, so identity is configured.
-			"id":                             schema.StringAttribute{Required: true, Description: "Existing remote object ID to adopt; no remote object is created.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_errors_linear_integration"}}},
-			"affected_users_threshold_count": schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Total number of affected users for `notifications.affected_users_threshold`."},
-			"applications":                   schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"application_id": schema.StringAttribute{Optional: true, Computed: true, Description: "ID of an Error tracking application in the token's team."}, "environments": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Environments to act on errors from. Empty means every environment."}}}, Description: "Applications this integration acts on, each with its environments. Empty means any application. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"auto_reopen":                    schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Reopen the Linear issue when its error is automatically re-opened."},
-			"auto_resolve":                   schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Resolve the error when its Linear issue is done, and move the issue to `linear_resolved_status_id` when the error is resolved."},
-			"linear_assignee_id":             schema.StringAttribute{Optional: true, Computed: true, Description: "Linear user new issues are assigned to. `null` clears it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"id":                             schema.StringAttribute{Required: true, Description: "ID of the object in Better Stack this resource takes over. Changing it takes over that object instead. The previous one keeps its settings in Better Stack.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_errors_linear_integration"}}},
+			"affected_users_threshold_count": schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Total number of affected users for notifications.affected_users_threshold. A positive whole number.", MarkdownDescription: "Total number of affected users for `notifications.affected_users_threshold`. A positive whole number."},
+			"applications":                   schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"application_id": schema.StringAttribute{Optional: true, Computed: true, Description: "ID of an Error tracking application in the token's team."}, "environments": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Environments whose errors it files issues for. Empty means every environment."}}}, Description: "Applications this integration files issues for, each with its environments. Empty means any application. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"auto_reopen":                    schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Reopen the Linear issue when its error is automatically re-opened, moving it back to linear_status_id. It works only when linear_status_id and linear_resolved_status_id are both set.", MarkdownDescription: "Reopen the Linear issue when its error is automatically re-opened, moving it back to `linear_status_id`. It works only when `linear_status_id` and `linear_resolved_status_id` are both set."},
+			"auto_resolve":                   schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Resolve the error when its Linear issue is done, and move the issue to linear_resolved_status_id when the error is resolved. Moving the issue works only when linear_resolved_status_id is set.", MarkdownDescription: "Resolve the error when its Linear issue is done, and move the issue to `linear_resolved_status_id` when the error is resolved. Moving the issue works only when `linear_resolved_status_id` is set."},
+			"linear_assignee_id":             schema.StringAttribute{Optional: true, Computed: true, Description: "Linear user new issues are assigned to. null clears it. Reads return an empty string when none is set.", MarkdownDescription: "Linear user new issues are assigned to. `null` clears it. Reads return an empty string when none is set."},
 			"linear_label_ids":               schema.ListAttribute{Optional: true, Computed: true, Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})), ElementType: types.StringType, Description: "Linear labels put on new issues. An update replaces the whole list."},
 			"linear_priority":                schema.StringAttribute{Optional: true, Computed: true, Description: "Priority of new issues.", Validators: []validator.String{stringvalidator.OneOf("no_priority", "urgent", "high", "medium", "low")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"linear_project_id":              schema.StringAttribute{Optional: true, Computed: true, Description: "Linear project new issues are added to. `null` clears it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"linear_resolved_status_id":      schema.StringAttribute{Optional: true, Computed: true, Description: "Status a resolved error moves its issue to. `null` clears it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"linear_status_id":               schema.StringAttribute{Optional: true, Computed: true, Description: "Status of new issues. `null` clears it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"linear_team_id":                 schema.StringAttribute{Optional: true, Computed: true, Description: "Linear team issues are created in. A new team clears `linear_status_id`, `linear_resolved_status_id`, `linear_project_id` and `linear_label_ids` unless the same request sets them. `null` clears it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"linear_project_id":              schema.StringAttribute{Optional: true, Computed: true, Description: "Linear project new issues are added to. null clears it. Reads return an empty string when none is set.", MarkdownDescription: "Linear project new issues are added to. `null` clears it. Reads return an empty string when none is set."},
+			"linear_resolved_status_id":      schema.StringAttribute{Optional: true, Computed: true, Description: "Status a resolved error moves its issue to. null clears it. Reads return an empty string when none is set.", MarkdownDescription: "Status a resolved error moves its issue to. `null` clears it. Reads return an empty string when none is set."},
+			"linear_status_id":               schema.StringAttribute{Optional: true, Computed: true, Description: "Status of new issues. Empty uses the Linear team's default status. null clears it. Reads return an empty string when none is set.", MarkdownDescription: "Status of new issues. Empty uses the Linear team's default status. `null` clears it. Reads return an empty string when none is set."},
+			"linear_team_id":                 schema.StringAttribute{Optional: true, Computed: true, Description: "Linear team issues are created in. To get the Linear IDs, pick them once on the integration's Configure page and read them back via Get a Linear integration (https://betterstack.com/docs/errors/api/integrations/linear/get/). A new team clears linear_status_id, linear_resolved_status_id, linear_project_id and linear_label_ids unless the same request sets them. null clears it.", MarkdownDescription: "Linear team issues are created in. To get the Linear IDs, pick them once on the integration's Configure page and read them back via [Get a Linear integration](https://betterstack.com/docs/errors/api/integrations/linear/get/). A new team clears `linear_status_id`, `linear_resolved_status_id`, `linear_project_id` and `linear_label_ids` unless the same request sets them. `null` clears it."},
 			"name":                           schema.StringAttribute{Optional: true, Computed: true, Description: "Integration name.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"notifications":                  schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"spikes": schema.BoolAttribute{Optional: true, Computed: true, Description: "Application has a spike in errors."}, "new_errors": schema.BoolAttribute{Optional: true, Computed: true, Description: "New error occurs."}, "automatically_reopened": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error is automatically re-opened."}, "occurrence_milestones": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches an occurrence milestone (10, 100, 200, 500...)."}, "occurrence_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error occurs `occurrence_threshold_count` times within `occurrence_threshold_interval`."}, "affected_users_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches `affected_users_threshold_count` affected users."}}, Description: "\"Create issues when\": which events file a Linear issue. An update changes only the toggles sent.", PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()}},
-			"occurrence_threshold_count":     schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Number of occurrences for `notifications.occurrence_threshold`."},
-			"occurrence_threshold_interval":  schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("minute"), Description: "Time window for `notifications.occurrence_threshold`.", Validators: []validator.String{stringvalidator.OneOf("minute", "hour", "day", "week")}},
+			"notifications":                  schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"spikes": schema.BoolAttribute{Optional: true, Computed: true, Description: "Application has a spike in errors."}, "new_errors": schema.BoolAttribute{Optional: true, Computed: true, Description: "New error occurs."}, "automatically_reopened": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error is automatically re-opened."}, "occurrence_milestones": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches an occurrence milestone of 10, 100, 200, 500 and so on. When this integration already filed a Linear issue for the error, we comment on it instead."}, "occurrence_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error occurs occurrence_threshold_count times within occurrence_threshold_interval. When this integration already filed a Linear issue for the error, we comment on it instead.", MarkdownDescription: "Error occurs `occurrence_threshold_count` times within `occurrence_threshold_interval`. When this integration already filed a Linear issue for the error, we comment on it instead."}, "affected_users_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches affected_users_threshold_count affected users. When this integration already filed a Linear issue for the error, we comment on it instead.", MarkdownDescription: "Error reaches `affected_users_threshold_count` affected users. When this integration already filed a Linear issue for the error, we comment on it instead."}}, Description: "Which events file a Linear issue, as under Automatic issue creation in the web app. An update changes only the toggles sent.", MarkdownDescription: "Which events file a Linear issue, as under **Automatic issue creation** in the web app. An update changes only the toggles sent.", PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()}},
+			"occurrence_threshold_count":     schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Number of occurrences for notifications.occurrence_threshold. A positive whole number.", MarkdownDescription: "Number of occurrences for `notifications.occurrence_threshold`. A positive whole number."},
+			"occurrence_threshold_interval":  schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("minute"), Description: "Time window for notifications.occurrence_threshold.", MarkdownDescription: "Time window for `notifications.occurrence_threshold`.", Validators: []validator.String{stringvalidator.OneOf("minute", "hour", "day", "week")}},
 			"sync_comments":                  schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Share comments between errors and their linked Linear issues."},
-			"tag_filter":                     schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"tag": schema.StringAttribute{Optional: true, Computed: true, Description: "Exception tag, such as environment or level."}, "values": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Matches any of these values."}}}, Description: "Acts on an error only when one of its exceptions has every tag listed, each with one of its values. Empty means every error. At most 10 tags with 50 values each, 200 characters per tag or value, each tag once. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"team_id":                        schema.StringAttribute{Computed: true, Description: "ID of the team that owns the integration, as the web app shows it (t123).", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"team_name":                      schema.StringAttribute{Computed: true, Description: "Name of the team that owns the integration."},
+			"tag_filter":                     schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"tag": schema.StringAttribute{Optional: true, Computed: true, Description: "Exception tag, such as environment or level."}, "values": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Matches any of these values."}}}, Description: "Files an issue for an error only when one of its exceptions has every tag listed, each with one of its values. Empty means every error. At most 10 tags with 50 values each, 200 characters per tag or value, each tag once. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"team_id":                        schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the team that owns the integration, such as t123. Defaults to the provider's team_id. Set it when the object is in another team. Changing it replaces the resource, which takes over the object in that team instead.", MarkdownDescription: "ID of the team that owns the integration, such as `t123`. Defaults to the provider's `team_id`. Set it when the object is in another team. Changing it replaces the resource, which takes over the object in that team instead.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_errors_linear_integration"}}},
+			"team_name":                      schema.StringAttribute{Computed: true, Description: "Name of the team that owns the integration.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -382,6 +383,7 @@ func (r *ErrorsLinearIntegrationResource) Create(ctx context.Context, req resour
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, found, err := r.client.Get(ctx, errorsLinearIntegrationBinding, vars)
@@ -406,6 +408,13 @@ func (r *ErrorsLinearIntegrationResource) Create(ctx context.Context, req resour
 		return
 	}
 	out, err = r.client.Update(ctx, errorsLinearIntegrationBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating errors_linear_integration", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating errors_linear_integration", err, req.Plan.Raw.Type())
 		return
@@ -426,9 +435,22 @@ func (r *ErrorsLinearIntegrationResource) Read(ctx context.Context, req resource
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, errorsLinearIntegrationBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), errorsLinearIntegrationBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading errors_linear_integration", err, req.State.Raw.Type())
 		return
@@ -446,12 +468,6 @@ func (r *ErrorsLinearIntegrationResource) Read(ctx context.Context, req resource
 func populateErrorsLinearIntegration(ctx context.Context, m *ErrorsLinearIntegrationModel, attrs map[string]interface{}) {
 	if attrs == nil {
 		return
-	}
-	if v, ok := stringFromAPI(attrs["team_id"]); ok {
-		m.TeamId = types.StringValue(v)
-	}
-	if v, ok := stringFromAPI(attrs["team_name"]); ok {
-		m.TeamName = types.StringValue(v)
 	}
 	if raw, ok := attrs["applications"].([]interface{}); ok {
 		items := make([]types.Object, 0, len(raw))
@@ -557,9 +573,16 @@ func populateErrorsLinearIntegration(ctx context.Context, m *ErrorsLinearIntegra
 	if v, ok := boolFromAPI(attrs["sync_comments"]); ok {
 		m.SyncComments = types.BoolValue(v)
 	}
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(attrs["team_name"]); ok {
+		m.TeamName = types.StringValue(v)
+	}
 }
 
 func (r *ErrorsLinearIntegrationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	defer rememberConfigured(ctx, req.Config, resp.Private, errorsLinearIntegrationKeptOnRemoval, &resp.Diagnostics)
 	var plan ErrorsLinearIntegrationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -593,6 +616,7 @@ func (r *ErrorsLinearIntegrationResource) Update(ctx context.Context, req resour
 	if !plan.SyncComments.Equal(state.SyncComments) {
 		request.SyncComments = plan.SyncComments
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, err := r.client.Update(ctx, errorsLinearIntegrationBinding, vars, r.body(ctx, request))
@@ -615,9 +639,28 @@ func (r *ErrorsLinearIntegrationResource) Delete(ctx context.Context, req resour
 var errorsLinearIntegrationKeptOnRemoval = []string{"applications", "linear_assignee_id", "linear_priority", "linear_project_id", "linear_resolved_status_id", "linear_status_id", "linear_team_id", "name", "notifications", "tag_filter"}
 
 func (r *ErrorsLinearIntegrationResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseUnnamedTeam(ctx, req, resp, r.client, "errors linear integration")
 	warnKeptOnRemoval(ctx, "betterstack_errors_linear_integration", req, resp, errorsLinearIntegrationKeptOnRemoval)
 }
 
 func (r *ErrorsLinearIntegrationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("occurrence_threshold_count"), 10)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("occurrence_threshold_interval"), "minute")...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("affected_users_threshold_count"), 10)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("linear_label_ids"), types.ListValueMust(types.StringType, []attr.Value{}))...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("auto_resolve"), true)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("auto_reopen"), true)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("sync_comments"), true)...)
+}
+
+var _ resource.ResourceWithMoveState = &ErrorsLinearIntegrationResource{}
+
+// MoveState accepts `moved {}` blocks from the superseded provider resource(s):
+// logtail_errors_linear_integration (registry.terraform.io/BetterStackHQ/logtail).
+func (r *ErrorsLinearIntegrationResource) MoveState(ctx context.Context) []resource.StateMover {
+	return []resource.StateMover{
+		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"singleton\",\"path\":\"notifications\"},{\"op\":\"string_id\",\"path\":\"applications[].application_id\"}],\"ignored_fields\":[\"integration_id\",\"team_id\",\"team_name\"],\"instructions\":[\"Rename to betterstack_errors_linear_integration, keeping the integration ID, which the legacy provider stored as both id and integration_id. Drop integration_id, convert the single notifications block to an object and replace team_name with the provider's team.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_errors_linear_integration\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"defaults\":{\"occurrence_threshold_count\":10,\"occurrence_threshold_interval\":\"minute\",\"affected_users_threshold_count\":10,\"linear_label_ids\":[],\"auto_resolve\":true,\"auto_reopen\":true,\"sync_comments\":true},\"source_attributes\":[{\"computed\":true,\"description\":\"How many affected users trigger the `affected_users_threshold` notification.\",\"name\":\"affected_users_threshold_count\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The Errors applications whose errors reach the integration, each as `{ application_id = …, environments = […] }` with `environments = []` for every environment. Set to `[]` to include every application.\",\"name\":\"applications\",\"optional\":true,\"type\":\"set(object)\"},{\"name\":\"applications.application_id\",\"optional\":true,\"type\":\"int\"},{\"name\":\"applications.environments\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"Whether a resolved error that occurs again reopens its Linear issue.\",\"name\":\"auto_reopen\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Whether completing the Linear issue resolves its error.\",\"name\":\"auto_resolve\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"The ID of the integration, the same as `integration_id`.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"The ID of the existing Linear integration to manage, as in the URL of its Configure page in Error tracking › Integrations, or as listed by `GET /api/v1/linear-integrations`. Changing it adopts a different integration and leaves the previous one as it is.\",\"name\":\"integration_id\",\"required\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The ID of the Linear user new issues are assigned to. Set to `\\\"\\\"` to leave issues unassigned.\",\"name\":\"linear_assignee_id\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"IDs of the Linear labels added to new issues. Set to `[]` for none.\",\"name\":\"linear_label_ids\",\"optional\":true,\"type\":\"set(string)\"},{\"computed\":true,\"description\":\"The priority of new issues: `no_priority`, `urgent`, `high`, `medium` or `low`.\",\"name\":\"linear_priority\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of the Linear project new issues are added to. Set to `\\\"\\\"` for none.\",\"name\":\"linear_project_id\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of the Linear workflow state issues move to when their error is resolved.\",\"name\":\"linear_resolved_status_id\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of the Linear workflow state new issues start in. Set to `\\\"\\\"` for the team's default.\",\"name\":\"linear_status_id\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of the Linear team issues are filed in. Changing it clears the statuses, project and labels of the previous team unless you set them too.\",\"name\":\"linear_team_id\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The name of the integration in Better Stack.\",\"name\":\"name\",\"optional\":true,\"type\":\"string\"},{\"max_items\":1,\"name\":\"notifications\",\"optional\":true,\"type\":\"list(object)\"},{\"computed\":true,\"description\":\"Notify when an error affects more than `affected_users_threshold_count` users.\",\"name\":\"notifications.affected_users_threshold\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when an error is automatically re-opened.\",\"name\":\"notifications.automatically_reopened\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when a new error occurs.\",\"name\":\"notifications.new_errors\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when an error reaches an occurrence milestone (10, 100, 200, 500, …).\",\"name\":\"notifications.occurrence_milestones\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when an error occurs more than `occurrence_threshold_count` times per `occurrence_threshold_interval`.\",\"name\":\"notifications.occurrence_threshold\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when the application has a spike in errors.\",\"name\":\"notifications.spikes\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"How many occurrences per `occurrence_threshold_interval` trigger the `occurrence_threshold` notification.\",\"name\":\"occurrence_threshold_count\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The interval of `occurrence_threshold_count`: `minute`, `hour`, `day` or `week`.\",\"name\":\"occurrence_threshold_interval\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether comments are synced between the error and its Linear issue.\",\"name\":\"sync_comments\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Only errors whose tags match every row reach the integration, each row as `{ tag = \\\"region\\\", values = [\\\"eu\\\"] }`. Set to `[]` to remove the filter.\",\"name\":\"tag_filter\",\"optional\":true,\"type\":\"list(object)\"},{\"name\":\"tag_filter.tag\",\"optional\":true,\"type\":\"string\"},{\"name\":\"tag_filter.values\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"The ID of the team the integration belongs to.\",\"name\":\"team_id\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The name of the team the integration belongs to.\",\"name\":\"team_name\",\"type\":\"string\"}],\"response_projections\":[]}"),
+	}
 }

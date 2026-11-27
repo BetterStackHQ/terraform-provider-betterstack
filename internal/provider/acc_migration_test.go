@@ -113,13 +113,19 @@ func TestAccLegacyStateMigration(t *testing.T) {
 			}
 			migrationCommand(t, work, env, terraform, "apply", "-input=false", "-no-color", "migration.plan")
 			after := migrationShowState(t, work, env, terraform)
-			for old, current := range map[string]string{"betteruptime_monitor_group.same": "betterstack_monitor_group.same", "logtail_source_group.same": "betterstack_source_group.same", "betteruptime_datadog_integration.same": "betterstack_datadog_integration.same", "logtail_source.secret": "betterstack_source.secret", "logtail_exploration.saved": "betterstack_exploration.saved"} {
+			for old, current := range map[string]string{"betteruptime_monitor_group.same": "betterstack_monitor_group.same", "logtail_source_group.same": "betterstack_source_group.same", "betteruptime_datadog_integration.same": "betterstack_incidents_datadog_integration.same", "logtail_source.secret": "betterstack_source.secret", "logtail_exploration.saved": "betterstack_exploration.saved"} {
 				assertMigrationValue(t, after, current, "id", before[old]["id"])
 				if _, exists := after[old]; exists {
 					t.Fatalf("both old and new addresses own %s", old)
 				}
 			}
-			assertMigrationValue(t, after, "betterstack_datadog_integration.same", "webhook_url", before["betteruptime_datadog_integration.same"]["webhook_url"])
+			// The legacy configuration picked the team by name. The unified configuration sets no
+			// team_name, since it's never an input: the provider's team_id selects the team, and the
+			// name is still read back.
+			for _, address := range []string{"betterstack_monitor_group.same", "betterstack_source_group.same", "betterstack_incidents_datadog_integration.same", "betterstack_source.secret"} {
+				assertMigrationValue(t, after, address, "team_name", "Fixture team")
+			}
+			assertMigrationValue(t, after, "betterstack_incidents_datadog_integration.same", "webhook_url", before["betteruptime_datadog_integration.same"]["webhook_url"])
 			assertMigrationValue(t, after, "betterstack_source.secret", "source_group_id", before["logtail_source_group.same"]["id"])
 			assertMigrationValue(t, after, "betterstack_source.secret", "custom_bucket.secret_access_key", "fixture-bucket-secret")
 			assertMigrationValue(t, after, "betterstack_source.secret", "scrape_request_basic_auth_password", "fixture-scrape-secret")
@@ -303,13 +309,13 @@ func (api *migrationFixtureAPI) ServeHTTP(w http.ResponseWriter, r *http.Request
 	var key, legacyPath, targetPath, kind string
 	for _, candidate := range []struct{ key, legacy, target, kind string }{
 		// The unified provider reads the same path API the legacy providers wrote, at each resource's
-		// newest version: sources moved to /api/v4, monitor groups and the alerting-tool integrations to /api/v3.
+		// newest version: sources moved to /api/v4, monitor groups, explorations and the alerting-tool integrations to /api/v3.
 		{"101", "/api/v2/monitor-groups", "/api/v3/monitor-groups", "monitor_group"},
 		{"202", "/api/v1/source-groups", "/api/v1/source-groups", "source_group"},
 		{"303", "/api/v2/datadog-integrations", "/api/v3/datadog-integrations", "datadog_integration"},
 		{"404", "/api/v2/sources", "/api/v4/sources", "source"},
 		{"404", "/api/v1/sources", "/api/v4/sources", "source"},
-		{"505", "/api/v2/explorations", "/api/v2/explorations", "exploration"},
+		{"505", "/api/v2/explorations", "/api/v3/explorations", "exploration"},
 	} {
 		if r.URL.Path == candidate.legacy || r.URL.Path == candidate.legacy+"/"+candidate.key || r.URL.Path == candidate.target+"/"+candidate.key {
 			key, legacyPath, targetPath, kind = candidate.key, candidate.legacy, candidate.target, candidate.kind
@@ -381,15 +387,18 @@ provider "betteruptime" { api_token = "fixture-token" }
 provider "logtail" { api_token = "fixture-token" }
 resource "betteruptime_monitor_group" "same" {
   name = "Fixture monitors"
+  team_name = "Fixture team"
   sort_index = 7
   paused = false
 }
 resource "logtail_source_group" "same" {
   name = "Fixture sources"
+  team_name = "Fixture team"
   sort_index = 8
 }
 resource "betteruptime_datadog_integration" "same" {
   name = "Fixture Datadog"
+  team_name = "Fixture team"
   policy_id = 0
   call = false
   sms = false
@@ -403,6 +412,7 @@ resource "betteruptime_datadog_integration" "same" {
 }
 resource "logtail_source" "secret" {
   name = "Fixture secret source"
+  team_name = "Fixture team"
   platform = "prometheus_scrape"
   data_region = "germany"
   source_group_id = logtail_source_group.same.id
@@ -458,7 +468,7 @@ moved {
 }
 moved {
   from = betteruptime_datadog_integration.same
-  to = betterstack_datadog_integration.same
+  to = betterstack_incidents_datadog_integration.same
 }
 moved {
   from = logtail_source.secret
@@ -477,7 +487,7 @@ resource "betterstack_source_group" "same" {
   name = "Fixture sources"
   sort_index = 8
 }
-resource "betterstack_datadog_integration" "same" {
+resource "betterstack_incidents_datadog_integration" "same" {
   name = "Fixture Datadog"
   call = false
   sms = false

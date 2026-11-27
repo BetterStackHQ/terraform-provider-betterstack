@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 )
 
 var _ datasource.DataSource = &HeartbeatGroupDataSource{}
@@ -26,13 +27,15 @@ func (d *HeartbeatGroupDataSource) Metadata(ctx context.Context, req datasource.
 
 func (d *HeartbeatGroupDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A group that organizes related heartbeats together.",
+		Description:         "A group that organizes related heartbeats together.",
+		MarkdownDescription: "A group that organizes related heartbeats together.",
 		Attributes: map[string]schema.Attribute{
-			"id":         schema.StringAttribute{Required: true, Description: "Id of the heartbeat_group to look up."},
+			"id":         schema.StringAttribute{Required: true, Description: "The ID of the heartbeat group to look up."},
 			"created_at": schema.StringAttribute{Computed: true, Description: "When the group was created."},
 			"name":       schema.StringAttribute{Computed: true, Description: "Group name."},
-			"paused":     schema.BoolAttribute{Computed: true, Description: "Set to `true` to pause every heartbeat in the group, or `false` to resume them all. Returned as `true` only when the group has heartbeats and all of them are paused. Accepted on create, but it has no effect there because a new group has no heartbeats."},
-			"sort_index": schema.Int64Attribute{Computed: true, Description: "Display order within the team."},
+			"paused":     schema.BoolAttribute{Computed: true, Description: "Whether every heartbeat in the group is paused, false when the group has none.", MarkdownDescription: "Whether every heartbeat in the group is paused, `false` when the group has none."},
+			"sort_index": schema.Int64Attribute{Computed: true, Description: "The position of the group in your list of heartbeat groups, lower values first. null when no position was set.", MarkdownDescription: "The position of the group in your list of heartbeat groups, lower values first. `null` when no position was set."},
+			"team_id":    schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns this heartbeat group, such as t123. Defaults to the provider's team_id. Set it to look the object up in another team.", MarkdownDescription: "Team that owns this heartbeat group, such as `t123`. Defaults to the provider's `team_id`. Set it to look the object up in another team.", Validators: []validator.String{teamIDValidator()}},
 			"team_name":  schema.StringAttribute{Computed: true, Description: "Name of the team that owns this heartbeat group."},
 			"updated_at": schema.StringAttribute{Computed: true, Description: "When the group was last updated."},
 		},
@@ -53,6 +56,7 @@ func (d *HeartbeatGroupDataSource) Read(ctx context.Context, req datasource.Read
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, data.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = data.Id.ValueString()
 	out, found, err := d.client.GetDataSource(ctx, heartbeatGroupBinding, vars)

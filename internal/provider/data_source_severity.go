@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -28,16 +29,18 @@ func (d *SeverityDataSource) Metadata(ctx context.Context, req datasource.Metada
 
 func (d *SeverityDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A severity: a named alerting level with its notification-channel settings.",
+		Description:         "A severity, a named alerting level with its notification-channel settings.",
+		MarkdownDescription: "A severity, a named alerting level with its notification-channel settings.",
 		Attributes: map[string]schema.Attribute{
 			"id":                schema.StringAttribute{Optional: true, Computed: true, Description: "Look up by id, or by name."},
-			"call":              schema.BoolAttribute{Computed: true, Description: "Trigger phone-call alerts at this severity."},
-			"critical_alert":    schema.BoolAttribute{Computed: true, Description: "Trigger critical push alerts that bypass silent mode."},
-			"email":             schema.BoolAttribute{Computed: true, Description: "Trigger e-mail alerts at this severity."},
-			"name":              schema.StringAttribute{Optional: true, Computed: true, Description: "Severity name."},
-			"push":              schema.BoolAttribute{Computed: true, Description: "Trigger mobile push alerts at this severity."},
-			"severity_group_id": schema.StringAttribute{Computed: true, Description: "Severity group this severity belongs to."},
-			"sms":               schema.BoolAttribute{Computed: true, Description: "Trigger SMS alerts at this severity."},
+			"call":              schema.BoolAttribute{Computed: true, Description: "Whether escalation policy steps with this severity alert people by phone call. Each person can override this in their own notification settings."},
+			"critical_alert":    schema.BoolAttribute{Computed: true, Description: "Whether escalation policy steps with this severity send a critical alert, a push notification that ignores the mute switch and Do Not Disturb mode."},
+			"email":             schema.BoolAttribute{Computed: true, Description: "Whether escalation policy steps with this severity alert people by e-mail. Each person can override this in their own notification settings."},
+			"name":              schema.StringAttribute{Optional: true, Computed: true, Description: "The severity's name, unique within the team, ignoring case."},
+			"push":              schema.BoolAttribute{Computed: true, Description: "Whether escalation policy steps with this severity alert people by push notification. Each person can override this in their own notification settings."},
+			"severity_group_id": schema.StringAttribute{Computed: true, Description: "The ID of the severity group this severity belongs to, or null when it's in none. Get the ID via List severity groups (https://betterstack.com/docs/uptime/api/list-all-existing-severity-groups/).", MarkdownDescription: "The ID of the severity group this severity belongs to, or `null` when it's in none. Get the ID via [List severity groups](https://betterstack.com/docs/uptime/api/list-all-existing-severity-groups/)."},
+			"sms":               schema.BoolAttribute{Computed: true, Description: "Whether escalation policy steps with this severity alert people by SMS. Each person can override this in their own notification settings."},
+			"team_id":           schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns this severity, such as t123. Defaults to the provider's team_id. Set it to look the object up in another team.", MarkdownDescription: "Team that owns this severity, such as `t123`. Defaults to the provider's `team_id`. Set it to look the object up in another team.", Validators: []validator.String{teamIDValidator()}},
 			"team_name":         schema.StringAttribute{Computed: true, Description: "Name of the team that owns this severity."},
 		},
 	}
@@ -57,6 +60,7 @@ func (d *SeverityDataSource) Read(ctx context.Context, req datasource.ReadReques
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, data.TeamId.ValueString())
 	var out map[string]interface{}
 	if !data.Id.IsNull() && !data.Id.IsUnknown() && data.Id.ValueString() != "" {
 		vars := map[string]string{}

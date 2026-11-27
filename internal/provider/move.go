@@ -55,8 +55,10 @@ type legacyMigration struct {
 	SchemaVersions      []int64                       `json:"schema_versions"`
 	Renames             map[string]string             `json:"renames"`
 	Constants           map[string]interface{}        `json:"constants"`
+	Defaults            map[string]interface{}        `json:"defaults"`
 	Transforms          []migrationTransform          `json:"transforms"`
 	IgnoredFields       []string                      `json:"ignored_fields"`
+	RefreshedFields     []string                      `json:"refreshed_fields"`
 	SourceAttributes    []migrationSourceAttribute    `json:"source_attributes"`
 	ResponseProjections []migrationResponseProjection `json:"response_projections"`
 }
@@ -184,7 +186,23 @@ func legacyStateMover(metadata string) resource.StateMover {
 				}
 			}
 		}
+		// A defaulted attribute the legacy state doesn't hold starts at its default, as a configuration
+		// that omits it plans; the first refresh overwrites what the API returns.
+		for _, name := range migrationKeys(migration.Defaults) {
+			if prior, exists := state[name]; !exists || prior == nil {
+				state[name] = migration.Defaults[name]
+			}
+		}
+		// A reviewed refreshed field stays empty: the legacy state can't hold it, and the first refresh
+		// reads it from the API before anything is planned.
+		refreshed := map[string]bool{}
+		for _, name := range migration.RefreshedFields {
+			refreshed[name] = true
+		}
 		for _, name := range migrationKeys(resp.TargetState.Schema.GetAttributes()) {
+			if refreshed[name] && state[name] == nil {
+				continue
+			}
 			if resp.TargetState.Schema.GetAttributes()[name].IsRequired() && (state[name] == nil || state[name] == "") {
 				fail(fmt.Errorf("Required target field %s cannot be recovered from source state", name))
 				return
@@ -538,7 +556,7 @@ func applyMigrationTransform(state map[string]interface{}, transform migrationTr
 		return fmt.Errorf("Sentinel omission requires a field path, not an array element")
 	}
 	switch transform.Op {
-	case "json_decode", "singleton", "seconds", "string_id", "sentinel_null", "sentinel_omit", "index_by":
+	case "json_decode", "singleton", "seconds", "string_id", "sentinel_null", "sentinel_omit", "index_by", "wrap", "composite_id":
 	default:
 		return fmt.Errorf("Unsupported migration transform %s", transform.Op)
 	}
@@ -578,6 +596,34 @@ func applyMigrationTransform(state map[string]interface{}, transform migrationTr
 				index[name] = child
 			}
 			parent[key] = index
+		case "wrap":
+			// A list of plain values becomes a list of objects that hold each value under Key, in order.
+			array, ok := value.([]interface{})
+			if !ok || transform.Key == "" {
+				return bad()
+			}
+			wrapped := make([]interface{}, len(array))
+			for i, item := range array {
+				switch item.(type) {
+				case nil, map[string]interface{}, []interface{}:
+					return bad()
+				}
+				wrapped[i] = map[string]interface{}{transform.Key: item}
+			}
+			parent[key] = wrapped
+		case "composite_id":
+			// A legacy parent/child ID ("dashboard/chart") becomes the child's own last part.
+			text, ok := value.(string)
+			if !ok {
+				return bad()
+			}
+			parts := strings.Split(text, "/")
+			for _, part := range parts {
+				if part == "" || strings.TrimSpace(part) != part {
+					return bad()
+				}
+			}
+			parent[key] = parts[len(parts)-1]
 		case "json_decode":
 			encoded, ok := value.(string)
 			if !ok {
@@ -675,7 +721,7 @@ func applyMigrationTransform(state map[string]interface{}, transform migrationTr
 	if err != nil {
 		return err
 	}
-	if transform.Op == "index_by" && transform.To != "" && transform.To != transform.Path {
+	if (transform.Op == "index_by" || transform.Op == "wrap") && transform.To != "" && transform.To != transform.Path {
 		return renameMigrationPath(state, transform.Path, transform.To, "")
 	}
 	return nil

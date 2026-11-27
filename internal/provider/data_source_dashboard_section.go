@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -28,14 +29,16 @@ func (d *DashboardSectionDataSource) Metadata(ctx context.Context, req datasourc
 
 func (d *DashboardSectionDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A full-width section divider that groups charts on a dashboard.",
+		Description:         "A full-width section divider that groups charts on a dashboard.",
+		MarkdownDescription: "A full-width section divider that groups charts on a dashboard.",
 		Attributes: map[string]schema.Attribute{
 			"id":           schema.StringAttribute{Optional: true, Computed: true, Description: "Look up by id, or by name."},
 			"collapsed":    schema.BoolAttribute{Computed: true, Description: "Whether the section starts collapsed."},
 			"dashboard_id": schema.StringAttribute{Required: true, Description: "Dashboard this section is on. Can't be changed after the section is created."},
 			"explanation":  schema.StringAttribute{Computed: true, Description: "Explanation of what the section groups, set by the AI tools."},
 			"name":         schema.StringAttribute{Optional: true, Computed: true, Description: "Section name."},
-			"y":            schema.Int64Attribute{Computed: true, Description: "Vertical position on the dashboard grid. Defaults to just below the last section or chart. If an update moves the section onto a chart, the layout is tidied up in the background."},
+			"team_id":      schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns the section's dashboard, such as t123. Defaults to the provider's team_id. Set it to look the object up in another team.", MarkdownDescription: "Team that owns the section's dashboard, such as `t123`. Defaults to the provider's `team_id`. Set it to look the object up in another team.", Validators: []validator.String{teamIDValidator()}},
+			"y":            schema.Int64Attribute{Computed: true, Description: "Vertical position on the dashboard grid, from 0 at the top. If an update moves the section onto a chart, the layout is tidied up in the background.", MarkdownDescription: "Vertical position on the dashboard grid, from `0` at the top. If an update moves the section onto a chart, the layout is tidied up in the background."},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -54,6 +57,7 @@ func (d *DashboardSectionDataSource) Read(ctx context.Context, req datasource.Re
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, data.TeamId.ValueString())
 	var out map[string]interface{}
 	if !data.Id.IsNull() && !data.Id.IsUnknown() && data.Id.ValueString() != "" {
 		vars := map[string]string{}

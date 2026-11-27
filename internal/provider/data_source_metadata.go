@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -28,15 +29,17 @@ func (d *MetadataDataSource) Metadata(ctx context.Context, req datasource.Metada
 
 func (d *MetadataDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A metadata annotation: a key and its values, attached to a monitor, heartbeat, incident, or integration.",
+		Description:         "A metadata annotation is a key and its values, attached to a monitor, heartbeat, incident, or integration.",
+		MarkdownDescription: "A metadata annotation is a key and its values, attached to a monitor, heartbeat, incident, or integration.",
 		Attributes: map[string]schema.Attribute{
 			"id":         schema.StringAttribute{Optional: true, Computed: true, Description: "Look up by id, or by owner_type / owner_id."},
-			"key":        schema.StringAttribute{Computed: true, Description: "Metadata key. Renaming it on update keeps the entry's ID and values."},
-			"mode":       schema.StringAttribute{Computed: true, Description: "What create does when the object already has this key: `replace` overwrites its values, `merge` adds the new values and skips duplicates."},
+			"key":        schema.StringAttribute{Computed: true, Description: "Metadata key. Renaming it keeps the entry's ID and values."},
+			"mode":       schema.StringAttribute{Computed: true, Description: "What create does when the object already has this key.\n\n- replace: Overwrites the key's values.\n- merge: Adds the new values to the key and skips duplicates.", MarkdownDescription: "What create does when the object already has this key.\n\n- `replace`: Overwrites the key's values.\n- `merge`: Adds the new values to the key and skips duplicates."},
 			"owner_id":   schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the object this metadata is attached to."},
-			"owner_type": schema.StringAttribute{Optional: true, Computed: true, Description: "Type of object this metadata is attached to: Monitor, Heartbeat, Incident, WebhookIntegration, EmailIntegration, IncomingWebhook or AmazonSnsIntegration. Changing it together with owner_id on update moves the key to another object."},
+			"owner_type": schema.StringAttribute{Optional: true, Computed: true, Description: "Type of object this metadata is attached to, one of Monitor, Heartbeat, Incident, WebhookIntegration, EmailIntegration, IncomingWebhook, AmazonSnsIntegration or CallRouting. Create and update accept every type except CallRouting. Changing it together with owner_id moves the key to another object.", MarkdownDescription: "Type of object this metadata is attached to, one of `Monitor`, `Heartbeat`, `Incident`, `WebhookIntegration`, `EmailIntegration`, `IncomingWebhook`, `AmazonSnsIntegration` or `CallRouting`. Create and update accept every type except `CallRouting`. Changing it together with `owner_id` moves the key to another object."},
+			"team_id":    schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns the object this metadata is attached to, such as t123. Defaults to the provider's team_id. Set it to look the object up in another team.", MarkdownDescription: "Team that owns the object this metadata is attached to, such as `t123`. Defaults to the provider's `team_id`. Set it to look the object up in another team.", Validators: []validator.String{teamIDValidator()}},
 			"team_name":  schema.StringAttribute{Computed: true, Description: "Name of the team that owns the object this metadata is attached to."},
-			"values":     schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Computed: true, Description: "`String`, or the type of the referenced item."}, "value": schema.StringAttribute{Computed: true, Description: "The text of a String value."}, "item_id": schema.StringAttribute{Computed: true, Description: "ID of the referenced item: a number, or for a team its ID starting with `t`, such as `t123`."}, "name": schema.StringAttribute{Computed: true, Description: "Referenced item's name."}, "email": schema.StringAttribute{Computed: true, Description: "Referenced user's e-mail."}}}, Description: "Values attached to the key. The notes below describe each value's shape. Required on create. On update, the values you send replace all current values, and an empty list removes the key."},
+			"values":     schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Computed: true, Description: "String, or the type of the referenced item, which is one of User, Team, EscalationPolicy, OnCallSchedule, Monitor, SlackIntegration, LinearIntegration, JiraIntegration, MicrosoftTeamsIntegration, ZapierZap, OutgoingWebhook, PagerDutyIntegration or Source.", MarkdownDescription: "`String`, or the type of the referenced item, which is one of `User`, `Team`, `EscalationPolicy`, `OnCallSchedule`, `Monitor`, `SlackIntegration`, `LinearIntegration`, `JiraIntegration`, `MicrosoftTeamsIntegration`, `ZapierZap`, `OutgoingWebhook`, `PagerDutyIntegration` or `Source`."}, "value": schema.StringAttribute{Computed: true, Description: "The text of a String value.", MarkdownDescription: "The text of a `String` value."}, "item_id": schema.StringAttribute{Computed: true, Description: "ID of the referenced item. For a user it's u123 or their e-mail. For a team it's t123, and for any other item it's the item's own ID. Responses return users and teams in this form. Get a user's ID via List team members (https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via List teams (https://betterstack.com/docs/uptime/api/teams/list/).", MarkdownDescription: "ID of the referenced item. For a user it's `u123` or their e-mail. For a team it's `t123`, and for any other item it's the item's own ID. Responses return users and teams in this form. Get a user's ID via [List team members](https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via [List teams](https://betterstack.com/docs/uptime/api/teams/list/).", Validators: []validator.String{patternWhenString{Sibling: "type", Patterns: map[string]string{"User": "^(u[1-9][0-9]*|[^@/\\s]+@[^@/\\s]+)$", "Team": "^t[1-9][0-9]*$"}}}}, "name": schema.StringAttribute{Computed: true, Description: "Referenced item's name, or null when the item has no name or no longer exists. An item can also be found by its name instead of item_id.", MarkdownDescription: "Referenced item's name, or `null` when the item has no name or no longer exists. An item can also be found by its name instead of `item_id`."}, "email": schema.StringAttribute{Computed: true, Description: "Referenced user's e-mail, returned for a User. A user can also be found by e-mail."}}}, Description: "Values attached to the key."},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -55,6 +58,7 @@ func (d *MetadataDataSource) Read(ctx context.Context, req datasource.ReadReques
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, data.TeamId.ValueString())
 	var out map[string]interface{}
 	if !data.Id.IsNull() && !data.Id.IsUnknown() && data.Id.ValueString() != "" {
 		vars := map[string]string{}

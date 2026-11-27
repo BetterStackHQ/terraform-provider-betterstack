@@ -9,12 +9,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var _ resource.Resource = &SeverityGroupResource{}
 var _ resource.ResourceWithConfigure = &SeverityGroupResource{}
 var _ resource.ResourceWithImportState = &SeverityGroupResource{}
+var _ resource.ResourceWithModifyPlan = &SeverityGroupResource{}
 
 type SeverityGroupResource struct {
 	client *Client
@@ -29,6 +31,7 @@ type SeverityGroupModel struct {
 	CreatedAt types.String `tfsdk:"created_at"`
 	Name      types.String `tfsdk:"name"`
 	SortIndex types.Int64  `tfsdk:"sort_index"`
+	TeamId    types.String `tfsdk:"team_id"`
 	TeamName  types.String `tfsdk:"team_name"`
 	UpdatedAt types.String `tfsdk:"updated_at"`
 }
@@ -39,13 +42,15 @@ func (r *SeverityGroupResource) Metadata(ctx context.Context, req resource.Metad
 
 func (r *SeverityGroupResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A severity group: a set of related severities.",
+		Description:         "A severity group, a set of related severities.",
+		MarkdownDescription: "A severity group, a set of related severities.",
 		Attributes: map[string]schema.Attribute{
 			"id":         schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"created_at": schema.StringAttribute{Computed: true, Description: "When the group was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"name":       schema.StringAttribute{Required: true, Description: "Group name."},
-			"sort_index": schema.Int64Attribute{Optional: true, Description: "Display order of the group among the team's severity groups."},
-			"team_name":  schema.StringAttribute{Computed: true, Description: "Name of the team that owns this group."},
+			"sort_index": schema.Int64Attribute{Optional: true, Description: "Display order of the group among the team's severity groups. Lower values come first."},
+			"team_id":    schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns this group, such as t123. Defaults to the provider's team_id. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", MarkdownDescription: "Team that owns this group, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_severity_group"}}},
+			"team_name":  schema.StringAttribute{Computed: true, Description: "Name of the team that owns this group.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"updated_at": schema.StringAttribute{Computed: true, Description: "When the group was last updated."},
 		},
 	}
@@ -89,8 +94,16 @@ func (r *SeverityGroupResource) Create(ctx context.Context, req resource.CreateR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
 	out, err := r.client.Create(ctx, severityGroupBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating severity_group", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating severity_group", err, req.Plan.Raw.Type())
 		return
@@ -115,9 +128,22 @@ func (r *SeverityGroupResource) Read(ctx context.Context, req resource.ReadReque
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, severityGroupBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), severityGroupBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading severity_group", err, req.State.Raw.Type())
 		return
@@ -135,9 +161,6 @@ func (r *SeverityGroupResource) Read(ctx context.Context, req resource.ReadReque
 func populateSeverityGroup(ctx context.Context, m *SeverityGroupModel, attrs map[string]interface{}) {
 	if attrs == nil {
 		return
-	}
-	if v, ok := stringFromAPI(attrs["team_name"]); ok {
-		m.TeamName = types.StringValue(v)
 	}
 	if v, ok := stringFromAPI(attrs["name"]); ok {
 		m.Name = types.StringValue(v)
@@ -157,9 +180,16 @@ func populateSeverityGroup(ctx context.Context, m *SeverityGroupModel, attrs map
 	if v, ok := stringFromAPI(attrs["updated_at"]); ok {
 		m.UpdatedAt = datetimeValue(m.UpdatedAt, v)
 	}
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(attrs["team_name"]); ok {
+		m.TeamName = types.StringValue(v)
+	}
 }
 
 func (r *SeverityGroupResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	var plan SeverityGroupModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request SeverityGroupModel
@@ -169,6 +199,7 @@ func (r *SeverityGroupResource) Update(ctx context.Context, req resource.UpdateR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, err := r.client.Update(ctx, severityGroupBinding, vars, r.updateBody(ctx, request, plan, state))
@@ -188,6 +219,7 @@ func (r *SeverityGroupResource) Delete(ctx context.Context, req resource.DeleteR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	if err := r.client.Delete(ctx, severityGroupBinding, vars); err != nil {
@@ -195,7 +227,12 @@ func (r *SeverityGroupResource) Delete(ctx context.Context, req resource.DeleteR
 	}
 }
 
+func (r *SeverityGroupResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseUnnamedTeam(ctx, req, resp, r.client, "severity group")
+}
+
 func (r *SeverityGroupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
@@ -205,6 +242,6 @@ var _ resource.ResourceWithMoveState = &SeverityGroupResource{}
 // betteruptime_severity_group (registry.terraform.io/BetterStackHQ/better-uptime).
 func (r *SeverityGroupResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[],\"ignored_fields\":[\"team_name\"],\"instructions\":[\"Keep every attribute: the legacy provider wrote the same fields on /api/v2/urgency-groups. Move team_name to the provider's team_id (or a provider alias for that team). Import uses the existing group id.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/better-uptime\",\"source_type\":\"betteruptime_severity_group\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"computed\":true,\"description\":\"The time when this severity group was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this severity group.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"A name of the group that you can see in the dashboard.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Set sort_index to specify how to sort your severity groups.\",\"diff_suppress_func\":\"provider.init.func12\",\"name\":\"sort_index\",\"optional\":true,\"type\":\"int\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.teamNameSchema.func1\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this severity group was updated.\",\"name\":\"updated_at\",\"type\":\"string\"}],\"response_projections\":[]}"),
+		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[],\"ignored_fields\":[\"team_name\"],\"instructions\":[\"Keep every attribute. Move team_name to the provider's team_id, or to the resource's own team_id for an object in another team. Import uses the existing group id.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/better-uptime\",\"source_type\":\"betteruptime_severity_group\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"defaults\":{},\"source_attributes\":[{\"computed\":true,\"description\":\"The time when this severity group was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this severity group.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"A name of the group that you can see in the dashboard.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Set sort_index to specify how to sort your severity groups.\",\"diff_suppress_func\":\"provider.init.func12\",\"name\":\"sort_index\",\"optional\":true,\"type\":\"int\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.teamNameSchema.func1\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this severity group was updated.\",\"name\":\"updated_at\",\"type\":\"string\"}],\"response_projections\":[]}"),
 	}
 }

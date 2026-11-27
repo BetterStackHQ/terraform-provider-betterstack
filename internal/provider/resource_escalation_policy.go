@@ -33,15 +33,16 @@ func NewEscalationPolicyResource() resource.Resource {
 }
 
 type EscalationPolicyModel struct {
-	Id                      types.String `tfsdk:"id"`
-	EscalationPolicyGroupId types.String `tfsdk:"escalation_policy_group_id"`
-	FallbackPolicyId        types.String `tfsdk:"fallback_policy_id"`
-	IncidentToken           types.String `tfsdk:"incident_token"`
-	Name                    types.String `tfsdk:"name"`
-	RepeatCount             types.Int64  `tfsdk:"repeat_count"`
-	RepeatDelay             types.Int64  `tfsdk:"repeat_delay"`
-	Steps                   types.List   `tfsdk:"steps"`
-	TeamName                types.String `tfsdk:"team_name"`
+	Id                         types.String `tfsdk:"id"`
+	EscalationPolicyGroupId    types.String `tfsdk:"escalation_policy_group_id"`
+	FallbackEscalationPolicyId types.String `tfsdk:"fallback_escalation_policy_id"`
+	IncidentToken              types.String `tfsdk:"incident_token"`
+	Name                       types.String `tfsdk:"name"`
+	RepeatCount                types.Int64  `tfsdk:"repeat_count"`
+	RepeatDelay                types.Int64  `tfsdk:"repeat_delay"`
+	Steps                      types.List   `tfsdk:"steps"`
+	TeamId                     types.String `tfsdk:"team_id"`
+	TeamName                   types.String `tfsdk:"team_name"`
 }
 
 type EscalationPolicyStepsModel struct {
@@ -116,7 +117,7 @@ func expandEscalationPolicySteps(ctx context.Context, o types.Object) map[string
 		out["wait_until_days"] = vals
 	}
 	if !m.SeverityId.IsNull() && !m.SeverityId.IsUnknown() {
-		out["severity_id"] = idToAPI(m.SeverityId.ValueString())
+		out["severity_id"] = m.SeverityId.ValueString()
 	}
 	if !m.StepMembers.IsNull() && !m.StepMembers.IsUnknown() {
 		items := make([]map[string]interface{}, 0, len(m.StepMembers.Elements()))
@@ -157,7 +158,7 @@ func expandEscalationPolicySteps(ctx context.Context, o types.Object) map[string
 		out["action_type"] = m.ActionType.ValueString()
 	}
 	if !m.EscalationPolicyId.IsNull() && !m.EscalationPolicyId.IsUnknown() {
-		out["escalation_policy_id"] = idToAPI(m.EscalationPolicyId.ValueString())
+		out["escalation_policy_id"] = m.EscalationPolicyId.ValueString()
 	}
 	if !m.PolicyMetadataKey.IsNull() && !m.PolicyMetadataKey.IsUnknown() {
 		out["policy_metadata_key"] = m.PolicyMetadataKey.ValueString()
@@ -276,11 +277,23 @@ func flattenEscalationPolicySteps(ctx context.Context, prior types.Object, raw m
 	if v, ok := stringFromAPI(raw["action_type"]); ok {
 		m.ActionType = types.StringValue(v)
 	}
-	if v, ok := stringFromAPI(raw["escalation_policy_id"]); ok {
-		m.EscalationPolicyId = types.StringValue(v)
+	if rawValue, exists := raw["escalation_policy_id"]; exists {
+		if rawValue == nil {
+			m.EscalationPolicyId = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["escalation_policy_id"]); ok {
+				m.EscalationPolicyId = types.StringValue(v)
+			}
+		}
 	}
-	if v, ok := stringFromAPI(raw["policy_metadata_key"]); ok {
-		m.PolicyMetadataKey = types.StringValue(v)
+	if rawValue, exists := raw["policy_metadata_key"]; exists {
+		if rawValue == nil {
+			m.PolicyMetadataKey = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["policy_metadata_key"]); ok {
+				m.PolicyMetadataKey = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := stringFromAPI(raw["instructions_comment"]); ok {
 		m.InstructionsComment = types.StringValue(v)
@@ -298,7 +311,6 @@ func flattenEscalationPolicySteps(ctx context.Context, prior types.Object, raw m
 type EscalationPolicyStepsStepMembersModel struct {
 	Type        types.String `tfsdk:"type"`
 	Id          types.String `tfsdk:"id"`
-	TeamId      types.String `tfsdk:"team_id"`
 	Email       types.String `tfsdk:"email"`
 	MetadataKey types.String `tfsdk:"metadata_key"`
 }
@@ -307,7 +319,6 @@ func escalationPolicyStepsStepMembersAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"type":         types.StringType,
 		"id":           types.StringType,
-		"team_id":      types.StringType,
 		"email":        types.StringType,
 		"metadata_key": types.StringType,
 	}
@@ -326,9 +337,6 @@ func expandEscalationPolicyStepsStepMembers(ctx context.Context, o types.Object)
 	}
 	if !m.Id.IsNull() && !m.Id.IsUnknown() {
 		out["id"] = m.Id.ValueString()
-	}
-	if !m.TeamId.IsNull() && !m.TeamId.IsUnknown() {
-		out["team_id"] = m.TeamId.ValueString()
 	}
 	if !m.Email.IsNull() && !m.Email.IsUnknown() {
 		out["email"] = m.Email.ValueString()
@@ -351,9 +359,6 @@ func flattenEscalationPolicyStepsStepMembers(ctx context.Context, prior types.Ob
 	}
 	if v, ok := stringFromAPI(raw["id"]); ok {
 		m.Id = types.StringValue(v)
-	}
-	if v, ok := stringFromAPI(raw["team_id"]); ok {
-		m.TeamId = types.StringValue(v)
 	}
 	if v, ok := stringFromAPI(raw["email"]); ok {
 		m.Email = types.StringValue(v)
@@ -441,17 +446,19 @@ func (r *EscalationPolicyResource) Metadata(ctx context.Context, req resource.Me
 
 func (r *EscalationPolicyResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "An escalation policy: the ordered steps and people notified when an incident fires.",
+		Description:         "An escalation policy sets the ordered steps and people notified when an incident fires.",
+		MarkdownDescription: "An escalation policy sets the ordered steps and people notified when an incident fires.",
 		Attributes: map[string]schema.Attribute{
-			"id":                         schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"escalation_policy_group_id": schema.StringAttribute{Optional: true, Description: "Escalation policy group this policy belongs to."},
-			"fallback_policy_id":         schema.StringAttribute{Optional: true, Description: "Escalation policy to escalate to after these steps and repeats run out. Must belong to the same organization."},
-			"incident_token":             schema.StringAttribute{Computed: true, Description: "Token used to open incidents against this policy.", Sensitive: true},
-			"name":                       schema.StringAttribute{Required: true, Description: "Policy name."},
-			"repeat_count":               schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(0), Description: "How many times to repeat the steps if the incident stays unacknowledged."},
-			"repeat_delay":               schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(0), Description: "Seconds to wait before repeating the steps."},
-			"steps":                      schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true, Description: "Step type.", Validators: []validator.String{stringvalidator.OneOf("escalation", "time_branching", "metadata_branching", "instructions", "resolve_remove")}}, "wait_before": schema.Int64Attribute{Optional: true, Computed: true, Description: "Seconds to wait before this step runs."}, "wait_until_time": schema.StringAttribute{Optional: true, Computed: true, Description: "Time of day to wait until, as `HH:MM`, instead of wait_before."}, "wait_until_timezone": schema.StringAttribute{Optional: true, Computed: true, Description: "Timezone for wait_until_time."}, "wait_until_days": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Weekdays wait_until_time applies to."}, "severity_id": schema.StringAttribute{Optional: true, Computed: true, Description: "Severity to alert with. Used by escalation steps."}, "step_members": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true}, "id": schema.StringAttribute{Optional: true, Computed: true}, "team_id": schema.StringAttribute{Optional: true, Computed: true}, "email": schema.StringAttribute{Optional: true, Computed: true}, "metadata_key": schema.StringAttribute{Optional: true, Computed: true}}}, Description: "Who to notify. Each member has a type, plus an id, email or metadata_key depending on the type. The notes below list every member type."}, "timezone": schema.StringAttribute{Optional: true, Computed: true, Description: "Timezone the time branch condition is evaluated in."}, "days": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Weekdays the time branch applies to, from `mon` to `sun`."}, "time_from": schema.StringAttribute{Optional: true, Computed: true, Description: "Start of the time branch window, as `HH:MM`."}, "time_to": schema.StringAttribute{Optional: true, Computed: true, Description: "End of the time branch window, as `HH:MM`."}, "metadata_key": schema.StringAttribute{Optional: true, Computed: true, Description: "Incident metadata key that a metadata branching step checks."}, "metadata_values": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true}, "value": schema.StringAttribute{Optional: true, Computed: true}, "item_id": schema.StringAttribute{Optional: true, Computed: true}, "name": schema.StringAttribute{Optional: true, Computed: true}, "email": schema.StringAttribute{Optional: true, Computed: true}}}, Description: "Metadata values to match. Each is `{type: \"String\", value}`, `{type: \"no_value\"}` or a catalog item reference. You can also send a value as a plain string. See the notes below."}, "action_type": schema.StringAttribute{Optional: true, Computed: true, Description: "The action of a time_branching or metadata_branching step, or of a resolve_remove step. A branch without escalation_policy_id or policy_metadata_key is saved as `do_not_escalate`.", Validators: []validator.String{stringvalidator.OneOf("escalate_to_policy", "resolve_incident", "remove_incident", "do_not_escalate")}}, "escalation_policy_id": schema.StringAttribute{Optional: true, Computed: true, Description: "Escalation policy the branch escalates to when action_type is `escalate_to_policy`."}, "policy_metadata_key": schema.StringAttribute{Optional: true, Computed: true, Description: "Incident metadata key whose value names the escalation policy to escalate to, instead of a fixed escalation_policy_id."}, "instructions_comment": schema.StringAttribute{Optional: true, Computed: true, Description: "Text of an instructions step."}, "instructions_reminder_enabled": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether to remind about unacknowledged instructions."}, "instructions_reminder_interval_hours": schema.Int64Attribute{Optional: true, Computed: true, Description: "Reminder interval in hours."}}}, Description: "Ordered escalation steps. Sending steps replaces the whole list. An empty list makes a silent policy that only collects incidents. Every step has a type, a wait set by wait_before or by wait_until_time and wait_until_timezone, and the keys its type uses.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"team_name":                  schema.StringAttribute{Computed: true, Description: "Name of the team that owns this policy."},
+			"id":                            schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"escalation_policy_group_id":    schema.StringAttribute{Optional: true, Description: "The ID of the escalation policy group this policy is in, or null when it's in none. Remove the argument to clear it from its group.", MarkdownDescription: "The ID of the escalation policy group this policy is in, or `null` when it's in none. Remove the argument to clear it from its group."},
+			"fallback_escalation_policy_id": schema.StringAttribute{Optional: true, Description: "Escalation policy to escalate to after these steps and repeats run out. Must belong to the same organization."},
+			"incident_token":                schema.StringAttribute{Computed: true, Description: "The secret token in the link to the policy's incident report form, used to open incidents on this policy.", Sensitive: true},
+			"name":                          schema.StringAttribute{Required: true, Description: "Policy name."},
+			"repeat_count":                  schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(0), Description: "How many times the whole policy repeats if nobody acknowledges the incident."},
+			"repeat_delay":                  schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(0), Description: "Seconds until the steps repeat."},
+			"steps":                         schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Required: true, Description: "The step type.\n\n- escalation: Notifies people or integrations.\n- time_branching: Acts when the incident happens in a time window, and otherwise continues with the next step.\n- metadata_branching: Acts when the incident's metadata matches a value, and otherwise continues with the next step.\n- instructions: Posts instructions into the incident timeline.\n- resolve_remove: Resolves or removes the incident.", MarkdownDescription: "The step type.\n\n- `escalation`: Notifies people or integrations.\n- `time_branching`: Acts when the incident happens in a time window, and otherwise continues with the next step.\n- `metadata_branching`: Acts when the incident's metadata matches a value, and otherwise continues with the next step.\n- `instructions`: Posts instructions into the incident timeline.\n- `resolve_remove`: Resolves or removes the incident.", Validators: []validator.String{stringvalidator.OneOf("escalation", "time_branching", "metadata_branching", "instructions", "resolve_remove")}}, "wait_before": schema.Int64Attribute{Optional: true, Computed: true, Description: "How long the step waits after the previous step, in seconds, from 0 to 691200, which is 8 days. Defaults to 0. Leave it out when the step waits until a time of day with wait_until_time.", MarkdownDescription: "How long the step waits after the previous step, in seconds, from `0` to `691200`, which is 8 days. Defaults to `0`. Leave it out when the step waits until a time of day with `wait_until_time`."}, "wait_until_time": schema.StringAttribute{Optional: true, Computed: true, Description: "The time of day the step runs, in HH:MM format, instead of waiting wait_before. Requires wait_until_timezone. Responses show it in place of wait_before on such steps.", MarkdownDescription: "The time of day the step runs, in `HH:MM` format, instead of waiting `wait_before`. Requires `wait_until_timezone`. Responses show it in place of `wait_before` on such steps."}, "wait_until_timezone": schema.StringAttribute{Optional: true, Computed: true, Description: "The time zone of wait_until_time, as a Rails time zone name such as London or Eastern Time (US & Canada).", MarkdownDescription: "The time zone of `wait_until_time`, as a Rails time zone name such as `London` or `Eastern Time (US & Canada)`."}, "wait_until_days": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "The days on which wait_until_time applies, out of mon, tue, wed, thu, fri, sat and sun. Defaults to every day.", MarkdownDescription: "The days on which `wait_until_time` applies, out of `mon`, `tue`, `wed`, `thu`, `fri`, `sat` and `sun`. Defaults to every day."}, "severity_id": schema.StringAttribute{Optional: true, Computed: true, Description: "The ID of the severity that sets how the step's members are notified. Required on escalation steps. Get the severity ID via List severities (https://betterstack.com/docs/uptime/api/list-all-severities/).", MarkdownDescription: "The ID of the severity that sets how the step's members are notified. Required on `escalation` steps. Get the severity ID via [List severities](https://betterstack.com/docs/uptime/api/list-all-severities/)."}, "step_members": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Required: true, Description: "The member type. current_on_call notifies whoever is on call, and entire_team everyone in the team. user notifies one person, policy runs another escalation policy, incident_metadata notifies what the incident's metadata stores under metadata_key, and ai_sre starts an AI SRE investigation. A member can also be one integration, with type webhook, email_integration, slack_integration, linear_integration, jira_integration, halo_psa_integration, microsoft_teams_integration, pagerduty_integration, zapier_webhook, zoom_integration or google_meet_integration. Or it can be every integration of one kind, with type all_slack_integrations, all_linear_integrations, all_jira_integrations, all_microsoft_teams_integrations, all_zapier_integrations, all_pagerduty_integrations, all_webhook_integrations, all_email_integrations, all_splunk_on_call_integrations, all_incident_io_integrations, all_zoom_integrations or all_google_meet_integrations.", MarkdownDescription: "The member type. `current_on_call` notifies whoever is on call, and `entire_team` everyone in the team. `user` notifies one person, `policy` runs another escalation policy, `incident_metadata` notifies what the incident's metadata stores under `metadata_key`, and `ai_sre` starts an AI SRE investigation. A member can also be one integration, with type `webhook`, `email_integration`, `slack_integration`, `linear_integration`, `jira_integration`, `halo_psa_integration`, `microsoft_teams_integration`, `pagerduty_integration`, `zapier_webhook`, `zoom_integration` or `google_meet_integration`. Or it can be every integration of one kind, with type `all_slack_integrations`, `all_linear_integrations`, `all_jira_integrations`, `all_microsoft_teams_integrations`, `all_zapier_integrations`, `all_pagerduty_integrations`, `all_webhook_integrations`, `all_email_integrations`, `all_splunk_on_call_integrations`, `all_incident_io_integrations`, `all_zoom_integrations` or `all_google_meet_integrations`."}, "id": schema.StringAttribute{Optional: true, Computed: true, Description: "The ID of the member's target. Required for user unless email is set, and for policy, ai_sre and every type that notifies one integration. A user member is u123 or their e-mail, and responses return u123. A current_on_call member accepts an on-call calendar to notify instead of the team's default. An entire_team member accepts another team in the organization, as its ID such as t123. Responses return it the same way. Both come back without an ID when they use the policy's own team. Get a user's ID via List team members (https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via List teams (https://betterstack.com/docs/uptime/api/teams/list/).", MarkdownDescription: "The ID of the member's target. Required for `user` unless `email` is set, and for `policy`, `ai_sre` and every type that notifies one integration. A `user` member is `u123` or their e-mail, and responses return `u123`. A `current_on_call` member accepts an on-call calendar to notify instead of the team's default. An `entire_team` member accepts another team in the organization, as its ID such as `t123`. Responses return it the same way. Both come back without an ID when they use the policy's own team. Get a user's ID via [List team members](https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via [List teams](https://betterstack.com/docs/uptime/api/teams/list/).", Validators: []validator.String{patternWhenString{Sibling: "type", Patterns: map[string]string{"entire_team": "^t[1-9][0-9]*$", "user": "^(u[1-9][0-9]*|[^@/\\s]+@[^@/\\s]+)$"}}}}, "email": schema.StringAttribute{Optional: true, Computed: true, Description: "The e-mail of a user member, instead of its id.", MarkdownDescription: "The e-mail of a `user` member, instead of its id."}, "metadata_key": schema.StringAttribute{Optional: true, Computed: true, Description: "The incident metadata key whose stored users, teams, on-call calendars, escalation policies and integrations an incident_metadata member notifies.", MarkdownDescription: "The incident metadata key whose stored users, teams, on-call calendars, escalation policies and integrations an `incident_metadata` member notifies."}}}, Description: "Who or what the step notifies, at least one member. Required on escalation steps. Each member has a type, plus an id, email or metadata_key depending on the type.", MarkdownDescription: "Who or what the step notifies, at least one member. Required on `escalation` steps. Each member has a `type`, plus an `id`, `email` or `metadata_key` depending on the type."}, "timezone": schema.StringAttribute{Optional: true, Computed: true, Description: "The time zone of the time window. Required on time_branching steps.", MarkdownDescription: "The time zone of the time window. Required on `time_branching` steps."}, "days": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "The days on which the time window applies, out of mon, tue, wed, thu, fri, sat and sun. Used on time_branching steps and defaults to every day.", MarkdownDescription: "The days on which the time window applies, out of `mon`, `tue`, `wed`, `thu`, `fri`, `sat` and `sun`. Used on `time_branching` steps and defaults to every day."}, "time_from": schema.StringAttribute{Optional: true, Computed: true, Description: "Start of the time window, in HH:MM format. Required on time_branching steps.", MarkdownDescription: "Start of the time window, in `HH:MM` format. Required on `time_branching` steps."}, "time_to": schema.StringAttribute{Optional: true, Computed: true, Description: "End of the time window, in HH:MM format. Required on time_branching steps.", MarkdownDescription: "End of the time window, in `HH:MM` format. Required on `time_branching` steps."}, "metadata_key": schema.StringAttribute{Optional: true, Computed: true, Description: "The incident metadata key the step checks. Required on metadata_branching steps.", MarkdownDescription: "The incident metadata key the step checks. Required on `metadata_branching` steps."}, "metadata_values": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true, Description: "String, no_value, or a catalog item's type, which is one of User, Team, EscalationPolicy, OnCallSchedule, Monitor, SlackIntegration, LinearIntegration, JiraIntegration, MicrosoftTeamsIntegration, ZapierZap, OutgoingWebhook, PagerDutyIntegration or Source. no_value matches when the incident's metadata doesn't have the key or the key is empty.", MarkdownDescription: "`String`, `no_value`, or a catalog item's type, which is one of `User`, `Team`, `EscalationPolicy`, `OnCallSchedule`, `Monitor`, `SlackIntegration`, `LinearIntegration`, `JiraIntegration`, `MicrosoftTeamsIntegration`, `ZapierZap`, `OutgoingWebhook`, `PagerDutyIntegration` or `Source`. `no_value` matches when the incident's metadata doesn't have the key or the key is empty."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The text of a String value.", MarkdownDescription: "The text of a `String` value."}, "item_id": schema.StringAttribute{Optional: true, Computed: true, Description: "The catalog item's ID. For a user it's u123 or their e-mail. For a team it's t123, and for any other item it's the item's own ID. Responses return users and teams in this form. Get a user's ID via List team members (https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via List teams (https://betterstack.com/docs/uptime/api/teams/list/).", MarkdownDescription: "The catalog item's ID. For a user it's `u123` or their e-mail. For a team it's `t123`, and for any other item it's the item's own ID. Responses return users and teams in this form. Get a user's ID via [List team members](https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via [List teams](https://betterstack.com/docs/uptime/api/teams/list/).", Validators: []validator.String{patternWhenString{Sibling: "type", Patterns: map[string]string{"User": "^(u[1-9][0-9]*|[^@/\\s]+@[^@/\\s]+)$", "Team": "^t[1-9][0-9]*$"}}}}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The catalog item's name. An item can also be found by its name instead of item_id.", MarkdownDescription: "The catalog item's name. An item can also be found by its name instead of `item_id`."}, "email": schema.StringAttribute{Optional: true, Computed: true, Description: "A User item's e-mail, returned for a User. A user can also be found by e-mail."}}}, Description: "The metadata values that match, at least one. Required on metadata_branching steps. Each is {type: \"String\", value}, {type: \"no_value\"} or a catalog item reference. no_value matches when the key is missing or blank.", MarkdownDescription: "The metadata values that match, at least one. Required on `metadata_branching` steps. Each is `{type: \"String\", value}`, `{type: \"no_value\"}` or a catalog item reference. `no_value` matches when the key is missing or blank."}, "action_type": schema.StringAttribute{Optional: true, Computed: true, Description: "What the step does. Required on resolve_remove steps, which accept only resolving or removing. On branching steps it applies when the incident matches. It defaults to running another policy when you set escalation_policy_id or policy_metadata_key, and to stopping otherwise.\n\n- escalate_to_policy: Runs the escalation policy in escalation_policy_id or policy_metadata_key and stops this policy.\n- resolve_incident: Resolves the incident and stops this policy.\n- remove_incident: Removes the incident for good and stops this policy.\n- do_not_escalate: Stops this policy.", MarkdownDescription: "What the step does. Required on `resolve_remove` steps, which accept only resolving or removing. On branching steps it applies when the incident matches. It defaults to running another policy when you set `escalation_policy_id` or `policy_metadata_key`, and to stopping otherwise.\n\n- `escalate_to_policy`: Runs the escalation policy in `escalation_policy_id` or `policy_metadata_key` and stops this policy.\n- `resolve_incident`: Resolves the incident and stops this policy.\n- `remove_incident`: Removes the incident for good and stops this policy.\n- `do_not_escalate`: Stops this policy.", Validators: []validator.String{stringvalidator.OneOf("escalate_to_policy", "resolve_incident", "remove_incident", "do_not_escalate")}}, "escalation_policy_id": schema.StringAttribute{Optional: true, Computed: true, Description: "The ID of another escalation policy in your organization to run when the incident matches. Used on time_branching and metadata_branching steps. Can't be combined with policy_metadata_key.", MarkdownDescription: "The ID of another escalation policy in your organization to run when the incident matches. Used on `time_branching` and `metadata_branching` steps. Can't be combined with `policy_metadata_key`."}, "policy_metadata_key": schema.StringAttribute{Optional: true, Computed: true, Description: "A key in the incident's metadata that holds the escalation policy to run when the incident matches, instead of escalation_policy_id. Used on time_branching and metadata_branching steps. If the key is missing or holds no policy, the policy stops.", MarkdownDescription: "A key in the incident's metadata that holds the escalation policy to run when the incident matches, instead of `escalation_policy_id`. Used on `time_branching` and `metadata_branching` steps. If the key is missing or holds no policy, the policy stops."}, "instructions_comment": schema.StringAttribute{Optional: true, Computed: true, Description: "The instructions posted as a comment into the incident timeline. Supports Markdown, checkboxes like - [ ] Step 1, and values from the incident's metadata as {key}, such as {server_region}. Required on instructions steps.", MarkdownDescription: "The instructions posted as a comment into the incident timeline. Supports Markdown, checkboxes like `- [ ] Step 1`, and values from the incident's metadata as `{key}`, such as `{server_region}`. Required on `instructions` steps."}, "instructions_reminder_enabled": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether to post a reminder periodically until every checkbox in the instructions is checked. Defaults to false.", MarkdownDescription: "Whether to post a reminder periodically until every checkbox in the instructions is checked. Defaults to `false`."}, "instructions_reminder_interval_hours": schema.Int64Attribute{Optional: true, Computed: true, Description: "How often the reminder is posted, in hours, on instructions steps with instructions_reminder_enabled on. At least 1, and 4 by default.", MarkdownDescription: "How often the reminder is posted, in hours, on `instructions` steps with `instructions_reminder_enabled` on. At least `1`, and `4` by default."}}}, Description: "Ordered escalation steps. An update with steps replaces the whole list. An empty list makes a silent policy that only collects incidents. Every step has a type, a wait set by wait_before or by wait_until_time and wait_until_timezone, and the keys its type uses.", MarkdownDescription: "Ordered escalation steps. An update with steps replaces the whole list. An empty list makes a silent policy that only collects incidents. Every step has a type, a wait set by `wait_before` or by `wait_until_time` and `wait_until_timezone`, and the keys its type uses.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"team_id":                       schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns this policy, such as t123. Defaults to the provider's team_id. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", MarkdownDescription: "Team that owns this policy, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_escalation_policy"}}},
+			"team_name":                     schema.StringAttribute{Computed: true, Description: "Name of the team that owns this policy.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -478,10 +485,10 @@ func (r *EscalationPolicyResource) body(ctx context.Context, m EscalationPolicyM
 		body["repeat_delay"] = m.RepeatDelay.ValueInt64()
 	}
 	if !m.EscalationPolicyGroupId.IsNull() && !m.EscalationPolicyGroupId.IsUnknown() {
-		body["escalation_policy_group_id"] = idToAPI(m.EscalationPolicyGroupId.ValueString())
+		body["escalation_policy_group_id"] = m.EscalationPolicyGroupId.ValueString()
 	}
-	if !m.FallbackPolicyId.IsNull() && !m.FallbackPolicyId.IsUnknown() {
-		body["fallback_policy_id"] = idToAPI(m.FallbackPolicyId.ValueString())
+	if !m.FallbackEscalationPolicyId.IsNull() && !m.FallbackEscalationPolicyId.IsUnknown() {
+		body["fallback_escalation_policy_id"] = m.FallbackEscalationPolicyId.ValueString()
 	}
 	if !m.Steps.IsNull() && !m.Steps.IsUnknown() {
 		items := make([]map[string]interface{}, 0, len(m.Steps.Elements()))
@@ -501,8 +508,8 @@ func (r *EscalationPolicyResource) updateBody(ctx context.Context, config, plan,
 	if !state.EscalationPolicyGroupId.IsNull() && !state.EscalationPolicyGroupId.IsUnknown() && plan.EscalationPolicyGroupId.IsNull() {
 		body["escalation_policy_group_id"] = nil
 	}
-	if !state.FallbackPolicyId.IsNull() && !state.FallbackPolicyId.IsUnknown() && plan.FallbackPolicyId.IsNull() {
-		body["fallback_policy_id"] = nil
+	if !state.FallbackEscalationPolicyId.IsNull() && !state.FallbackEscalationPolicyId.IsUnknown() && plan.FallbackEscalationPolicyId.IsNull() {
+		body["fallback_escalation_policy_id"] = nil
 	}
 	return body
 }
@@ -518,8 +525,16 @@ func (r *EscalationPolicyResource) Create(ctx context.Context, req resource.Crea
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
 	out, err := r.client.Create(ctx, escalationPolicyBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating escalation_policy", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating escalation_policy", err, req.Plan.Raw.Type())
 		return
@@ -544,9 +559,22 @@ func (r *EscalationPolicyResource) Read(ctx context.Context, req resource.ReadRe
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, escalationPolicyBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), escalationPolicyBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading escalation_policy", err, req.State.Raw.Type())
 		return
@@ -568,9 +596,6 @@ func populateEscalationPolicy(ctx context.Context, m *EscalationPolicyModel, att
 	if v, ok := stringFromAPI(attrs["name"]); ok {
 		m.Name = types.StringValue(v)
 	}
-	if v, ok := stringFromAPI(attrs["team_name"]); ok {
-		m.TeamName = types.StringValue(v)
-	}
 	if v, ok := int64FromAPI(attrs["repeat_count"]); ok {
 		m.RepeatCount = types.Int64Value(v)
 	}
@@ -586,12 +611,12 @@ func populateEscalationPolicy(ctx context.Context, m *EscalationPolicyModel, att
 			}
 		}
 	}
-	if rawValue, exists := attrs["fallback_policy_id"]; exists {
+	if rawValue, exists := attrs["fallback_escalation_policy_id"]; exists {
 		if rawValue == nil {
-			m.FallbackPolicyId = types.StringNull()
+			m.FallbackEscalationPolicyId = types.StringNull()
 		} else {
-			if v, ok := stringFromAPI(attrs["fallback_policy_id"]); ok {
-				m.FallbackPolicyId = types.StringValue(v)
+			if v, ok := stringFromAPI(attrs["fallback_escalation_policy_id"]); ok {
+				m.FallbackEscalationPolicyId = types.StringValue(v)
 			}
 		}
 	}
@@ -609,9 +634,16 @@ func populateEscalationPolicy(ctx context.Context, m *EscalationPolicyModel, att
 		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: escalationPolicyStepsAttrTypes()}, items)
 		m.Steps = lv
 	}
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(attrs["team_name"]); ok {
+		m.TeamName = types.StringValue(v)
+	}
 }
 
 func (r *EscalationPolicyResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	defer rememberConfigured(ctx, req.Config, resp.Private, escalationPolicyKeptOnRemoval, &resp.Diagnostics)
 	var plan EscalationPolicyModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -630,6 +662,7 @@ func (r *EscalationPolicyResource) Update(ctx context.Context, req resource.Upda
 	if !plan.RepeatDelay.Equal(state.RepeatDelay) {
 		request.RepeatDelay = plan.RepeatDelay
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, err := r.client.Update(ctx, escalationPolicyBinding, vars, r.updateBody(ctx, request, plan, state))
@@ -649,6 +682,7 @@ func (r *EscalationPolicyResource) Delete(ctx context.Context, req resource.Dele
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	if err := r.client.Delete(ctx, escalationPolicyBinding, vars); err != nil {
@@ -660,9 +694,13 @@ func (r *EscalationPolicyResource) Delete(ctx context.Context, req resource.Dele
 var escalationPolicyKeptOnRemoval = []string{"steps"}
 
 func (r *EscalationPolicyResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseUnnamedTeam(ctx, req, resp, r.client, "escalation policy")
 	warnKeptOnRemoval(ctx, "betterstack_escalation_policy", req, resp, escalationPolicyKeptOnRemoval)
 }
 
 func (r *EscalationPolicyResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("repeat_count"), 0)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("repeat_delay"), 0)...)
 }

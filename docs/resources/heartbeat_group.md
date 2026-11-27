@@ -13,9 +13,20 @@ A group that organizes related heartbeats together.
 
 ## Example Usage
 
+### Create a heartbeat group
+
 ```terraform
 resource "betterstack_heartbeat_group" "example" {
   name = "Backend services"
+}
+```
+
+### Listed first
+
+```terraform
+resource "betterstack_heartbeat_group" "listed_first" {
+  name       = "Database backups"
+  sort_index = 0
 }
 ```
 
@@ -27,27 +38,31 @@ resource "betterstack_heartbeat_group" "example" {
 
 ### Optional
 
-Optional attributes are also computed: left unset, they take the server-side default.
-
-- `sort_index` (Number) Display order within the team. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `paused` (Boolean) Set to `true` to pause every heartbeat in the group, or `false` to resume them all. Returned as `true` only when the group has heartbeats and all of them are paused. Accepted on create, but it has no effect there because a new group has no heartbeats. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it. Not accepted by the create request; the provider applies it in an immediate follow-up call once the resource exists.
+- `sort_index` (Number) The position of the group in your list of heartbeat groups, lower values first. `null` when no position was set.
+- `paused` (Boolean, Computed) Whether every heartbeat in the group is paused, `false` when the group has none. Set it to `true` to pause them all or `false` to resume them. Accepted on create, but it has no effect there.
+- `team_id` (String) Team that owns this heartbeat group, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.
 
 ### Read-Only
 
-- `id` (String) The id of this heartbeat_group.
-- `team_name` (String) Name of the team that owns this heartbeat group.
+- `id` (String) The ID of this heartbeat group.
 - `created_at` (String (RFC 3339)) When the group was created.
 - `updated_at` (String (RFC 3339)) When the group was last updated.
-
-## Endpoints
-
-- `GET /api/v3/heartbeat-groups`
-- `GET /api/v3/heartbeat-groups/:id`
-- `POST /api/v3/heartbeat-groups`
-- `PATCH /api/v3/heartbeat-groups/:id`
-- `DELETE /api/v3/heartbeat-groups/:id`
+- `team_name` (String) Name of the team that owns this heartbeat group.
 
 ## Import
+
+Import an existing heartbeat group by its ID. Get the ID via [List heartbeat groups](https://betterstack.com/docs/uptime/api/list-all-existing-heartbeat-groups/).
+
+With Terraform 1.5 or later, use an `import` block:
+
+```terraform
+import {
+  to = betterstack_heartbeat_group.example
+  id = "12345"
+}
+```
+
+Or run `terraform import`:
 
 ```shell
 terraform import betterstack_heartbeat_group.example 12345

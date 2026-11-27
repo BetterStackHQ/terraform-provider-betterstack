@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 )
 
 var _ datasource.DataSource = &EscalationPolicyGroupDataSource{}
@@ -26,12 +27,14 @@ func (d *EscalationPolicyGroupDataSource) Metadata(ctx context.Context, req data
 
 func (d *EscalationPolicyGroupDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "An escalation policy group: a container that groups related escalation policies.",
+		Description:         "An escalation policy group, a container that groups related escalation policies.",
+		MarkdownDescription: "An escalation policy group, a container that groups related escalation policies.",
 		Attributes: map[string]schema.Attribute{
-			"id":         schema.StringAttribute{Required: true, Description: "Id of the escalation_policy_group to look up."},
+			"id":         schema.StringAttribute{Required: true, Description: "The ID of the escalation policy group to look up."},
 			"created_at": schema.StringAttribute{Computed: true, Description: "When the group was created."},
 			"name":       schema.StringAttribute{Computed: true, Description: "Group name."},
-			"sort_index": schema.Int64Attribute{Computed: true, Description: "Display order of the group among the team's escalation policy groups. When writing, you can also send it as position."},
+			"sort_index": schema.Int64Attribute{Computed: true, Description: "The group's position in your list of escalation policy groups, lower values first. null when no position was set.", MarkdownDescription: "The group's position in your list of escalation policy groups, lower values first. `null` when no position was set."},
+			"team_id":    schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns this group, such as t123. Defaults to the provider's team_id. Set it to look the object up in another team.", MarkdownDescription: "Team that owns this group, such as `t123`. Defaults to the provider's `team_id`. Set it to look the object up in another team.", Validators: []validator.String{teamIDValidator()}},
 			"team_name":  schema.StringAttribute{Computed: true, Description: "Name of the team that owns this group."},
 			"updated_at": schema.StringAttribute{Computed: true, Description: "When the group was last updated."},
 		},
@@ -52,6 +55,7 @@ func (d *EscalationPolicyGroupDataSource) Read(ctx context.Context, req datasour
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, data.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = data.Id.ValueString()
 	out, found, err := d.client.GetDataSource(ctx, escalationPolicyGroupBinding, vars)

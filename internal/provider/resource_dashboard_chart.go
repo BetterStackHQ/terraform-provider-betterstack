@@ -6,17 +6,23 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/dynamicplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 )
@@ -24,6 +30,7 @@ import (
 var _ resource.Resource = &DashboardChartResource{}
 var _ resource.ResourceWithConfigure = &DashboardChartResource{}
 var _ resource.ResourceWithImportState = &DashboardChartResource{}
+var _ resource.ResourceWithIdentity = &DashboardChartResource{}
 var _ resource.ResourceWithModifyPlan = &DashboardChartResource{}
 
 type DashboardChartResource struct {
@@ -35,18 +42,2732 @@ func NewDashboardChartResource() resource.Resource {
 }
 
 type DashboardChartModel struct {
-	Id            types.String  `tfsdk:"id"`
-	ChartType     types.String  `tfsdk:"chart_type"`
-	DashboardId   types.String  `tfsdk:"dashboard_id"`
-	Description   types.String  `tfsdk:"description"`
-	H             types.Int64   `tfsdk:"h"`
-	Name          types.String  `tfsdk:"name"`
-	Queries       types.Dynamic `tfsdk:"queries"`
-	QueriesResult types.Dynamic `tfsdk:"queries_result"`
-	Settings      types.Dynamic `tfsdk:"settings"`
-	W             types.Int64   `tfsdk:"w"`
-	X             types.Int64   `tfsdk:"x"`
-	Y             types.Int64   `tfsdk:"y"`
+	Id          types.String `tfsdk:"id"`
+	ChartType   types.String `tfsdk:"chart_type"`
+	DashboardId types.String `tfsdk:"dashboard_id"`
+	Description types.String `tfsdk:"description"`
+	Explanation types.String `tfsdk:"explanation"`
+	H           types.Int64  `tfsdk:"h"`
+	Name        types.String `tfsdk:"name"`
+	Queries     types.List   `tfsdk:"queries"`
+	Settings    types.Object `tfsdk:"settings"`
+	TeamId      types.String `tfsdk:"team_id"`
+	W           types.Int64  `tfsdk:"w"`
+	X           types.Int64  `tfsdk:"x"`
+	Y           types.Int64  `tfsdk:"y"`
+}
+
+type DashboardChartSettingsModel struct {
+	Unit                       types.String  `tfsdk:"unit"`
+	CustomUnit                 types.Bool    `tfsdk:"custom_unit"`
+	DecimalPlaces              types.Int64   `tfsdk:"decimal_places"`
+	TimeColumn                 types.String  `tfsdk:"time_column"`
+	XAxisType                  types.String  `tfsdk:"x_axis_type"`
+	YAxisType                  types.String  `tfsdk:"y_axis_type"`
+	SeriesColumn               types.String  `tfsdk:"series_column"`
+	ValueColumns               types.List    `tfsdk:"value_columns"`
+	PointSizeColumn            types.String  `tfsdk:"point_size_column"`
+	LocationColumn             types.String  `tfsdk:"location_column"`
+	LocationLabel              types.String  `tfsdk:"location_label"`
+	LabelColumn                types.String  `tfsdk:"label_column"`
+	GroupByColumns             types.List    `tfsdk:"group_by_columns"`
+	Palette                    types.String  `tfsdk:"palette"`
+	MinValue                   types.Float64 `tfsdk:"min_value"`
+	MaxValue                   types.Float64 `tfsdk:"max_value"`
+	LinkTemplate               types.String  `tfsdk:"link_template"`
+	YAxisMin                   types.Float64 `tfsdk:"y_axis_min"`
+	YAxisMax                   types.Float64 `tfsdk:"y_axis_max"`
+	YAxisAutoRange             types.String  `tfsdk:"y_axis_auto_range"`
+	YAxisScale                 types.String  `tfsdk:"y_axis_scale"`
+	Min                        types.Float64 `tfsdk:"min"`
+	Max                        types.Float64 `tfsdk:"max"`
+	TreatMissingValues         types.String  `tfsdk:"treat_missing_values"`
+	Stacking                   types.String  `tfsdk:"stacking"`
+	Orientation                types.String  `tfsdk:"orientation"`
+	Legend                     types.String  `tfsdk:"legend"`
+	SeriesColors               types.Map     `tfsdk:"series_colors"`
+	SeriesOrder                types.List    `tfsdk:"series_order"`
+	ShowPreviousPeriod         types.Bool    `tfsdk:"show_previous_period"`
+	ColorMode                  types.String  `tfsdk:"color_mode"`
+	ColorUpperThreshold        types.Float64 `tfsdk:"color_upper_threshold"`
+	ColorLowerThreshold        types.Float64 `tfsdk:"color_lower_threshold"`
+	ColorGreenWords            types.String  `tfsdk:"color_green_words"`
+	ColorYellowWords           types.String  `tfsdk:"color_yellow_words"`
+	ColorRedWords              types.String  `tfsdk:"color_red_words"`
+	ColumnUnits                types.Map     `tfsdk:"column_units"`
+	PercentageHighlightColumns types.List    `tfsdk:"percentage_highlight_columns"`
+	SeriesUnit                 types.String  `tfsdk:"series_unit"`
+	SeriesCustomUnit           types.Bool    `tfsdk:"series_custom_unit"`
+	HeatmapColorMode           types.String  `tfsdk:"heatmap_color_mode"`
+	ValueCategories            types.Map     `tfsdk:"value_categories"`
+	ColumnWidths               types.Map     `tfsdk:"column_widths"`
+	TableWidth                 types.Int64   `tfsdk:"table_width"`
+	GuessedSeriesColors        types.Map     `tfsdk:"guessed_series_colors"`
+	Label                      types.String  `tfsdk:"label"`
+	Text                       types.String  `tfsdk:"text"`
+	RowTemplates               types.Map     `tfsdk:"row_templates"`
+	Sampling                   types.Int64   `tfsdk:"sampling"`
+	Fresh                      types.Bool    `tfsdk:"fresh"`
+	FunnelUnitName             types.String  `tfsdk:"funnel_unit_name"`
+	FilteredSeries             types.List    `tfsdk:"filtered_series"`
+	FilteredReleases           types.List    `tfsdk:"filtered_releases"`
+	ForceSourceSeries          types.Bool    `tfsdk:"force_source_series"`
+	TreatZeroValues            types.String  `tfsdk:"treat_zero_values"`
+	Projection                 types.String  `tfsdk:"projection"`
+	PublishedFormat            types.String  `tfsdk:"published_format"`
+	PublishedCacheFor          types.Int64   `tfsdk:"published_cache_for"`
+	YAxisAnnotations           types.List    `tfsdk:"y_axis_annotations"`
+	XAxisAnnotations           types.List    `tfsdk:"x_axis_annotations"`
+}
+
+func dashboardChartSettingsAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"unit":                         types.StringType,
+		"custom_unit":                  types.BoolType,
+		"decimal_places":               types.Int64Type,
+		"time_column":                  types.StringType,
+		"x_axis_type":                  types.StringType,
+		"y_axis_type":                  types.StringType,
+		"series_column":                types.StringType,
+		"value_columns":                types.ListType{ElemType: types.StringType},
+		"point_size_column":            types.StringType,
+		"location_column":              types.StringType,
+		"location_label":               types.StringType,
+		"label_column":                 types.StringType,
+		"group_by_columns":             types.ListType{ElemType: types.StringType},
+		"palette":                      types.StringType,
+		"min_value":                    types.Float64Type,
+		"max_value":                    types.Float64Type,
+		"link_template":                types.StringType,
+		"y_axis_min":                   types.Float64Type,
+		"y_axis_max":                   types.Float64Type,
+		"y_axis_auto_range":            types.StringType,
+		"y_axis_scale":                 types.StringType,
+		"min":                          types.Float64Type,
+		"max":                          types.Float64Type,
+		"treat_missing_values":         types.StringType,
+		"stacking":                     types.StringType,
+		"orientation":                  types.StringType,
+		"legend":                       types.StringType,
+		"series_colors":                types.MapType{ElemType: types.StringType},
+		"series_order":                 types.ListType{ElemType: types.StringType},
+		"show_previous_period":         types.BoolType,
+		"color_mode":                   types.StringType,
+		"color_upper_threshold":        types.Float64Type,
+		"color_lower_threshold":        types.Float64Type,
+		"color_green_words":            types.StringType,
+		"color_yellow_words":           types.StringType,
+		"color_red_words":              types.StringType,
+		"column_units":                 types.MapType{ElemType: types.ObjectType{AttrTypes: dashboardChartSettingsColumnUnitsAttrTypes()}},
+		"percentage_highlight_columns": types.ListType{ElemType: types.StringType},
+		"series_unit":                  types.StringType,
+		"series_custom_unit":           types.BoolType,
+		"heatmap_color_mode":           types.StringType,
+		"value_categories":             types.MapType{ElemType: types.ObjectType{AttrTypes: dashboardChartSettingsValueCategoriesAttrTypes()}},
+		"column_widths":                types.MapType{ElemType: types.Float64Type},
+		"table_width":                  types.Int64Type,
+		"guessed_series_colors":        types.MapType{ElemType: types.StringType},
+		"label":                        types.StringType,
+		"text":                         types.StringType,
+		"row_templates":                types.MapType{ElemType: types.StringType},
+		"sampling":                     types.Int64Type,
+		"fresh":                        types.BoolType,
+		"funnel_unit_name":             types.StringType,
+		"filtered_series":              types.ListType{ElemType: types.StringType},
+		"filtered_releases":            types.ListType{ElemType: types.StringType},
+		"force_source_series":          types.BoolType,
+		"treat_zero_values":            types.StringType,
+		"projection":                   types.StringType,
+		"published_format":             types.StringType,
+		"published_cache_for":          types.Int64Type,
+		"y_axis_annotations":           types.ListType{ElemType: types.ObjectType{AttrTypes: dashboardChartSettingsYAxisAnnotationsAttrTypes()}},
+		"x_axis_annotations":           types.ListType{ElemType: types.ObjectType{AttrTypes: dashboardChartSettingsXAxisAnnotationsAttrTypes()}},
+	}
+}
+
+// expandDashboardChartSettings marshals a nested DashboardChartSettings object into its request map.
+func expandDashboardChartSettings(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardChartSettingsModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Unit.IsNull() && !m.Unit.IsUnknown() {
+		out["unit"] = m.Unit.ValueString()
+	}
+	if !m.CustomUnit.IsNull() && !m.CustomUnit.IsUnknown() {
+		out["custom_unit"] = m.CustomUnit.ValueBool()
+	}
+	if !m.DecimalPlaces.IsNull() && !m.DecimalPlaces.IsUnknown() {
+		out["decimal_places"] = m.DecimalPlaces.ValueInt64()
+	}
+	if !m.TimeColumn.IsNull() && !m.TimeColumn.IsUnknown() {
+		out["time_column"] = m.TimeColumn.ValueString()
+	}
+	if !m.XAxisType.IsNull() && !m.XAxisType.IsUnknown() {
+		out["x_axis_type"] = m.XAxisType.ValueString()
+	}
+	if !m.YAxisType.IsNull() && !m.YAxisType.IsUnknown() {
+		out["y_axis_type"] = m.YAxisType.ValueString()
+	}
+	if !m.SeriesColumn.IsNull() && !m.SeriesColumn.IsUnknown() {
+		out["series_column"] = m.SeriesColumn.ValueString()
+	}
+	if !m.ValueColumns.IsNull() && !m.ValueColumns.IsUnknown() {
+		var vals []string
+		m.ValueColumns.ElementsAs(ctx, &vals, false)
+		out["value_columns"] = vals
+	}
+	if !m.PointSizeColumn.IsNull() && !m.PointSizeColumn.IsUnknown() {
+		out["point_size_column"] = m.PointSizeColumn.ValueString()
+	}
+	if !m.LocationColumn.IsNull() && !m.LocationColumn.IsUnknown() {
+		out["location_column"] = m.LocationColumn.ValueString()
+	}
+	if !m.LocationLabel.IsNull() && !m.LocationLabel.IsUnknown() {
+		out["location_label"] = m.LocationLabel.ValueString()
+	}
+	if !m.LabelColumn.IsNull() && !m.LabelColumn.IsUnknown() {
+		out["label_column"] = m.LabelColumn.ValueString()
+	}
+	if !m.GroupByColumns.IsNull() && !m.GroupByColumns.IsUnknown() {
+		var vals []string
+		m.GroupByColumns.ElementsAs(ctx, &vals, false)
+		out["group_by_columns"] = vals
+	}
+	if !m.Palette.IsNull() && !m.Palette.IsUnknown() {
+		out["palette"] = m.Palette.ValueString()
+	}
+	if !m.MinValue.IsNull() && !m.MinValue.IsUnknown() {
+		out["min_value"] = m.MinValue.ValueFloat64()
+	}
+	if !m.MaxValue.IsNull() && !m.MaxValue.IsUnknown() {
+		out["max_value"] = m.MaxValue.ValueFloat64()
+	}
+	if !m.LinkTemplate.IsNull() && !m.LinkTemplate.IsUnknown() {
+		out["link_template"] = m.LinkTemplate.ValueString()
+	}
+	if !m.YAxisMin.IsNull() && !m.YAxisMin.IsUnknown() {
+		out["y_axis_min"] = m.YAxisMin.ValueFloat64()
+	}
+	if !m.YAxisMax.IsNull() && !m.YAxisMax.IsUnknown() {
+		out["y_axis_max"] = m.YAxisMax.ValueFloat64()
+	}
+	if !m.YAxisAutoRange.IsNull() && !m.YAxisAutoRange.IsUnknown() {
+		out["y_axis_auto_range"] = m.YAxisAutoRange.ValueString()
+	}
+	if !m.YAxisScale.IsNull() && !m.YAxisScale.IsUnknown() {
+		out["y_axis_scale"] = m.YAxisScale.ValueString()
+	}
+	if !m.Min.IsNull() && !m.Min.IsUnknown() {
+		out["min"] = m.Min.ValueFloat64()
+	}
+	if !m.Max.IsNull() && !m.Max.IsUnknown() {
+		out["max"] = m.Max.ValueFloat64()
+	}
+	if !m.TreatMissingValues.IsNull() && !m.TreatMissingValues.IsUnknown() {
+		out["treat_missing_values"] = m.TreatMissingValues.ValueString()
+	}
+	if !m.Stacking.IsNull() && !m.Stacking.IsUnknown() {
+		out["stacking"] = m.Stacking.ValueString()
+	}
+	if !m.Orientation.IsNull() && !m.Orientation.IsUnknown() {
+		out["orientation"] = m.Orientation.ValueString()
+	}
+	if !m.Legend.IsNull() && !m.Legend.IsUnknown() {
+		out["legend"] = m.Legend.ValueString()
+	}
+	if !m.SeriesColors.IsNull() && !m.SeriesColors.IsUnknown() {
+		vals := map[string]string{}
+		m.SeriesColors.ElementsAs(ctx, &vals, false)
+		out["series_colors"] = vals
+	}
+	if !m.SeriesOrder.IsNull() && !m.SeriesOrder.IsUnknown() {
+		var vals []string
+		m.SeriesOrder.ElementsAs(ctx, &vals, false)
+		out["series_order"] = vals
+	}
+	if !m.ShowPreviousPeriod.IsNull() && !m.ShowPreviousPeriod.IsUnknown() {
+		out["show_previous_period"] = m.ShowPreviousPeriod.ValueBool()
+	}
+	if !m.ColorMode.IsNull() && !m.ColorMode.IsUnknown() {
+		out["color_mode"] = m.ColorMode.ValueString()
+	}
+	if !m.ColorUpperThreshold.IsNull() && !m.ColorUpperThreshold.IsUnknown() {
+		out["color_upper_threshold"] = m.ColorUpperThreshold.ValueFloat64()
+	}
+	if !m.ColorLowerThreshold.IsNull() && !m.ColorLowerThreshold.IsUnknown() {
+		out["color_lower_threshold"] = m.ColorLowerThreshold.ValueFloat64()
+	}
+	if !m.ColorGreenWords.IsNull() && !m.ColorGreenWords.IsUnknown() {
+		out["color_green_words"] = m.ColorGreenWords.ValueString()
+	}
+	if !m.ColorYellowWords.IsNull() && !m.ColorYellowWords.IsUnknown() {
+		out["color_yellow_words"] = m.ColorYellowWords.ValueString()
+	}
+	if !m.ColorRedWords.IsNull() && !m.ColorRedWords.IsUnknown() {
+		out["color_red_words"] = m.ColorRedWords.ValueString()
+	}
+	if !m.ColumnUnits.IsNull() && !m.ColumnUnits.IsUnknown() {
+		items := make(map[string]interface{}, len(m.ColumnUnits.Elements()))
+		for k, el := range m.ColumnUnits.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items[k] = expandDashboardChartSettingsColumnUnits(ctx, obj)
+			}
+		}
+		out["column_units"] = items
+	}
+	if !m.PercentageHighlightColumns.IsNull() && !m.PercentageHighlightColumns.IsUnknown() {
+		var vals []string
+		m.PercentageHighlightColumns.ElementsAs(ctx, &vals, false)
+		out["percentage_highlight_columns"] = vals
+	}
+	if !m.SeriesUnit.IsNull() && !m.SeriesUnit.IsUnknown() {
+		out["series_unit"] = m.SeriesUnit.ValueString()
+	}
+	if !m.SeriesCustomUnit.IsNull() && !m.SeriesCustomUnit.IsUnknown() {
+		out["series_custom_unit"] = m.SeriesCustomUnit.ValueBool()
+	}
+	if !m.HeatmapColorMode.IsNull() && !m.HeatmapColorMode.IsUnknown() {
+		out["heatmap_color_mode"] = m.HeatmapColorMode.ValueString()
+	}
+	if !m.ValueCategories.IsNull() && !m.ValueCategories.IsUnknown() {
+		items := make(map[string]interface{}, len(m.ValueCategories.Elements()))
+		for k, el := range m.ValueCategories.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items[k] = expandDashboardChartSettingsValueCategories(ctx, obj)
+			}
+		}
+		out["value_categories"] = items
+	}
+	if !m.ColumnWidths.IsNull() && !m.ColumnWidths.IsUnknown() {
+		vals := map[string]float64{}
+		m.ColumnWidths.ElementsAs(ctx, &vals, false)
+		out["column_widths"] = vals
+	}
+	if !m.TableWidth.IsNull() && !m.TableWidth.IsUnknown() {
+		out["table_width"] = m.TableWidth.ValueInt64()
+	}
+	if !m.GuessedSeriesColors.IsNull() && !m.GuessedSeriesColors.IsUnknown() {
+		vals := map[string]string{}
+		m.GuessedSeriesColors.ElementsAs(ctx, &vals, false)
+		out["guessed_series_colors"] = vals
+	}
+	if !m.Label.IsNull() && !m.Label.IsUnknown() {
+		out["label"] = m.Label.ValueString()
+	}
+	if !m.Text.IsNull() && !m.Text.IsUnknown() {
+		out["text"] = m.Text.ValueString()
+	}
+	if !m.RowTemplates.IsNull() && !m.RowTemplates.IsUnknown() {
+		vals := map[string]string{}
+		m.RowTemplates.ElementsAs(ctx, &vals, false)
+		out["rowTemplates"] = vals
+	}
+	if !m.Sampling.IsNull() && !m.Sampling.IsUnknown() {
+		out["sampling"] = m.Sampling.ValueInt64()
+	}
+	if !m.Fresh.IsNull() && !m.Fresh.IsUnknown() {
+		out["fresh"] = m.Fresh.ValueBool()
+	}
+	if !m.FunnelUnitName.IsNull() && !m.FunnelUnitName.IsUnknown() {
+		out["funnel_unit_name"] = m.FunnelUnitName.ValueString()
+	}
+	if !m.FilteredSeries.IsNull() && !m.FilteredSeries.IsUnknown() {
+		var vals []string
+		m.FilteredSeries.ElementsAs(ctx, &vals, false)
+		out["filtered_series"] = vals
+	}
+	if !m.FilteredReleases.IsNull() && !m.FilteredReleases.IsUnknown() {
+		var vals []string
+		m.FilteredReleases.ElementsAs(ctx, &vals, false)
+		out["filtered_releases"] = vals
+	}
+	if !m.ForceSourceSeries.IsNull() && !m.ForceSourceSeries.IsUnknown() {
+		out["force_source_series"] = m.ForceSourceSeries.ValueBool()
+	}
+	if !m.TreatZeroValues.IsNull() && !m.TreatZeroValues.IsUnknown() {
+		out["treat_zero_values"] = m.TreatZeroValues.ValueString()
+	}
+	if !m.Projection.IsNull() && !m.Projection.IsUnknown() {
+		out["projection"] = m.Projection.ValueString()
+	}
+	if !m.PublishedFormat.IsNull() && !m.PublishedFormat.IsUnknown() {
+		out["published_format"] = m.PublishedFormat.ValueString()
+	}
+	if !m.PublishedCacheFor.IsNull() && !m.PublishedCacheFor.IsUnknown() {
+		out["published_cache_for"] = m.PublishedCacheFor.ValueInt64()
+	}
+	if !m.YAxisAnnotations.IsNull() && !m.YAxisAnnotations.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.YAxisAnnotations.Elements()))
+		for _, el := range m.YAxisAnnotations.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandDashboardChartSettingsYAxisAnnotations(ctx, obj))
+			}
+		}
+		out["y_axis_annotations"] = items
+	}
+	if !m.XAxisAnnotations.IsNull() && !m.XAxisAnnotations.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.XAxisAnnotations.Elements()))
+		for _, el := range m.XAxisAnnotations.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandDashboardChartSettingsXAxisAnnotations(ctx, obj))
+			}
+		}
+		out["x_axis_annotations"] = items
+	}
+	return out
+}
+
+// flattenDashboardChartSettings refreshes a typed DashboardChartSettings object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardChartSettings(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardChartSettingsModel
+	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
+	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
+	m.ValueColumns = types.ListNull(types.StringType)
+	m.GroupByColumns = types.ListNull(types.StringType)
+	m.SeriesColors = types.MapNull(types.StringType)
+	m.SeriesOrder = types.ListNull(types.StringType)
+	m.ColumnUnits = types.MapNull(types.ObjectType{AttrTypes: dashboardChartSettingsColumnUnitsAttrTypes()})
+	m.PercentageHighlightColumns = types.ListNull(types.StringType)
+	m.ValueCategories = types.MapNull(types.ObjectType{AttrTypes: dashboardChartSettingsValueCategoriesAttrTypes()})
+	m.ColumnWidths = types.MapNull(types.Float64Type)
+	m.GuessedSeriesColors = types.MapNull(types.StringType)
+	m.RowTemplates = types.MapNull(types.StringType)
+	m.FilteredSeries = types.ListNull(types.StringType)
+	m.FilteredReleases = types.ListNull(types.StringType)
+	m.YAxisAnnotations = types.ListNull(types.ObjectType{AttrTypes: dashboardChartSettingsYAxisAnnotationsAttrTypes()})
+	m.XAxisAnnotations = types.ListNull(types.ObjectType{AttrTypes: dashboardChartSettingsXAxisAnnotationsAttrTypes()})
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["unit"]); ok {
+		m.Unit = types.StringValue(v)
+	}
+	if v, ok := boolFromAPI(raw["custom_unit"]); ok {
+		m.CustomUnit = types.BoolValue(v)
+	}
+	if v, ok := int64FromAPI(raw["decimal_places"]); ok {
+		m.DecimalPlaces = types.Int64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["time_column"]); ok {
+		m.TimeColumn = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["x_axis_type"]); ok {
+		m.XAxisType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["y_axis_type"]); ok {
+		m.YAxisType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["series_column"]); ok {
+		m.SeriesColumn = types.StringValue(v)
+	}
+	if raw, ok := raw["value_columns"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.ValueColumns = lv
+	}
+	if v, ok := stringFromAPI(raw["point_size_column"]); ok {
+		m.PointSizeColumn = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["location_column"]); ok {
+		m.LocationColumn = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["location_label"]); ok {
+		m.LocationLabel = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["label_column"]); ok {
+		m.LabelColumn = types.StringValue(v)
+	}
+	if raw, ok := raw["group_by_columns"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.GroupByColumns = lv
+	}
+	if v, ok := stringFromAPI(raw["palette"]); ok {
+		m.Palette = types.StringValue(v)
+	}
+	if v, ok := float64FromAPI(raw["min_value"]); ok {
+		m.MinValue = types.Float64Value(v)
+	}
+	if v, ok := float64FromAPI(raw["max_value"]); ok {
+		m.MaxValue = types.Float64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["link_template"]); ok {
+		m.LinkTemplate = types.StringValue(v)
+	}
+	if v, ok := float64FromAPI(raw["y_axis_min"]); ok {
+		m.YAxisMin = types.Float64Value(v)
+	}
+	if v, ok := float64FromAPI(raw["y_axis_max"]); ok {
+		m.YAxisMax = types.Float64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["y_axis_auto_range"]); ok {
+		m.YAxisAutoRange = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["y_axis_scale"]); ok {
+		m.YAxisScale = types.StringValue(v)
+	}
+	if v, ok := float64FromAPI(raw["min"]); ok {
+		m.Min = types.Float64Value(v)
+	}
+	if v, ok := float64FromAPI(raw["max"]); ok {
+		m.Max = types.Float64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["treat_missing_values"]); ok {
+		m.TreatMissingValues = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["stacking"]); ok {
+		m.Stacking = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["orientation"]); ok {
+		m.Orientation = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["legend"]); ok {
+		m.Legend = types.StringValue(v)
+	}
+	if raw, ok := raw["series_colors"].(map[string]interface{}); ok {
+		vals := make(map[string]string, len(raw))
+		for k, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals[k] = ev
+			}
+		}
+		mv, _ := types.MapValueFrom(ctx, types.StringType, vals)
+		m.SeriesColors = mv
+	}
+	if raw, ok := raw["series_order"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.SeriesOrder = lv
+	}
+	if v, ok := boolFromAPI(raw["show_previous_period"]); ok {
+		m.ShowPreviousPeriod = types.BoolValue(v)
+	}
+	if v, ok := stringFromAPI(raw["color_mode"]); ok {
+		m.ColorMode = types.StringValue(v)
+	}
+	if v, ok := float64FromAPI(raw["color_upper_threshold"]); ok {
+		m.ColorUpperThreshold = types.Float64Value(v)
+	}
+	if v, ok := float64FromAPI(raw["color_lower_threshold"]); ok {
+		m.ColorLowerThreshold = types.Float64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["color_green_words"]); ok {
+		m.ColorGreenWords = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["color_yellow_words"]); ok {
+		m.ColorYellowWords = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["color_red_words"]); ok {
+		m.ColorRedWords = types.StringValue(v)
+	}
+	if raw, ok := raw["column_units"].(map[string]interface{}); ok {
+		priorByKey := m.ColumnUnits.Elements()
+		items := make(map[string]attr.Value, len(raw))
+		for k, e := range raw {
+			mp, ok := e.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			prior := types.ObjectNull(dashboardChartSettingsColumnUnitsAttrTypes())
+			if existing, ok := priorByKey[k].(types.Object); ok {
+				prior = existing
+			}
+			items[k] = flattenDashboardChartSettingsColumnUnits(ctx, prior, mp)
+		}
+		mv, _ := types.MapValue(types.ObjectType{AttrTypes: dashboardChartSettingsColumnUnitsAttrTypes()}, items)
+		m.ColumnUnits = mv
+	}
+	if raw, ok := raw["percentage_highlight_columns"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.PercentageHighlightColumns = lv
+	}
+	if v, ok := stringFromAPI(raw["series_unit"]); ok {
+		m.SeriesUnit = types.StringValue(v)
+	}
+	if v, ok := boolFromAPI(raw["series_custom_unit"]); ok {
+		m.SeriesCustomUnit = types.BoolValue(v)
+	}
+	if v, ok := stringFromAPI(raw["heatmap_color_mode"]); ok {
+		m.HeatmapColorMode = types.StringValue(v)
+	}
+	if raw, ok := raw["value_categories"].(map[string]interface{}); ok {
+		priorByKey := m.ValueCategories.Elements()
+		items := make(map[string]attr.Value, len(raw))
+		for k, e := range raw {
+			mp, ok := e.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			prior := types.ObjectNull(dashboardChartSettingsValueCategoriesAttrTypes())
+			if existing, ok := priorByKey[k].(types.Object); ok {
+				prior = existing
+			}
+			items[k] = flattenDashboardChartSettingsValueCategories(ctx, prior, mp)
+		}
+		mv, _ := types.MapValue(types.ObjectType{AttrTypes: dashboardChartSettingsValueCategoriesAttrTypes()}, items)
+		m.ValueCategories = mv
+	}
+	if raw, ok := raw["column_widths"].(map[string]interface{}); ok {
+		vals := make(map[string]float64, len(raw))
+		for k, e := range raw {
+			if ev, ok := float64FromAPI(e); ok {
+				vals[k] = ev
+			}
+		}
+		mv, _ := types.MapValueFrom(ctx, types.Float64Type, vals)
+		m.ColumnWidths = mv
+	}
+	if v, ok := int64FromAPI(raw["table_width"]); ok {
+		m.TableWidth = types.Int64Value(v)
+	}
+	if raw, ok := raw["guessed_series_colors"].(map[string]interface{}); ok {
+		vals := make(map[string]string, len(raw))
+		for k, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals[k] = ev
+			}
+		}
+		mv, _ := types.MapValueFrom(ctx, types.StringType, vals)
+		m.GuessedSeriesColors = mv
+	}
+	if v, ok := stringFromAPI(raw["label"]); ok {
+		m.Label = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["text"]); ok {
+		m.Text = types.StringValue(v)
+	}
+	if raw, ok := raw["rowTemplates"].(map[string]interface{}); ok {
+		vals := make(map[string]string, len(raw))
+		for k, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals[k] = ev
+			}
+		}
+		mv, _ := types.MapValueFrom(ctx, types.StringType, vals)
+		m.RowTemplates = mv
+	}
+	if v, ok := int64FromAPI(raw["sampling"]); ok {
+		m.Sampling = types.Int64Value(v)
+	}
+	if v, ok := boolFromAPI(raw["fresh"]); ok {
+		m.Fresh = types.BoolValue(v)
+	}
+	if v, ok := stringFromAPI(raw["funnel_unit_name"]); ok {
+		m.FunnelUnitName = types.StringValue(v)
+	}
+	if raw, ok := raw["filtered_series"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.FilteredSeries = lv
+	}
+	if raw, ok := raw["filtered_releases"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.FilteredReleases = lv
+	}
+	if v, ok := boolFromAPI(raw["force_source_series"]); ok {
+		m.ForceSourceSeries = types.BoolValue(v)
+	}
+	if v, ok := stringFromAPI(raw["treat_zero_values"]); ok {
+		m.TreatZeroValues = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["projection"]); ok {
+		m.Projection = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["published_format"]); ok {
+		m.PublishedFormat = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(raw["published_cache_for"]); ok {
+		m.PublishedCacheFor = types.Int64Value(v)
+	}
+	if raw, ok := raw["y_axis_annotations"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(dashboardChartSettingsYAxisAnnotationsAttrTypes())
+				items = append(items, flattenDashboardChartSettingsYAxisAnnotations(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: dashboardChartSettingsYAxisAnnotationsAttrTypes()}, items)
+		m.YAxisAnnotations = lv
+	}
+	if raw, ok := raw["x_axis_annotations"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(dashboardChartSettingsXAxisAnnotationsAttrTypes())
+				items = append(items, flattenDashboardChartSettingsXAxisAnnotations(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: dashboardChartSettingsXAxisAnnotationsAttrTypes()}, items)
+		m.XAxisAnnotations = lv
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardChartSettingsAttrTypes(), m)
+	return obj
+}
+
+type DashboardChartSettingsColumnUnitsModel struct {
+	Unit       types.String `tfsdk:"unit"`
+	CustomUnit types.Bool   `tfsdk:"custom_unit"`
+}
+
+func dashboardChartSettingsColumnUnitsAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"unit":        types.StringType,
+		"custom_unit": types.BoolType,
+	}
+}
+
+// expandDashboardChartSettingsColumnUnits marshals a nested DashboardChartSettingsColumnUnits object into its request map.
+func expandDashboardChartSettingsColumnUnits(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardChartSettingsColumnUnitsModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Unit.IsNull() && !m.Unit.IsUnknown() {
+		out["unit"] = m.Unit.ValueString()
+	}
+	if !m.CustomUnit.IsNull() && !m.CustomUnit.IsUnknown() {
+		out["custom_unit"] = m.CustomUnit.ValueBool()
+	}
+	return out
+}
+
+// flattenDashboardChartSettingsColumnUnits refreshes a typed DashboardChartSettingsColumnUnits object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardChartSettingsColumnUnits(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardChartSettingsColumnUnitsModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["unit"]); ok {
+		m.Unit = types.StringValue(v)
+	}
+	if v, ok := boolFromAPI(raw["custom_unit"]); ok {
+		m.CustomUnit = types.BoolValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardChartSettingsColumnUnitsAttrTypes(), m)
+	return obj
+}
+
+type DashboardChartSettingsValueCategoriesModel struct {
+	Label types.String `tfsdk:"label"`
+	Color types.String `tfsdk:"color"`
+}
+
+func dashboardChartSettingsValueCategoriesAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"label": types.StringType,
+		"color": types.StringType,
+	}
+}
+
+// expandDashboardChartSettingsValueCategories marshals a nested DashboardChartSettingsValueCategories object into its request map.
+func expandDashboardChartSettingsValueCategories(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardChartSettingsValueCategoriesModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Label.IsNull() && !m.Label.IsUnknown() {
+		out["label"] = m.Label.ValueString()
+	}
+	if !m.Color.IsNull() && !m.Color.IsUnknown() {
+		out["color"] = m.Color.ValueString()
+	}
+	return out
+}
+
+// flattenDashboardChartSettingsValueCategories refreshes a typed DashboardChartSettingsValueCategories object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardChartSettingsValueCategories(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardChartSettingsValueCategoriesModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["label"]); ok {
+		m.Label = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["color"]); ok {
+		m.Color = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardChartSettingsValueCategoriesAttrTypes(), m)
+	return obj
+}
+
+type DashboardChartSettingsYAxisAnnotationsModel struct {
+	Value types.Float64 `tfsdk:"value"`
+	Label types.String  `tfsdk:"label"`
+	Color types.String  `tfsdk:"color"`
+}
+
+func dashboardChartSettingsYAxisAnnotationsAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"value": types.Float64Type,
+		"label": types.StringType,
+		"color": types.StringType,
+	}
+}
+
+// expandDashboardChartSettingsYAxisAnnotations marshals a nested DashboardChartSettingsYAxisAnnotations object into its request map.
+func expandDashboardChartSettingsYAxisAnnotations(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardChartSettingsYAxisAnnotationsModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueFloat64()
+	}
+	if !m.Label.IsNull() && !m.Label.IsUnknown() {
+		out["label"] = m.Label.ValueString()
+	}
+	if !m.Color.IsNull() && !m.Color.IsUnknown() {
+		out["color"] = m.Color.ValueString()
+	}
+	return out
+}
+
+// flattenDashboardChartSettingsYAxisAnnotations refreshes a typed DashboardChartSettingsYAxisAnnotations object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardChartSettingsYAxisAnnotations(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardChartSettingsYAxisAnnotationsModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := float64FromAPI(raw["value"]); ok {
+		m.Value = types.Float64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["label"]); ok {
+		m.Label = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["color"]); ok {
+		m.Color = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardChartSettingsYAxisAnnotationsAttrTypes(), m)
+	return obj
+}
+
+type DashboardChartSettingsXAxisAnnotationsModel struct {
+	Value types.String `tfsdk:"value"`
+	Label types.String `tfsdk:"label"`
+	Color types.String `tfsdk:"color"`
+}
+
+func dashboardChartSettingsXAxisAnnotationsAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"value": types.StringType,
+		"label": types.StringType,
+		"color": types.StringType,
+	}
+}
+
+// expandDashboardChartSettingsXAxisAnnotations marshals a nested DashboardChartSettingsXAxisAnnotations object into its request map.
+func expandDashboardChartSettingsXAxisAnnotations(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardChartSettingsXAxisAnnotationsModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.Label.IsNull() && !m.Label.IsUnknown() {
+		out["label"] = m.Label.ValueString()
+	}
+	if !m.Color.IsNull() && !m.Color.IsUnknown() {
+		out["color"] = m.Color.ValueString()
+	}
+	return out
+}
+
+// flattenDashboardChartSettingsXAxisAnnotations refreshes a typed DashboardChartSettingsXAxisAnnotations object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardChartSettingsXAxisAnnotations(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardChartSettingsXAxisAnnotationsModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["label"]); ok {
+		m.Label = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["color"]); ok {
+		m.Color = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardChartSettingsXAxisAnnotationsAttrTypes(), m)
+	return obj
+}
+
+type DashboardChartQueriesModel struct {
+	Id             types.String `tfsdk:"id"`
+	QueryType      types.String `tfsdk:"query_type"`
+	Name           types.String `tfsdk:"name"`
+	SourceVariable types.String `tfsdk:"source_variable"`
+	SqlQuery       types.String `tfsdk:"sql_query"`
+	PqlQuery       types.String `tfsdk:"pql_query"`
+	WhereCondition types.String `tfsdk:"where_condition"`
+	StaticText     types.String `tfsdk:"static_text"`
+	FunnelQuery    types.Object `tfsdk:"funnel_query"`
+	XAxis          types.List   `tfsdk:"x_axis"`
+	YAxis          types.List   `tfsdk:"y_axis"`
+	PointSize      types.List   `tfsdk:"point_size"`
+	Coordinates    types.List   `tfsdk:"coordinates"`
+	Filters        types.List   `tfsdk:"filters"`
+	Where          types.List   `tfsdk:"where"`
+	GroupBy        types.List   `tfsdk:"group_by"`
+	Having         types.List   `tfsdk:"having"`
+	OrderBy        types.List   `tfsdk:"order_by"`
+}
+
+func dashboardChartQueriesAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"id":              types.StringType,
+		"query_type":      types.StringType,
+		"name":            types.StringType,
+		"source_variable": types.StringType,
+		"sql_query":       types.StringType,
+		"pql_query":       types.StringType,
+		"where_condition": types.StringType,
+		"static_text":     types.StringType,
+		"funnel_query":    types.ObjectType{AttrTypes: dashboardChartQueriesFunnelQueryAttrTypes()},
+		"x_axis":          types.ListType{ElemType: types.ObjectType{AttrTypes: dashboardChartQueriesXAxisAttrTypes()}},
+		"y_axis":          types.ListType{ElemType: types.ObjectType{AttrTypes: dashboardChartQueriesYAxisAttrTypes()}},
+		"point_size":      types.ListType{ElemType: types.ObjectType{AttrTypes: dashboardChartQueriesPointSizeAttrTypes()}},
+		"coordinates":     types.ListType{ElemType: types.ObjectType{AttrTypes: dashboardChartQueriesCoordinatesAttrTypes()}},
+		"filters":         types.ListType{ElemType: types.ObjectType{AttrTypes: dashboardChartQueriesFiltersAttrTypes()}},
+		"where":           types.ListType{ElemType: types.ObjectType{AttrTypes: dashboardChartQueriesWhereAttrTypes()}},
+		"group_by":        types.ListType{ElemType: types.ObjectType{AttrTypes: dashboardChartQueriesGroupByAttrTypes()}},
+		"having":          types.ListType{ElemType: types.ObjectType{AttrTypes: dashboardChartQueriesHavingAttrTypes()}},
+		"order_by":        types.ListType{ElemType: types.ObjectType{AttrTypes: dashboardChartQueriesOrderByAttrTypes()}},
+	}
+}
+
+// expandDashboardChartQueries marshals a nested DashboardChartQueries object into its request map.
+func expandDashboardChartQueries(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardChartQueriesModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.QueryType.IsNull() && !m.QueryType.IsUnknown() {
+		out["query_type"] = m.QueryType.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.SourceVariable.IsNull() && !m.SourceVariable.IsUnknown() {
+		out["source_variable"] = m.SourceVariable.ValueString()
+	}
+	if !m.SqlQuery.IsNull() && !m.SqlQuery.IsUnknown() {
+		out["sql_query"] = m.SqlQuery.ValueString()
+	}
+	if !m.PqlQuery.IsNull() && !m.PqlQuery.IsUnknown() {
+		out["pql_query"] = m.PqlQuery.ValueString()
+	}
+	if !m.WhereCondition.IsNull() && !m.WhereCondition.IsUnknown() {
+		out["where_condition"] = m.WhereCondition.ValueString()
+	}
+	if !m.StaticText.IsNull() && !m.StaticText.IsUnknown() {
+		out["static_text"] = m.StaticText.ValueString()
+	}
+	if !m.FunnelQuery.IsNull() && !m.FunnelQuery.IsUnknown() {
+		out["funnel_query"] = expandDashboardChartQueriesFunnelQuery(ctx, m.FunnelQuery)
+	}
+	if !m.XAxis.IsNull() && !m.XAxis.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.XAxis.Elements()))
+		for _, el := range m.XAxis.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandDashboardChartQueriesXAxis(ctx, obj))
+			}
+		}
+		out["x_axis"] = items
+	}
+	if !m.YAxis.IsNull() && !m.YAxis.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.YAxis.Elements()))
+		for _, el := range m.YAxis.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandDashboardChartQueriesYAxis(ctx, obj))
+			}
+		}
+		out["y_axis"] = items
+	}
+	if !m.PointSize.IsNull() && !m.PointSize.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.PointSize.Elements()))
+		for _, el := range m.PointSize.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandDashboardChartQueriesPointSize(ctx, obj))
+			}
+		}
+		out["point_size"] = items
+	}
+	if !m.Coordinates.IsNull() && !m.Coordinates.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Coordinates.Elements()))
+		for _, el := range m.Coordinates.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandDashboardChartQueriesCoordinates(ctx, obj))
+			}
+		}
+		out["coordinates"] = items
+	}
+	if !m.Filters.IsNull() && !m.Filters.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Filters.Elements()))
+		for _, el := range m.Filters.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandDashboardChartQueriesFilters(ctx, obj))
+			}
+		}
+		out["filters"] = items
+	}
+	if !m.Where.IsNull() && !m.Where.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Where.Elements()))
+		for _, el := range m.Where.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandDashboardChartQueriesWhere(ctx, obj))
+			}
+		}
+		out["where"] = items
+	}
+	if !m.GroupBy.IsNull() && !m.GroupBy.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.GroupBy.Elements()))
+		for _, el := range m.GroupBy.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandDashboardChartQueriesGroupBy(ctx, obj))
+			}
+		}
+		out["group_by"] = items
+	}
+	if !m.Having.IsNull() && !m.Having.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Having.Elements()))
+		for _, el := range m.Having.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandDashboardChartQueriesHaving(ctx, obj))
+			}
+		}
+		out["having"] = items
+	}
+	if !m.OrderBy.IsNull() && !m.OrderBy.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.OrderBy.Elements()))
+		for _, el := range m.OrderBy.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandDashboardChartQueriesOrderBy(ctx, obj))
+			}
+		}
+		out["order_by"] = items
+	}
+	return out
+}
+
+// flattenDashboardChartQueries refreshes a typed DashboardChartQueries object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardChartQueries(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardChartQueriesModel
+	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
+	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
+	m.FunnelQuery = types.ObjectNull(dashboardChartQueriesFunnelQueryAttrTypes())
+	m.XAxis = types.ListNull(types.ObjectType{AttrTypes: dashboardChartQueriesXAxisAttrTypes()})
+	m.YAxis = types.ListNull(types.ObjectType{AttrTypes: dashboardChartQueriesYAxisAttrTypes()})
+	m.PointSize = types.ListNull(types.ObjectType{AttrTypes: dashboardChartQueriesPointSizeAttrTypes()})
+	m.Coordinates = types.ListNull(types.ObjectType{AttrTypes: dashboardChartQueriesCoordinatesAttrTypes()})
+	m.Filters = types.ListNull(types.ObjectType{AttrTypes: dashboardChartQueriesFiltersAttrTypes()})
+	m.Where = types.ListNull(types.ObjectType{AttrTypes: dashboardChartQueriesWhereAttrTypes()})
+	m.GroupBy = types.ListNull(types.ObjectType{AttrTypes: dashboardChartQueriesGroupByAttrTypes()})
+	m.Having = types.ListNull(types.ObjectType{AttrTypes: dashboardChartQueriesHavingAttrTypes()})
+	m.OrderBy = types.ListNull(types.ObjectType{AttrTypes: dashboardChartQueriesOrderByAttrTypes()})
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["id"]); ok {
+		m.Id = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["query_type"]); ok {
+		m.QueryType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["source_variable"]); ok {
+		m.SourceVariable = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["sql_query"]); ok {
+		m.SqlQuery = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["pql_query"]); ok {
+		m.PqlQuery = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["where_condition"]); ok {
+		m.WhereCondition = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["static_text"]); ok {
+		m.StaticText = types.StringValue(v)
+	}
+	if raw, ok := raw["funnel_query"].(map[string]interface{}); ok {
+		m.FunnelQuery = flattenDashboardChartQueriesFunnelQuery(ctx, m.FunnelQuery, raw)
+	}
+	if raw, ok := raw["x_axis"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(dashboardChartQueriesXAxisAttrTypes())
+				items = append(items, flattenDashboardChartQueriesXAxis(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: dashboardChartQueriesXAxisAttrTypes()}, items)
+		m.XAxis = lv
+	}
+	if raw, ok := raw["y_axis"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(dashboardChartQueriesYAxisAttrTypes())
+				items = append(items, flattenDashboardChartQueriesYAxis(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: dashboardChartQueriesYAxisAttrTypes()}, items)
+		m.YAxis = lv
+	}
+	if raw, ok := raw["point_size"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(dashboardChartQueriesPointSizeAttrTypes())
+				items = append(items, flattenDashboardChartQueriesPointSize(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: dashboardChartQueriesPointSizeAttrTypes()}, items)
+		m.PointSize = lv
+	}
+	if raw, ok := raw["coordinates"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(dashboardChartQueriesCoordinatesAttrTypes())
+				items = append(items, flattenDashboardChartQueriesCoordinates(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: dashboardChartQueriesCoordinatesAttrTypes()}, items)
+		m.Coordinates = lv
+	}
+	if raw, ok := raw["filters"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(dashboardChartQueriesFiltersAttrTypes())
+				items = append(items, flattenDashboardChartQueriesFilters(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: dashboardChartQueriesFiltersAttrTypes()}, items)
+		m.Filters = lv
+	}
+	if raw, ok := raw["where"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(dashboardChartQueriesWhereAttrTypes())
+				items = append(items, flattenDashboardChartQueriesWhere(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: dashboardChartQueriesWhereAttrTypes()}, items)
+		m.Where = lv
+	}
+	if raw, ok := raw["group_by"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(dashboardChartQueriesGroupByAttrTypes())
+				items = append(items, flattenDashboardChartQueriesGroupBy(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: dashboardChartQueriesGroupByAttrTypes()}, items)
+		m.GroupBy = lv
+	}
+	if raw, ok := raw["having"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(dashboardChartQueriesHavingAttrTypes())
+				items = append(items, flattenDashboardChartQueriesHaving(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: dashboardChartQueriesHavingAttrTypes()}, items)
+		m.Having = lv
+	}
+	if raw, ok := raw["order_by"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(dashboardChartQueriesOrderByAttrTypes())
+				items = append(items, flattenDashboardChartQueriesOrderBy(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: dashboardChartQueriesOrderByAttrTypes()}, items)
+		m.OrderBy = lv
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardChartQueriesAttrTypes(), m)
+	return obj
+}
+
+type DashboardChartQueriesFunnelQueryModel struct {
+	SessionField types.String `tfsdk:"session_field"`
+	Steps        types.List   `tfsdk:"steps"`
+	Breakdown    types.Object `tfsdk:"breakdown"`
+}
+
+func dashboardChartQueriesFunnelQueryAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"session_field": types.StringType,
+		"steps":         types.ListType{ElemType: types.ObjectType{AttrTypes: dashboardChartQueriesFunnelQueryStepsAttrTypes()}},
+		"breakdown":     types.ObjectType{AttrTypes: dashboardChartQueriesFunnelQueryBreakdownAttrTypes()},
+	}
+}
+
+// expandDashboardChartQueriesFunnelQuery marshals a nested DashboardChartQueriesFunnelQuery object into its request map.
+func expandDashboardChartQueriesFunnelQuery(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardChartQueriesFunnelQueryModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.SessionField.IsNull() && !m.SessionField.IsUnknown() {
+		out["session_field"] = m.SessionField.ValueString()
+	}
+	if !m.Steps.IsNull() && !m.Steps.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Steps.Elements()))
+		for _, el := range m.Steps.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandDashboardChartQueriesFunnelQuerySteps(ctx, obj))
+			}
+		}
+		out["steps"] = items
+	}
+	if !m.Breakdown.IsNull() && !m.Breakdown.IsUnknown() {
+		out["breakdown"] = expandDashboardChartQueriesFunnelQueryBreakdown(ctx, m.Breakdown)
+	}
+	return out
+}
+
+// flattenDashboardChartQueriesFunnelQuery refreshes a typed DashboardChartQueriesFunnelQuery object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardChartQueriesFunnelQuery(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardChartQueriesFunnelQueryModel
+	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
+	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
+	m.Steps = types.ListNull(types.ObjectType{AttrTypes: dashboardChartQueriesFunnelQueryStepsAttrTypes()})
+	m.Breakdown = types.ObjectNull(dashboardChartQueriesFunnelQueryBreakdownAttrTypes())
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["session_field"]); ok {
+		m.SessionField = types.StringValue(v)
+	}
+	if raw, ok := raw["steps"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(dashboardChartQueriesFunnelQueryStepsAttrTypes())
+				items = append(items, flattenDashboardChartQueriesFunnelQuerySteps(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: dashboardChartQueriesFunnelQueryStepsAttrTypes()}, items)
+		m.Steps = lv
+	}
+	if rawValue, exists := raw["breakdown"]; exists {
+		if rawValue == nil {
+			m.Breakdown = types.ObjectNull(dashboardChartQueriesFunnelQueryBreakdownAttrTypes())
+		} else {
+			if raw, ok := raw["breakdown"].(map[string]interface{}); ok {
+				m.Breakdown = flattenDashboardChartQueriesFunnelQueryBreakdown(ctx, m.Breakdown, raw)
+			}
+		}
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardChartQueriesFunnelQueryAttrTypes(), m)
+	return obj
+}
+
+type DashboardChartQueriesFunnelQueryStepsModel struct {
+	Name       types.String `tfsdk:"name"`
+	Conditions types.String `tfsdk:"conditions"`
+}
+
+func dashboardChartQueriesFunnelQueryStepsAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"name":       types.StringType,
+		"conditions": types.StringType,
+	}
+}
+
+// expandDashboardChartQueriesFunnelQuerySteps marshals a nested DashboardChartQueriesFunnelQuerySteps object into its request map.
+func expandDashboardChartQueriesFunnelQuerySteps(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardChartQueriesFunnelQueryStepsModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Conditions.IsNull() && !m.Conditions.IsUnknown() {
+		out["conditions"] = m.Conditions.ValueString()
+	}
+	return out
+}
+
+// flattenDashboardChartQueriesFunnelQuerySteps refreshes a typed DashboardChartQueriesFunnelQuerySteps object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardChartQueriesFunnelQuerySteps(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardChartQueriesFunnelQueryStepsModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["conditions"]); ok {
+		m.Conditions = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardChartQueriesFunnelQueryStepsAttrTypes(), m)
+	return obj
+}
+
+type DashboardChartQueriesFunnelQueryBreakdownModel struct {
+	Type  types.String `tfsdk:"type"`
+	Value types.String `tfsdk:"value"`
+}
+
+func dashboardChartQueriesFunnelQueryBreakdownAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"type":  types.StringType,
+		"value": types.StringType,
+	}
+}
+
+// expandDashboardChartQueriesFunnelQueryBreakdown marshals a nested DashboardChartQueriesFunnelQueryBreakdown object into its request map.
+func expandDashboardChartQueriesFunnelQueryBreakdown(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardChartQueriesFunnelQueryBreakdownModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Type.IsNull() && !m.Type.IsUnknown() {
+		out["type"] = m.Type.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	return out
+}
+
+// flattenDashboardChartQueriesFunnelQueryBreakdown refreshes a typed DashboardChartQueriesFunnelQueryBreakdown object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardChartQueriesFunnelQueryBreakdown(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardChartQueriesFunnelQueryBreakdownModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["type"]); ok {
+		m.Type = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardChartQueriesFunnelQueryBreakdownAttrTypes(), m)
+	return obj
+}
+
+type DashboardChartQueriesXAxisModel struct {
+	ExploreBlockType types.String `tfsdk:"explore_block_type"`
+	Value            types.String `tfsdk:"value"`
+	Type             types.String `tfsdk:"type"`
+	Name             types.String `tfsdk:"name"`
+	Measure          types.String `tfsdk:"measure"`
+	ValueType        types.String `tfsdk:"value_type"`
+	Operator         types.String `tfsdk:"operator"`
+	OperatorSymbol   types.String `tfsdk:"operator_symbol"`
+	ConditionValue   types.String `tfsdk:"condition_value"`
+	SeriesName       types.String `tfsdk:"series_name"`
+	LogicalOperator  types.String `tfsdk:"logical_operator"`
+	Direction        types.String `tfsdk:"direction"`
+	IntervalSeconds  types.Int64  `tfsdk:"interval_seconds"`
+	Kind             types.String `tfsdk:"kind"`
+	Schema           types.String `tfsdk:"schema"`
+}
+
+func dashboardChartQueriesXAxisAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"explore_block_type": types.StringType,
+		"value":              types.StringType,
+		"type":               types.StringType,
+		"name":               types.StringType,
+		"measure":            types.StringType,
+		"value_type":         types.StringType,
+		"operator":           types.StringType,
+		"operator_symbol":    types.StringType,
+		"condition_value":    types.StringType,
+		"series_name":        types.StringType,
+		"logical_operator":   types.StringType,
+		"direction":          types.StringType,
+		"interval_seconds":   types.Int64Type,
+		"kind":               types.StringType,
+		"schema":             types.StringType,
+	}
+}
+
+// expandDashboardChartQueriesXAxis marshals a nested DashboardChartQueriesXAxis object into its request map.
+func expandDashboardChartQueriesXAxis(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardChartQueriesXAxisModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.ExploreBlockType.IsNull() && !m.ExploreBlockType.IsUnknown() {
+		out["explore_block_type"] = m.ExploreBlockType.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.Type.IsNull() && !m.Type.IsUnknown() {
+		out["type"] = m.Type.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Measure.IsNull() && !m.Measure.IsUnknown() {
+		out["measure"] = m.Measure.ValueString()
+	}
+	if !m.ValueType.IsNull() && !m.ValueType.IsUnknown() {
+		out["value_type"] = m.ValueType.ValueString()
+	}
+	if !m.Operator.IsNull() && !m.Operator.IsUnknown() {
+		out["operator"] = m.Operator.ValueString()
+	}
+	if !m.OperatorSymbol.IsNull() && !m.OperatorSymbol.IsUnknown() {
+		out["operator_symbol"] = m.OperatorSymbol.ValueString()
+	}
+	if !m.ConditionValue.IsNull() && !m.ConditionValue.IsUnknown() {
+		out["condition_value"] = m.ConditionValue.ValueString()
+	}
+	if !m.SeriesName.IsNull() && !m.SeriesName.IsUnknown() {
+		out["series_name"] = m.SeriesName.ValueString()
+	}
+	if !m.LogicalOperator.IsNull() && !m.LogicalOperator.IsUnknown() {
+		out["logical_operator"] = m.LogicalOperator.ValueString()
+	}
+	if !m.Direction.IsNull() && !m.Direction.IsUnknown() {
+		out["direction"] = m.Direction.ValueString()
+	}
+	if !m.IntervalSeconds.IsNull() && !m.IntervalSeconds.IsUnknown() {
+		out["interval_seconds"] = m.IntervalSeconds.ValueInt64()
+	}
+	if !m.Kind.IsNull() && !m.Kind.IsUnknown() {
+		out["kind"] = m.Kind.ValueString()
+	}
+	if !m.Schema.IsNull() && !m.Schema.IsUnknown() {
+		out["schema"] = m.Schema.ValueString()
+	}
+	return out
+}
+
+// flattenDashboardChartQueriesXAxis refreshes a typed DashboardChartQueriesXAxis object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardChartQueriesXAxis(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardChartQueriesXAxisModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["explore_block_type"]); ok {
+		m.ExploreBlockType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["type"]); ok {
+		m.Type = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["measure"]); ok {
+		m.Measure = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value_type"]); ok {
+		m.ValueType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator"]); ok {
+		m.Operator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator_symbol"]); ok {
+		m.OperatorSymbol = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["condition_value"]); ok {
+		m.ConditionValue = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["series_name"]); ok {
+		m.SeriesName = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["logical_operator"]); ok {
+		m.LogicalOperator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["direction"]); ok {
+		m.Direction = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(raw["interval_seconds"]); ok {
+		m.IntervalSeconds = types.Int64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["kind"]); ok {
+		m.Kind = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["schema"]); ok {
+		m.Schema = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardChartQueriesXAxisAttrTypes(), m)
+	return obj
+}
+
+type DashboardChartQueriesYAxisModel struct {
+	ExploreBlockType types.String `tfsdk:"explore_block_type"`
+	Value            types.String `tfsdk:"value"`
+	Type             types.String `tfsdk:"type"`
+	Name             types.String `tfsdk:"name"`
+	Measure          types.String `tfsdk:"measure"`
+	ValueType        types.String `tfsdk:"value_type"`
+	Operator         types.String `tfsdk:"operator"`
+	OperatorSymbol   types.String `tfsdk:"operator_symbol"`
+	ConditionValue   types.String `tfsdk:"condition_value"`
+	SeriesName       types.String `tfsdk:"series_name"`
+	LogicalOperator  types.String `tfsdk:"logical_operator"`
+	Direction        types.String `tfsdk:"direction"`
+	IntervalSeconds  types.Int64  `tfsdk:"interval_seconds"`
+	Kind             types.String `tfsdk:"kind"`
+	Schema           types.String `tfsdk:"schema"`
+}
+
+func dashboardChartQueriesYAxisAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"explore_block_type": types.StringType,
+		"value":              types.StringType,
+		"type":               types.StringType,
+		"name":               types.StringType,
+		"measure":            types.StringType,
+		"value_type":         types.StringType,
+		"operator":           types.StringType,
+		"operator_symbol":    types.StringType,
+		"condition_value":    types.StringType,
+		"series_name":        types.StringType,
+		"logical_operator":   types.StringType,
+		"direction":          types.StringType,
+		"interval_seconds":   types.Int64Type,
+		"kind":               types.StringType,
+		"schema":             types.StringType,
+	}
+}
+
+// expandDashboardChartQueriesYAxis marshals a nested DashboardChartQueriesYAxis object into its request map.
+func expandDashboardChartQueriesYAxis(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardChartQueriesYAxisModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.ExploreBlockType.IsNull() && !m.ExploreBlockType.IsUnknown() {
+		out["explore_block_type"] = m.ExploreBlockType.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.Type.IsNull() && !m.Type.IsUnknown() {
+		out["type"] = m.Type.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Measure.IsNull() && !m.Measure.IsUnknown() {
+		out["measure"] = m.Measure.ValueString()
+	}
+	if !m.ValueType.IsNull() && !m.ValueType.IsUnknown() {
+		out["value_type"] = m.ValueType.ValueString()
+	}
+	if !m.Operator.IsNull() && !m.Operator.IsUnknown() {
+		out["operator"] = m.Operator.ValueString()
+	}
+	if !m.OperatorSymbol.IsNull() && !m.OperatorSymbol.IsUnknown() {
+		out["operator_symbol"] = m.OperatorSymbol.ValueString()
+	}
+	if !m.ConditionValue.IsNull() && !m.ConditionValue.IsUnknown() {
+		out["condition_value"] = m.ConditionValue.ValueString()
+	}
+	if !m.SeriesName.IsNull() && !m.SeriesName.IsUnknown() {
+		out["series_name"] = m.SeriesName.ValueString()
+	}
+	if !m.LogicalOperator.IsNull() && !m.LogicalOperator.IsUnknown() {
+		out["logical_operator"] = m.LogicalOperator.ValueString()
+	}
+	if !m.Direction.IsNull() && !m.Direction.IsUnknown() {
+		out["direction"] = m.Direction.ValueString()
+	}
+	if !m.IntervalSeconds.IsNull() && !m.IntervalSeconds.IsUnknown() {
+		out["interval_seconds"] = m.IntervalSeconds.ValueInt64()
+	}
+	if !m.Kind.IsNull() && !m.Kind.IsUnknown() {
+		out["kind"] = m.Kind.ValueString()
+	}
+	if !m.Schema.IsNull() && !m.Schema.IsUnknown() {
+		out["schema"] = m.Schema.ValueString()
+	}
+	return out
+}
+
+// flattenDashboardChartQueriesYAxis refreshes a typed DashboardChartQueriesYAxis object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardChartQueriesYAxis(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardChartQueriesYAxisModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["explore_block_type"]); ok {
+		m.ExploreBlockType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["type"]); ok {
+		m.Type = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["measure"]); ok {
+		m.Measure = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value_type"]); ok {
+		m.ValueType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator"]); ok {
+		m.Operator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator_symbol"]); ok {
+		m.OperatorSymbol = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["condition_value"]); ok {
+		m.ConditionValue = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["series_name"]); ok {
+		m.SeriesName = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["logical_operator"]); ok {
+		m.LogicalOperator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["direction"]); ok {
+		m.Direction = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(raw["interval_seconds"]); ok {
+		m.IntervalSeconds = types.Int64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["kind"]); ok {
+		m.Kind = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["schema"]); ok {
+		m.Schema = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardChartQueriesYAxisAttrTypes(), m)
+	return obj
+}
+
+type DashboardChartQueriesPointSizeModel struct {
+	ExploreBlockType types.String `tfsdk:"explore_block_type"`
+	Value            types.String `tfsdk:"value"`
+	Type             types.String `tfsdk:"type"`
+	Name             types.String `tfsdk:"name"`
+	Measure          types.String `tfsdk:"measure"`
+	ValueType        types.String `tfsdk:"value_type"`
+	Operator         types.String `tfsdk:"operator"`
+	OperatorSymbol   types.String `tfsdk:"operator_symbol"`
+	ConditionValue   types.String `tfsdk:"condition_value"`
+	SeriesName       types.String `tfsdk:"series_name"`
+	LogicalOperator  types.String `tfsdk:"logical_operator"`
+	Direction        types.String `tfsdk:"direction"`
+	IntervalSeconds  types.Int64  `tfsdk:"interval_seconds"`
+	Kind             types.String `tfsdk:"kind"`
+	Schema           types.String `tfsdk:"schema"`
+}
+
+func dashboardChartQueriesPointSizeAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"explore_block_type": types.StringType,
+		"value":              types.StringType,
+		"type":               types.StringType,
+		"name":               types.StringType,
+		"measure":            types.StringType,
+		"value_type":         types.StringType,
+		"operator":           types.StringType,
+		"operator_symbol":    types.StringType,
+		"condition_value":    types.StringType,
+		"series_name":        types.StringType,
+		"logical_operator":   types.StringType,
+		"direction":          types.StringType,
+		"interval_seconds":   types.Int64Type,
+		"kind":               types.StringType,
+		"schema":             types.StringType,
+	}
+}
+
+// expandDashboardChartQueriesPointSize marshals a nested DashboardChartQueriesPointSize object into its request map.
+func expandDashboardChartQueriesPointSize(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardChartQueriesPointSizeModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.ExploreBlockType.IsNull() && !m.ExploreBlockType.IsUnknown() {
+		out["explore_block_type"] = m.ExploreBlockType.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.Type.IsNull() && !m.Type.IsUnknown() {
+		out["type"] = m.Type.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Measure.IsNull() && !m.Measure.IsUnknown() {
+		out["measure"] = m.Measure.ValueString()
+	}
+	if !m.ValueType.IsNull() && !m.ValueType.IsUnknown() {
+		out["value_type"] = m.ValueType.ValueString()
+	}
+	if !m.Operator.IsNull() && !m.Operator.IsUnknown() {
+		out["operator"] = m.Operator.ValueString()
+	}
+	if !m.OperatorSymbol.IsNull() && !m.OperatorSymbol.IsUnknown() {
+		out["operator_symbol"] = m.OperatorSymbol.ValueString()
+	}
+	if !m.ConditionValue.IsNull() && !m.ConditionValue.IsUnknown() {
+		out["condition_value"] = m.ConditionValue.ValueString()
+	}
+	if !m.SeriesName.IsNull() && !m.SeriesName.IsUnknown() {
+		out["series_name"] = m.SeriesName.ValueString()
+	}
+	if !m.LogicalOperator.IsNull() && !m.LogicalOperator.IsUnknown() {
+		out["logical_operator"] = m.LogicalOperator.ValueString()
+	}
+	if !m.Direction.IsNull() && !m.Direction.IsUnknown() {
+		out["direction"] = m.Direction.ValueString()
+	}
+	if !m.IntervalSeconds.IsNull() && !m.IntervalSeconds.IsUnknown() {
+		out["interval_seconds"] = m.IntervalSeconds.ValueInt64()
+	}
+	if !m.Kind.IsNull() && !m.Kind.IsUnknown() {
+		out["kind"] = m.Kind.ValueString()
+	}
+	if !m.Schema.IsNull() && !m.Schema.IsUnknown() {
+		out["schema"] = m.Schema.ValueString()
+	}
+	return out
+}
+
+// flattenDashboardChartQueriesPointSize refreshes a typed DashboardChartQueriesPointSize object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardChartQueriesPointSize(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardChartQueriesPointSizeModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["explore_block_type"]); ok {
+		m.ExploreBlockType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["type"]); ok {
+		m.Type = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["measure"]); ok {
+		m.Measure = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value_type"]); ok {
+		m.ValueType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator"]); ok {
+		m.Operator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator_symbol"]); ok {
+		m.OperatorSymbol = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["condition_value"]); ok {
+		m.ConditionValue = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["series_name"]); ok {
+		m.SeriesName = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["logical_operator"]); ok {
+		m.LogicalOperator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["direction"]); ok {
+		m.Direction = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(raw["interval_seconds"]); ok {
+		m.IntervalSeconds = types.Int64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["kind"]); ok {
+		m.Kind = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["schema"]); ok {
+		m.Schema = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardChartQueriesPointSizeAttrTypes(), m)
+	return obj
+}
+
+type DashboardChartQueriesCoordinatesModel struct {
+	ExploreBlockType types.String `tfsdk:"explore_block_type"`
+	Value            types.String `tfsdk:"value"`
+	Type             types.String `tfsdk:"type"`
+	Name             types.String `tfsdk:"name"`
+	Measure          types.String `tfsdk:"measure"`
+	ValueType        types.String `tfsdk:"value_type"`
+	Operator         types.String `tfsdk:"operator"`
+	OperatorSymbol   types.String `tfsdk:"operator_symbol"`
+	ConditionValue   types.String `tfsdk:"condition_value"`
+	SeriesName       types.String `tfsdk:"series_name"`
+	LogicalOperator  types.String `tfsdk:"logical_operator"`
+	Direction        types.String `tfsdk:"direction"`
+	IntervalSeconds  types.Int64  `tfsdk:"interval_seconds"`
+	Kind             types.String `tfsdk:"kind"`
+	Schema           types.String `tfsdk:"schema"`
+}
+
+func dashboardChartQueriesCoordinatesAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"explore_block_type": types.StringType,
+		"value":              types.StringType,
+		"type":               types.StringType,
+		"name":               types.StringType,
+		"measure":            types.StringType,
+		"value_type":         types.StringType,
+		"operator":           types.StringType,
+		"operator_symbol":    types.StringType,
+		"condition_value":    types.StringType,
+		"series_name":        types.StringType,
+		"logical_operator":   types.StringType,
+		"direction":          types.StringType,
+		"interval_seconds":   types.Int64Type,
+		"kind":               types.StringType,
+		"schema":             types.StringType,
+	}
+}
+
+// expandDashboardChartQueriesCoordinates marshals a nested DashboardChartQueriesCoordinates object into its request map.
+func expandDashboardChartQueriesCoordinates(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardChartQueriesCoordinatesModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.ExploreBlockType.IsNull() && !m.ExploreBlockType.IsUnknown() {
+		out["explore_block_type"] = m.ExploreBlockType.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.Type.IsNull() && !m.Type.IsUnknown() {
+		out["type"] = m.Type.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Measure.IsNull() && !m.Measure.IsUnknown() {
+		out["measure"] = m.Measure.ValueString()
+	}
+	if !m.ValueType.IsNull() && !m.ValueType.IsUnknown() {
+		out["value_type"] = m.ValueType.ValueString()
+	}
+	if !m.Operator.IsNull() && !m.Operator.IsUnknown() {
+		out["operator"] = m.Operator.ValueString()
+	}
+	if !m.OperatorSymbol.IsNull() && !m.OperatorSymbol.IsUnknown() {
+		out["operator_symbol"] = m.OperatorSymbol.ValueString()
+	}
+	if !m.ConditionValue.IsNull() && !m.ConditionValue.IsUnknown() {
+		out["condition_value"] = m.ConditionValue.ValueString()
+	}
+	if !m.SeriesName.IsNull() && !m.SeriesName.IsUnknown() {
+		out["series_name"] = m.SeriesName.ValueString()
+	}
+	if !m.LogicalOperator.IsNull() && !m.LogicalOperator.IsUnknown() {
+		out["logical_operator"] = m.LogicalOperator.ValueString()
+	}
+	if !m.Direction.IsNull() && !m.Direction.IsUnknown() {
+		out["direction"] = m.Direction.ValueString()
+	}
+	if !m.IntervalSeconds.IsNull() && !m.IntervalSeconds.IsUnknown() {
+		out["interval_seconds"] = m.IntervalSeconds.ValueInt64()
+	}
+	if !m.Kind.IsNull() && !m.Kind.IsUnknown() {
+		out["kind"] = m.Kind.ValueString()
+	}
+	if !m.Schema.IsNull() && !m.Schema.IsUnknown() {
+		out["schema"] = m.Schema.ValueString()
+	}
+	return out
+}
+
+// flattenDashboardChartQueriesCoordinates refreshes a typed DashboardChartQueriesCoordinates object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardChartQueriesCoordinates(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardChartQueriesCoordinatesModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["explore_block_type"]); ok {
+		m.ExploreBlockType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["type"]); ok {
+		m.Type = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["measure"]); ok {
+		m.Measure = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value_type"]); ok {
+		m.ValueType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator"]); ok {
+		m.Operator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator_symbol"]); ok {
+		m.OperatorSymbol = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["condition_value"]); ok {
+		m.ConditionValue = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["series_name"]); ok {
+		m.SeriesName = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["logical_operator"]); ok {
+		m.LogicalOperator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["direction"]); ok {
+		m.Direction = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(raw["interval_seconds"]); ok {
+		m.IntervalSeconds = types.Int64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["kind"]); ok {
+		m.Kind = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["schema"]); ok {
+		m.Schema = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardChartQueriesCoordinatesAttrTypes(), m)
+	return obj
+}
+
+type DashboardChartQueriesFiltersModel struct {
+	ExploreBlockType types.String `tfsdk:"explore_block_type"`
+	Value            types.String `tfsdk:"value"`
+	Type             types.String `tfsdk:"type"`
+	Name             types.String `tfsdk:"name"`
+	Measure          types.String `tfsdk:"measure"`
+	ValueType        types.String `tfsdk:"value_type"`
+	Operator         types.String `tfsdk:"operator"`
+	OperatorSymbol   types.String `tfsdk:"operator_symbol"`
+	ConditionValue   types.String `tfsdk:"condition_value"`
+	SeriesName       types.String `tfsdk:"series_name"`
+	LogicalOperator  types.String `tfsdk:"logical_operator"`
+	Direction        types.String `tfsdk:"direction"`
+	IntervalSeconds  types.Int64  `tfsdk:"interval_seconds"`
+	Kind             types.String `tfsdk:"kind"`
+	Schema           types.String `tfsdk:"schema"`
+}
+
+func dashboardChartQueriesFiltersAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"explore_block_type": types.StringType,
+		"value":              types.StringType,
+		"type":               types.StringType,
+		"name":               types.StringType,
+		"measure":            types.StringType,
+		"value_type":         types.StringType,
+		"operator":           types.StringType,
+		"operator_symbol":    types.StringType,
+		"condition_value":    types.StringType,
+		"series_name":        types.StringType,
+		"logical_operator":   types.StringType,
+		"direction":          types.StringType,
+		"interval_seconds":   types.Int64Type,
+		"kind":               types.StringType,
+		"schema":             types.StringType,
+	}
+}
+
+// expandDashboardChartQueriesFilters marshals a nested DashboardChartQueriesFilters object into its request map.
+func expandDashboardChartQueriesFilters(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardChartQueriesFiltersModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.ExploreBlockType.IsNull() && !m.ExploreBlockType.IsUnknown() {
+		out["explore_block_type"] = m.ExploreBlockType.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.Type.IsNull() && !m.Type.IsUnknown() {
+		out["type"] = m.Type.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Measure.IsNull() && !m.Measure.IsUnknown() {
+		out["measure"] = m.Measure.ValueString()
+	}
+	if !m.ValueType.IsNull() && !m.ValueType.IsUnknown() {
+		out["value_type"] = m.ValueType.ValueString()
+	}
+	if !m.Operator.IsNull() && !m.Operator.IsUnknown() {
+		out["operator"] = m.Operator.ValueString()
+	}
+	if !m.OperatorSymbol.IsNull() && !m.OperatorSymbol.IsUnknown() {
+		out["operator_symbol"] = m.OperatorSymbol.ValueString()
+	}
+	if !m.ConditionValue.IsNull() && !m.ConditionValue.IsUnknown() {
+		out["condition_value"] = m.ConditionValue.ValueString()
+	}
+	if !m.SeriesName.IsNull() && !m.SeriesName.IsUnknown() {
+		out["series_name"] = m.SeriesName.ValueString()
+	}
+	if !m.LogicalOperator.IsNull() && !m.LogicalOperator.IsUnknown() {
+		out["logical_operator"] = m.LogicalOperator.ValueString()
+	}
+	if !m.Direction.IsNull() && !m.Direction.IsUnknown() {
+		out["direction"] = m.Direction.ValueString()
+	}
+	if !m.IntervalSeconds.IsNull() && !m.IntervalSeconds.IsUnknown() {
+		out["interval_seconds"] = m.IntervalSeconds.ValueInt64()
+	}
+	if !m.Kind.IsNull() && !m.Kind.IsUnknown() {
+		out["kind"] = m.Kind.ValueString()
+	}
+	if !m.Schema.IsNull() && !m.Schema.IsUnknown() {
+		out["schema"] = m.Schema.ValueString()
+	}
+	return out
+}
+
+// flattenDashboardChartQueriesFilters refreshes a typed DashboardChartQueriesFilters object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardChartQueriesFilters(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardChartQueriesFiltersModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["explore_block_type"]); ok {
+		m.ExploreBlockType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["type"]); ok {
+		m.Type = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["measure"]); ok {
+		m.Measure = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value_type"]); ok {
+		m.ValueType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator"]); ok {
+		m.Operator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator_symbol"]); ok {
+		m.OperatorSymbol = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["condition_value"]); ok {
+		m.ConditionValue = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["series_name"]); ok {
+		m.SeriesName = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["logical_operator"]); ok {
+		m.LogicalOperator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["direction"]); ok {
+		m.Direction = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(raw["interval_seconds"]); ok {
+		m.IntervalSeconds = types.Int64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["kind"]); ok {
+		m.Kind = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["schema"]); ok {
+		m.Schema = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardChartQueriesFiltersAttrTypes(), m)
+	return obj
+}
+
+type DashboardChartQueriesWhereModel struct {
+	ExploreBlockType types.String `tfsdk:"explore_block_type"`
+	Value            types.String `tfsdk:"value"`
+	Type             types.String `tfsdk:"type"`
+	Name             types.String `tfsdk:"name"`
+	Measure          types.String `tfsdk:"measure"`
+	ValueType        types.String `tfsdk:"value_type"`
+	Operator         types.String `tfsdk:"operator"`
+	OperatorSymbol   types.String `tfsdk:"operator_symbol"`
+	ConditionValue   types.String `tfsdk:"condition_value"`
+	SeriesName       types.String `tfsdk:"series_name"`
+	LogicalOperator  types.String `tfsdk:"logical_operator"`
+	Direction        types.String `tfsdk:"direction"`
+	IntervalSeconds  types.Int64  `tfsdk:"interval_seconds"`
+	Kind             types.String `tfsdk:"kind"`
+	Schema           types.String `tfsdk:"schema"`
+}
+
+func dashboardChartQueriesWhereAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"explore_block_type": types.StringType,
+		"value":              types.StringType,
+		"type":               types.StringType,
+		"name":               types.StringType,
+		"measure":            types.StringType,
+		"value_type":         types.StringType,
+		"operator":           types.StringType,
+		"operator_symbol":    types.StringType,
+		"condition_value":    types.StringType,
+		"series_name":        types.StringType,
+		"logical_operator":   types.StringType,
+		"direction":          types.StringType,
+		"interval_seconds":   types.Int64Type,
+		"kind":               types.StringType,
+		"schema":             types.StringType,
+	}
+}
+
+// expandDashboardChartQueriesWhere marshals a nested DashboardChartQueriesWhere object into its request map.
+func expandDashboardChartQueriesWhere(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardChartQueriesWhereModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.ExploreBlockType.IsNull() && !m.ExploreBlockType.IsUnknown() {
+		out["explore_block_type"] = m.ExploreBlockType.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.Type.IsNull() && !m.Type.IsUnknown() {
+		out["type"] = m.Type.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Measure.IsNull() && !m.Measure.IsUnknown() {
+		out["measure"] = m.Measure.ValueString()
+	}
+	if !m.ValueType.IsNull() && !m.ValueType.IsUnknown() {
+		out["value_type"] = m.ValueType.ValueString()
+	}
+	if !m.Operator.IsNull() && !m.Operator.IsUnknown() {
+		out["operator"] = m.Operator.ValueString()
+	}
+	if !m.OperatorSymbol.IsNull() && !m.OperatorSymbol.IsUnknown() {
+		out["operator_symbol"] = m.OperatorSymbol.ValueString()
+	}
+	if !m.ConditionValue.IsNull() && !m.ConditionValue.IsUnknown() {
+		out["condition_value"] = m.ConditionValue.ValueString()
+	}
+	if !m.SeriesName.IsNull() && !m.SeriesName.IsUnknown() {
+		out["series_name"] = m.SeriesName.ValueString()
+	}
+	if !m.LogicalOperator.IsNull() && !m.LogicalOperator.IsUnknown() {
+		out["logical_operator"] = m.LogicalOperator.ValueString()
+	}
+	if !m.Direction.IsNull() && !m.Direction.IsUnknown() {
+		out["direction"] = m.Direction.ValueString()
+	}
+	if !m.IntervalSeconds.IsNull() && !m.IntervalSeconds.IsUnknown() {
+		out["interval_seconds"] = m.IntervalSeconds.ValueInt64()
+	}
+	if !m.Kind.IsNull() && !m.Kind.IsUnknown() {
+		out["kind"] = m.Kind.ValueString()
+	}
+	if !m.Schema.IsNull() && !m.Schema.IsUnknown() {
+		out["schema"] = m.Schema.ValueString()
+	}
+	return out
+}
+
+// flattenDashboardChartQueriesWhere refreshes a typed DashboardChartQueriesWhere object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardChartQueriesWhere(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardChartQueriesWhereModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["explore_block_type"]); ok {
+		m.ExploreBlockType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["type"]); ok {
+		m.Type = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["measure"]); ok {
+		m.Measure = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value_type"]); ok {
+		m.ValueType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator"]); ok {
+		m.Operator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator_symbol"]); ok {
+		m.OperatorSymbol = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["condition_value"]); ok {
+		m.ConditionValue = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["series_name"]); ok {
+		m.SeriesName = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["logical_operator"]); ok {
+		m.LogicalOperator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["direction"]); ok {
+		m.Direction = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(raw["interval_seconds"]); ok {
+		m.IntervalSeconds = types.Int64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["kind"]); ok {
+		m.Kind = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["schema"]); ok {
+		m.Schema = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardChartQueriesWhereAttrTypes(), m)
+	return obj
+}
+
+type DashboardChartQueriesGroupByModel struct {
+	ExploreBlockType types.String `tfsdk:"explore_block_type"`
+	Value            types.String `tfsdk:"value"`
+	Type             types.String `tfsdk:"type"`
+	Name             types.String `tfsdk:"name"`
+	Measure          types.String `tfsdk:"measure"`
+	ValueType        types.String `tfsdk:"value_type"`
+	Operator         types.String `tfsdk:"operator"`
+	OperatorSymbol   types.String `tfsdk:"operator_symbol"`
+	ConditionValue   types.String `tfsdk:"condition_value"`
+	SeriesName       types.String `tfsdk:"series_name"`
+	LogicalOperator  types.String `tfsdk:"logical_operator"`
+	Direction        types.String `tfsdk:"direction"`
+	IntervalSeconds  types.Int64  `tfsdk:"interval_seconds"`
+	Kind             types.String `tfsdk:"kind"`
+	Schema           types.String `tfsdk:"schema"`
+}
+
+func dashboardChartQueriesGroupByAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"explore_block_type": types.StringType,
+		"value":              types.StringType,
+		"type":               types.StringType,
+		"name":               types.StringType,
+		"measure":            types.StringType,
+		"value_type":         types.StringType,
+		"operator":           types.StringType,
+		"operator_symbol":    types.StringType,
+		"condition_value":    types.StringType,
+		"series_name":        types.StringType,
+		"logical_operator":   types.StringType,
+		"direction":          types.StringType,
+		"interval_seconds":   types.Int64Type,
+		"kind":               types.StringType,
+		"schema":             types.StringType,
+	}
+}
+
+// expandDashboardChartQueriesGroupBy marshals a nested DashboardChartQueriesGroupBy object into its request map.
+func expandDashboardChartQueriesGroupBy(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardChartQueriesGroupByModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.ExploreBlockType.IsNull() && !m.ExploreBlockType.IsUnknown() {
+		out["explore_block_type"] = m.ExploreBlockType.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.Type.IsNull() && !m.Type.IsUnknown() {
+		out["type"] = m.Type.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Measure.IsNull() && !m.Measure.IsUnknown() {
+		out["measure"] = m.Measure.ValueString()
+	}
+	if !m.ValueType.IsNull() && !m.ValueType.IsUnknown() {
+		out["value_type"] = m.ValueType.ValueString()
+	}
+	if !m.Operator.IsNull() && !m.Operator.IsUnknown() {
+		out["operator"] = m.Operator.ValueString()
+	}
+	if !m.OperatorSymbol.IsNull() && !m.OperatorSymbol.IsUnknown() {
+		out["operator_symbol"] = m.OperatorSymbol.ValueString()
+	}
+	if !m.ConditionValue.IsNull() && !m.ConditionValue.IsUnknown() {
+		out["condition_value"] = m.ConditionValue.ValueString()
+	}
+	if !m.SeriesName.IsNull() && !m.SeriesName.IsUnknown() {
+		out["series_name"] = m.SeriesName.ValueString()
+	}
+	if !m.LogicalOperator.IsNull() && !m.LogicalOperator.IsUnknown() {
+		out["logical_operator"] = m.LogicalOperator.ValueString()
+	}
+	if !m.Direction.IsNull() && !m.Direction.IsUnknown() {
+		out["direction"] = m.Direction.ValueString()
+	}
+	if !m.IntervalSeconds.IsNull() && !m.IntervalSeconds.IsUnknown() {
+		out["interval_seconds"] = m.IntervalSeconds.ValueInt64()
+	}
+	if !m.Kind.IsNull() && !m.Kind.IsUnknown() {
+		out["kind"] = m.Kind.ValueString()
+	}
+	if !m.Schema.IsNull() && !m.Schema.IsUnknown() {
+		out["schema"] = m.Schema.ValueString()
+	}
+	return out
+}
+
+// flattenDashboardChartQueriesGroupBy refreshes a typed DashboardChartQueriesGroupBy object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardChartQueriesGroupBy(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardChartQueriesGroupByModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["explore_block_type"]); ok {
+		m.ExploreBlockType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["type"]); ok {
+		m.Type = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["measure"]); ok {
+		m.Measure = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value_type"]); ok {
+		m.ValueType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator"]); ok {
+		m.Operator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator_symbol"]); ok {
+		m.OperatorSymbol = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["condition_value"]); ok {
+		m.ConditionValue = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["series_name"]); ok {
+		m.SeriesName = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["logical_operator"]); ok {
+		m.LogicalOperator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["direction"]); ok {
+		m.Direction = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(raw["interval_seconds"]); ok {
+		m.IntervalSeconds = types.Int64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["kind"]); ok {
+		m.Kind = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["schema"]); ok {
+		m.Schema = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardChartQueriesGroupByAttrTypes(), m)
+	return obj
+}
+
+type DashboardChartQueriesHavingModel struct {
+	ExploreBlockType types.String `tfsdk:"explore_block_type"`
+	Value            types.String `tfsdk:"value"`
+	Type             types.String `tfsdk:"type"`
+	Name             types.String `tfsdk:"name"`
+	Measure          types.String `tfsdk:"measure"`
+	ValueType        types.String `tfsdk:"value_type"`
+	Operator         types.String `tfsdk:"operator"`
+	OperatorSymbol   types.String `tfsdk:"operator_symbol"`
+	ConditionValue   types.String `tfsdk:"condition_value"`
+	SeriesName       types.String `tfsdk:"series_name"`
+	LogicalOperator  types.String `tfsdk:"logical_operator"`
+	Direction        types.String `tfsdk:"direction"`
+	IntervalSeconds  types.Int64  `tfsdk:"interval_seconds"`
+	Kind             types.String `tfsdk:"kind"`
+	Schema           types.String `tfsdk:"schema"`
+}
+
+func dashboardChartQueriesHavingAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"explore_block_type": types.StringType,
+		"value":              types.StringType,
+		"type":               types.StringType,
+		"name":               types.StringType,
+		"measure":            types.StringType,
+		"value_type":         types.StringType,
+		"operator":           types.StringType,
+		"operator_symbol":    types.StringType,
+		"condition_value":    types.StringType,
+		"series_name":        types.StringType,
+		"logical_operator":   types.StringType,
+		"direction":          types.StringType,
+		"interval_seconds":   types.Int64Type,
+		"kind":               types.StringType,
+		"schema":             types.StringType,
+	}
+}
+
+// expandDashboardChartQueriesHaving marshals a nested DashboardChartQueriesHaving object into its request map.
+func expandDashboardChartQueriesHaving(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardChartQueriesHavingModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.ExploreBlockType.IsNull() && !m.ExploreBlockType.IsUnknown() {
+		out["explore_block_type"] = m.ExploreBlockType.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.Type.IsNull() && !m.Type.IsUnknown() {
+		out["type"] = m.Type.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Measure.IsNull() && !m.Measure.IsUnknown() {
+		out["measure"] = m.Measure.ValueString()
+	}
+	if !m.ValueType.IsNull() && !m.ValueType.IsUnknown() {
+		out["value_type"] = m.ValueType.ValueString()
+	}
+	if !m.Operator.IsNull() && !m.Operator.IsUnknown() {
+		out["operator"] = m.Operator.ValueString()
+	}
+	if !m.OperatorSymbol.IsNull() && !m.OperatorSymbol.IsUnknown() {
+		out["operator_symbol"] = m.OperatorSymbol.ValueString()
+	}
+	if !m.ConditionValue.IsNull() && !m.ConditionValue.IsUnknown() {
+		out["condition_value"] = m.ConditionValue.ValueString()
+	}
+	if !m.SeriesName.IsNull() && !m.SeriesName.IsUnknown() {
+		out["series_name"] = m.SeriesName.ValueString()
+	}
+	if !m.LogicalOperator.IsNull() && !m.LogicalOperator.IsUnknown() {
+		out["logical_operator"] = m.LogicalOperator.ValueString()
+	}
+	if !m.Direction.IsNull() && !m.Direction.IsUnknown() {
+		out["direction"] = m.Direction.ValueString()
+	}
+	if !m.IntervalSeconds.IsNull() && !m.IntervalSeconds.IsUnknown() {
+		out["interval_seconds"] = m.IntervalSeconds.ValueInt64()
+	}
+	if !m.Kind.IsNull() && !m.Kind.IsUnknown() {
+		out["kind"] = m.Kind.ValueString()
+	}
+	if !m.Schema.IsNull() && !m.Schema.IsUnknown() {
+		out["schema"] = m.Schema.ValueString()
+	}
+	return out
+}
+
+// flattenDashboardChartQueriesHaving refreshes a typed DashboardChartQueriesHaving object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardChartQueriesHaving(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardChartQueriesHavingModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["explore_block_type"]); ok {
+		m.ExploreBlockType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["type"]); ok {
+		m.Type = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["measure"]); ok {
+		m.Measure = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value_type"]); ok {
+		m.ValueType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator"]); ok {
+		m.Operator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator_symbol"]); ok {
+		m.OperatorSymbol = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["condition_value"]); ok {
+		m.ConditionValue = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["series_name"]); ok {
+		m.SeriesName = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["logical_operator"]); ok {
+		m.LogicalOperator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["direction"]); ok {
+		m.Direction = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(raw["interval_seconds"]); ok {
+		m.IntervalSeconds = types.Int64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["kind"]); ok {
+		m.Kind = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["schema"]); ok {
+		m.Schema = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardChartQueriesHavingAttrTypes(), m)
+	return obj
+}
+
+type DashboardChartQueriesOrderByModel struct {
+	ExploreBlockType types.String `tfsdk:"explore_block_type"`
+	Value            types.String `tfsdk:"value"`
+	Type             types.String `tfsdk:"type"`
+	Name             types.String `tfsdk:"name"`
+	Measure          types.String `tfsdk:"measure"`
+	ValueType        types.String `tfsdk:"value_type"`
+	Operator         types.String `tfsdk:"operator"`
+	OperatorSymbol   types.String `tfsdk:"operator_symbol"`
+	ConditionValue   types.String `tfsdk:"condition_value"`
+	SeriesName       types.String `tfsdk:"series_name"`
+	LogicalOperator  types.String `tfsdk:"logical_operator"`
+	Direction        types.String `tfsdk:"direction"`
+	IntervalSeconds  types.Int64  `tfsdk:"interval_seconds"`
+	Kind             types.String `tfsdk:"kind"`
+	Schema           types.String `tfsdk:"schema"`
+}
+
+func dashboardChartQueriesOrderByAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"explore_block_type": types.StringType,
+		"value":              types.StringType,
+		"type":               types.StringType,
+		"name":               types.StringType,
+		"measure":            types.StringType,
+		"value_type":         types.StringType,
+		"operator":           types.StringType,
+		"operator_symbol":    types.StringType,
+		"condition_value":    types.StringType,
+		"series_name":        types.StringType,
+		"logical_operator":   types.StringType,
+		"direction":          types.StringType,
+		"interval_seconds":   types.Int64Type,
+		"kind":               types.StringType,
+		"schema":             types.StringType,
+	}
+}
+
+// expandDashboardChartQueriesOrderBy marshals a nested DashboardChartQueriesOrderBy object into its request map.
+func expandDashboardChartQueriesOrderBy(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardChartQueriesOrderByModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.ExploreBlockType.IsNull() && !m.ExploreBlockType.IsUnknown() {
+		out["explore_block_type"] = m.ExploreBlockType.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.Type.IsNull() && !m.Type.IsUnknown() {
+		out["type"] = m.Type.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Measure.IsNull() && !m.Measure.IsUnknown() {
+		out["measure"] = m.Measure.ValueString()
+	}
+	if !m.ValueType.IsNull() && !m.ValueType.IsUnknown() {
+		out["value_type"] = m.ValueType.ValueString()
+	}
+	if !m.Operator.IsNull() && !m.Operator.IsUnknown() {
+		out["operator"] = m.Operator.ValueString()
+	}
+	if !m.OperatorSymbol.IsNull() && !m.OperatorSymbol.IsUnknown() {
+		out["operator_symbol"] = m.OperatorSymbol.ValueString()
+	}
+	if !m.ConditionValue.IsNull() && !m.ConditionValue.IsUnknown() {
+		out["condition_value"] = m.ConditionValue.ValueString()
+	}
+	if !m.SeriesName.IsNull() && !m.SeriesName.IsUnknown() {
+		out["series_name"] = m.SeriesName.ValueString()
+	}
+	if !m.LogicalOperator.IsNull() && !m.LogicalOperator.IsUnknown() {
+		out["logical_operator"] = m.LogicalOperator.ValueString()
+	}
+	if !m.Direction.IsNull() && !m.Direction.IsUnknown() {
+		out["direction"] = m.Direction.ValueString()
+	}
+	if !m.IntervalSeconds.IsNull() && !m.IntervalSeconds.IsUnknown() {
+		out["interval_seconds"] = m.IntervalSeconds.ValueInt64()
+	}
+	if !m.Kind.IsNull() && !m.Kind.IsUnknown() {
+		out["kind"] = m.Kind.ValueString()
+	}
+	if !m.Schema.IsNull() && !m.Schema.IsUnknown() {
+		out["schema"] = m.Schema.ValueString()
+	}
+	return out
+}
+
+// flattenDashboardChartQueriesOrderBy refreshes a typed DashboardChartQueriesOrderBy object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardChartQueriesOrderBy(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardChartQueriesOrderByModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["explore_block_type"]); ok {
+		m.ExploreBlockType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["type"]); ok {
+		m.Type = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["measure"]); ok {
+		m.Measure = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value_type"]); ok {
+		m.ValueType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator"]); ok {
+		m.Operator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator_symbol"]); ok {
+		m.OperatorSymbol = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["condition_value"]); ok {
+		m.ConditionValue = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["series_name"]); ok {
+		m.SeriesName = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["logical_operator"]); ok {
+		m.LogicalOperator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["direction"]); ok {
+		m.Direction = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(raw["interval_seconds"]); ok {
+		m.IntervalSeconds = types.Int64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["kind"]); ok {
+		m.Kind = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["schema"]); ok {
+		m.Schema = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardChartQueriesOrderByAttrTypes(), m)
+	return obj
 }
 
 func (r *DashboardChartResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -55,20 +2776,22 @@ func (r *DashboardChartResource) Metadata(ctx context.Context, req resource.Meta
 
 func (r *DashboardChartResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A chart on a dashboard, backed by one or more queries.",
+		Description:         "A chart on a dashboard, backed by one or more queries.",
+		MarkdownDescription: "A chart on a dashboard, backed by one or more queries.",
 		Attributes: map[string]schema.Attribute{
-			"id":             schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"chart_type":     schema.StringAttribute{Required: true, Description: "Chart type. Each type takes only certain query types, and only `line_chart` takes more than one query. An update can't change it to a type the chart's existing queries or alerts don't work with.", Validators: []validator.String{stringvalidator.OneOf("line_chart", "bar_chart", "pie_chart", "scatter_chart", "gauge_chart", "number_chart", "heatmap_chart", "table_chart", "map_chart", "text_chart", "tail_chart", "static_text_chart", "funnel_chart", "funnel_trend_chart", "anomalies_chart", "hierarchy_chart")}},
-			"dashboard_id":   schema.StringAttribute{Required: true, Description: "Dashboard this chart is on. Can't be changed after the chart is created.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_dashboard_chart"}}},
-			"description":    schema.StringAttribute{Optional: true, Description: "Chart description."},
-			"h":              schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(4), Description: "Grid height."},
-			"name":           schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("Your chart"), Description: "Chart name."},
-			"queries":        schema.DynamicAttribute{Required: true, Description: "The chart's queries. You can write `sql_expression`, `tail_query` and `static_text` queries. Other types, such as `query_builder`, `pql_expression` and PromQL, are returned but can't be written. Every query has `id`, `query_type`, `name` and `source_variable`, and its other fields depend on its type. Updating a chart replaces all of its queries."},
-			"queries_result": schema.DynamicAttribute{Computed: true, Description: "Complete server result for `queries`, including computed fields."},
-			"settings":       schema.DynamicAttribute{Optional: true, Computed: true, Description: "Display settings for the chart type, such as unit, axes, legend, stacking and decimal places. Defaults to an empty object.", PlanModifiers: []planmodifier.Dynamic{dynamicplanmodifier.UseStateForUnknown()}},
-			"w":              schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(6), Description: "Grid width."},
-			"x":              schema.Int64Attribute{Optional: true, Computed: true, Description: "Grid x position. The grid is 12 columns wide. If left out, the chart goes in the first free space that fits.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
-			"y":              schema.Int64Attribute{Optional: true, Computed: true, Description: "Grid y position. Set automatically when left out.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
+			"id":           schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"chart_type":   schema.StringAttribute{Required: true, Description: "Chart type. Only a line_chart can have more than one query. An update can't change it to a type the chart's existing queries or alerts don't work with. Changing it in an update without queries turns Drag & drop queries into sql_expression queries with the same SQL.\n\n- line_chart: Accepts sql_expression and tail_query queries.\n- bar_chart: Accepts sql_expression and tail_query queries.\n- pie_chart: Accepts sql_expression queries.\n- scatter_chart: Accepts sql_expression queries.\n- gauge_chart: Accepts sql_expression and tail_query queries.\n- number_chart: Accepts sql_expression and tail_query queries.\n- heatmap_chart: Accepts sql_expression queries.\n- table_chart: Accepts sql_expression queries.\n- map_chart: Accepts sql_expression queries.\n- text_chart: Accepts sql_expression and tail_query queries.\n- tail_chart: Accepts tail_query queries.\n- static_text_chart: Accepts a static_text query.\n- funnel_chart: Holds a funnel_query query made in the app.\n- funnel_trend_chart: Holds a funnel_query query made in the app.\n- anomalies_chart: Accepts tail_query queries.\n- hierarchy_chart: Accepts sql_expression queries.", MarkdownDescription: "Chart type. Only a `line_chart` can have more than one query. An update can't change it to a type the chart's existing queries or alerts don't work with. Changing it in an update without `queries` turns Drag & drop queries into `sql_expression` queries with the same SQL.\n\n- `line_chart`: Accepts `sql_expression` and `tail_query` queries.\n- `bar_chart`: Accepts `sql_expression` and `tail_query` queries.\n- `pie_chart`: Accepts `sql_expression` queries.\n- `scatter_chart`: Accepts `sql_expression` queries.\n- `gauge_chart`: Accepts `sql_expression` and `tail_query` queries.\n- `number_chart`: Accepts `sql_expression` and `tail_query` queries.\n- `heatmap_chart`: Accepts `sql_expression` queries.\n- `table_chart`: Accepts `sql_expression` queries.\n- `map_chart`: Accepts `sql_expression` queries.\n- `text_chart`: Accepts `sql_expression` and `tail_query` queries.\n- `tail_chart`: Accepts `tail_query` queries.\n- `static_text_chart`: Accepts a `static_text` query.\n- `funnel_chart`: Holds a `funnel_query` query made in the app.\n- `funnel_trend_chart`: Holds a `funnel_query` query made in the app.\n- `anomalies_chart`: Accepts `tail_query` queries.\n- `hierarchy_chart`: Accepts `sql_expression` queries.", Validators: []validator.String{stringvalidator.OneOf("line_chart", "bar_chart", "pie_chart", "scatter_chart", "gauge_chart", "number_chart", "heatmap_chart", "table_chart", "map_chart", "text_chart", "tail_chart", "static_text_chart", "funnel_chart", "funnel_trend_chart", "anomalies_chart", "hierarchy_chart")}},
+			"dashboard_id": schema.StringAttribute{Required: true, Description: "Dashboard this chart is on. Can't be changed after the chart is created.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_dashboard_chart"}}},
+			"description":  schema.StringAttribute{Optional: true, Description: "Chart description."},
+			"explanation":  schema.StringAttribute{Optional: true, Description: "Explanation of what the chart shows, which AI SRE and the chart's AI summary read."},
+			"h":            schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(4), Description: "Grid height."},
+			"name":         schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("Your chart"), Description: "Chart name."},
+			"queries":      schema.ListNestedAttribute{Required: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true, Description: "The query's ID."}, "query_type": schema.StringAttribute{Optional: true, Computed: true, Description: "The query's type. You can write sql_expression, tail_query and static_text queries. The types the editor builds are read-only. They're pql_expression, query_builder, tail_query_builder, funnel_query, promql_query, promql_v2_query and promql_via_llm.", MarkdownDescription: "The query's type. You can write `sql_expression`, `tail_query` and `static_text` queries. The types the editor builds are read-only. They're `pql_expression`, `query_builder`, `tail_query_builder`, `funnel_query`, `promql_query`, `promql_v2_query` and `promql_via_llm`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The query's name. Left out when the query has none."}, "source_variable": schema.StringAttribute{Optional: true, Computed: true, Description: "The sources the query reads, as the name of a source variable, such as source, or a source: reference to specific sources. Defaults to source.", MarkdownDescription: "The sources the query reads, as the name of a `source` variable, such as `source`, or a `source:` reference to specific sources. Defaults to `source`."}, "sql_query": schema.StringAttribute{Optional: true, Computed: true, Description: "The SQL the query runs. Returned for sql_expression, pql_expression, query_builder, tail_query_builder and funnel_query queries.", MarkdownDescription: "The SQL the query runs. Returned for `sql_expression`, `pql_expression`, `query_builder`, `tail_query_builder` and `funnel_query` queries."}, "pql_query": schema.StringAttribute{Optional: true, Computed: true, Description: "PQL source of a pql_expression query. Read-only.", MarkdownDescription: "PQL source of a `pql_expression` query. Read-only."}, "where_condition": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter of a tail_query or tail_query_builder query. Left out when not set.", MarkdownDescription: "The filter of a `tail_query` or `tail_query_builder` query. Left out when not set."}, "static_text": schema.StringAttribute{Optional: true, Computed: true, Description: "The Markdown text a static_text query shows. Left out when not set.", MarkdownDescription: "The Markdown text a `static_text` query shows. Left out when not set."}, "funnel_query": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"session_field": schema.StringAttribute{Optional: true, Computed: true, Description: "Field that ties one journey's events together, such as session_id or user.id.", MarkdownDescription: "Field that ties one journey's events together, such as `session_id` or `user.id`."}, "steps": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true, Description: "Step name shown on the chart."}, "conditions": schema.StringAttribute{Optional: true, Computed: true, Description: "Live tail query that the step's events match, such as payload.meta.path=\"/cart\".", MarkdownDescription: "Live tail query that the step's events match, such as `payload.meta.path=\"/cart\"`."}}}, Description: "The funnel's steps in journey order."}, "breakdown": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true, Description: "The type of the breakdown field, always string.", MarkdownDescription: "The type of the breakdown field, always `string`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The field each step is split by, such as contexts.browser.name.", MarkdownDescription: "The field each step is split by, such as `contexts.browser.name`."}}, Description: "The field each step is split by, or null when the funnel has no breakdown.", MarkdownDescription: "The field each step is split by, or `null` when the funnel has no breakdown."}}, Description: "Funnel definition of a funnel_query query, with the session field, the steps, each a name and its conditions, and an optional breakdown. Read-only.", MarkdownDescription: "Funnel definition of a `funnel_query` query, with the session field, the steps, each a name and its conditions, and an optional breakdown. Read-only."}, "x_axis": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"explore_block_type": schema.StringAttribute{Optional: true, Computed: true, Description: "What the block reads, such as count, field, json_value, json_value_from_column, special_column, virtual_field or search.", MarkdownDescription: "What the block reads, such as `count`, `field`, `json_value`, `json_value_from_column`, `special_column`, `virtual_field` or `search`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The column or field the block reads, such as dt.", MarkdownDescription: "The column or field the block reads, such as `dt`."}, "type": schema.StringAttribute{Optional: true, Computed: true, Description: "The value's data type, such as datetime.", MarkdownDescription: "The value's data type, such as `datetime`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name the block is shown with. The editor shows value when it's empty.", MarkdownDescription: "The name the block is shown with. The editor shows `value` when it's empty."}, "measure": schema.StringAttribute{Optional: true, Computed: true, Description: "The aggregation applied to the value, such as avg, count, uniq, max, min, sum or p95.", MarkdownDescription: "The aggregation applied to the value, such as `avg`, `count`, `uniq`, `max`, `min`, `sum` or `p95`."}, "value_type": schema.StringAttribute{Optional: true, Computed: true, Description: "rate to chart the value's rate of change.", MarkdownDescription: "`rate` to chart the value's rate of change."}, "operator": schema.StringAttribute{Optional: true, Computed: true, Description: "The comparison of a filter block."}, "operator_symbol": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter block's comparison written as a symbol."}, "condition_value": schema.StringAttribute{Optional: true, Computed: true, Description: "The value a filter block compares against."}, "series_name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name a Y-axis or coordinates block's series is shown as."}, "logical_operator": schema.StringAttribute{Optional: true, Computed: true, Description: "How a filter block joins the filters before it, and or or. Defaults to and.", MarkdownDescription: "How a filter block joins the filters before it, `and` or `or`. Defaults to `and`."}, "direction": schema.StringAttribute{Optional: true, Computed: true, Description: "The sort direction of an order block, asc or desc.", MarkdownDescription: "The sort direction of an order block, `asc` or `desc`."}, "interval_seconds": schema.Int64Attribute{Optional: true, Computed: true, Description: "The time bucket size in seconds, for a time block on the X axis."}, "kind": schema.StringAttribute{Optional: true, Computed: true, Description: "metric for an aggregated value, or label for a raw dimension.", MarkdownDescription: "`metric` for an aggregated value, or `label` for a raw dimension."}, "schema": schema.StringAttribute{Optional: true, Computed: true, Description: "The source's storage layout, row_based or column_based.", MarkdownDescription: "The source's storage layout, `row_based` or `column_based`."}}}, Description: "X-axis blocks of a query_builder or tail_query_builder query, as an empty list when there are none. Read-only.", MarkdownDescription: "X-axis blocks of a `query_builder` or `tail_query_builder` query, as an empty list when there are none. Read-only."}, "y_axis": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"explore_block_type": schema.StringAttribute{Optional: true, Computed: true, Description: "What the block reads, such as count, field, json_value, json_value_from_column, special_column, virtual_field or search.", MarkdownDescription: "What the block reads, such as `count`, `field`, `json_value`, `json_value_from_column`, `special_column`, `virtual_field` or `search`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The column or field the block reads, such as dt.", MarkdownDescription: "The column or field the block reads, such as `dt`."}, "type": schema.StringAttribute{Optional: true, Computed: true, Description: "The value's data type, such as datetime.", MarkdownDescription: "The value's data type, such as `datetime`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name the block is shown with. The editor shows value when it's empty.", MarkdownDescription: "The name the block is shown with. The editor shows `value` when it's empty."}, "measure": schema.StringAttribute{Optional: true, Computed: true, Description: "The aggregation applied to the value, such as avg, count, uniq, max, min, sum or p95.", MarkdownDescription: "The aggregation applied to the value, such as `avg`, `count`, `uniq`, `max`, `min`, `sum` or `p95`."}, "value_type": schema.StringAttribute{Optional: true, Computed: true, Description: "rate to chart the value's rate of change.", MarkdownDescription: "`rate` to chart the value's rate of change."}, "operator": schema.StringAttribute{Optional: true, Computed: true, Description: "The comparison of a filter block."}, "operator_symbol": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter block's comparison written as a symbol."}, "condition_value": schema.StringAttribute{Optional: true, Computed: true, Description: "The value a filter block compares against."}, "series_name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name a Y-axis or coordinates block's series is shown as."}, "logical_operator": schema.StringAttribute{Optional: true, Computed: true, Description: "How a filter block joins the filters before it, and or or. Defaults to and.", MarkdownDescription: "How a filter block joins the filters before it, `and` or `or`. Defaults to `and`."}, "direction": schema.StringAttribute{Optional: true, Computed: true, Description: "The sort direction of an order block, asc or desc.", MarkdownDescription: "The sort direction of an order block, `asc` or `desc`."}, "interval_seconds": schema.Int64Attribute{Optional: true, Computed: true, Description: "The time bucket size in seconds, for a time block on the X axis."}, "kind": schema.StringAttribute{Optional: true, Computed: true, Description: "metric for an aggregated value, or label for a raw dimension.", MarkdownDescription: "`metric` for an aggregated value, or `label` for a raw dimension."}, "schema": schema.StringAttribute{Optional: true, Computed: true, Description: "The source's storage layout, row_based or column_based.", MarkdownDescription: "The source's storage layout, `row_based` or `column_based`."}}}, Description: "Y-axis blocks of a query_builder or tail_query_builder query. Left out when not set. Read-only.", MarkdownDescription: "Y-axis blocks of a `query_builder` or `tail_query_builder` query. Left out when not set. Read-only."}, "point_size": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"explore_block_type": schema.StringAttribute{Optional: true, Computed: true, Description: "What the block reads, such as count, field, json_value, json_value_from_column, special_column, virtual_field or search.", MarkdownDescription: "What the block reads, such as `count`, `field`, `json_value`, `json_value_from_column`, `special_column`, `virtual_field` or `search`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The column or field the block reads, such as dt.", MarkdownDescription: "The column or field the block reads, such as `dt`."}, "type": schema.StringAttribute{Optional: true, Computed: true, Description: "The value's data type, such as datetime.", MarkdownDescription: "The value's data type, such as `datetime`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name the block is shown with. The editor shows value when it's empty.", MarkdownDescription: "The name the block is shown with. The editor shows `value` when it's empty."}, "measure": schema.StringAttribute{Optional: true, Computed: true, Description: "The aggregation applied to the value, such as avg, count, uniq, max, min, sum or p95.", MarkdownDescription: "The aggregation applied to the value, such as `avg`, `count`, `uniq`, `max`, `min`, `sum` or `p95`."}, "value_type": schema.StringAttribute{Optional: true, Computed: true, Description: "rate to chart the value's rate of change.", MarkdownDescription: "`rate` to chart the value's rate of change."}, "operator": schema.StringAttribute{Optional: true, Computed: true, Description: "The comparison of a filter block."}, "operator_symbol": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter block's comparison written as a symbol."}, "condition_value": schema.StringAttribute{Optional: true, Computed: true, Description: "The value a filter block compares against."}, "series_name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name a Y-axis or coordinates block's series is shown as."}, "logical_operator": schema.StringAttribute{Optional: true, Computed: true, Description: "How a filter block joins the filters before it, and or or. Defaults to and.", MarkdownDescription: "How a filter block joins the filters before it, `and` or `or`. Defaults to `and`."}, "direction": schema.StringAttribute{Optional: true, Computed: true, Description: "The sort direction of an order block, asc or desc.", MarkdownDescription: "The sort direction of an order block, `asc` or `desc`."}, "interval_seconds": schema.Int64Attribute{Optional: true, Computed: true, Description: "The time bucket size in seconds, for a time block on the X axis."}, "kind": schema.StringAttribute{Optional: true, Computed: true, Description: "metric for an aggregated value, or label for a raw dimension.", MarkdownDescription: "`metric` for an aggregated value, or `label` for a raw dimension."}, "schema": schema.StringAttribute{Optional: true, Computed: true, Description: "The source's storage layout, row_based or column_based.", MarkdownDescription: "The source's storage layout, `row_based` or `column_based`."}}}, Description: "Point size blocks of a query_builder or tail_query_builder query. Left out when not set. Read-only.", MarkdownDescription: "Point size blocks of a `query_builder` or `tail_query_builder` query. Left out when not set. Read-only."}, "coordinates": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"explore_block_type": schema.StringAttribute{Optional: true, Computed: true, Description: "What the block reads, such as count, field, json_value, json_value_from_column, special_column, virtual_field or search.", MarkdownDescription: "What the block reads, such as `count`, `field`, `json_value`, `json_value_from_column`, `special_column`, `virtual_field` or `search`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The column or field the block reads, such as dt.", MarkdownDescription: "The column or field the block reads, such as `dt`."}, "type": schema.StringAttribute{Optional: true, Computed: true, Description: "The value's data type, such as datetime.", MarkdownDescription: "The value's data type, such as `datetime`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name the block is shown with. The editor shows value when it's empty.", MarkdownDescription: "The name the block is shown with. The editor shows `value` when it's empty."}, "measure": schema.StringAttribute{Optional: true, Computed: true, Description: "The aggregation applied to the value, such as avg, count, uniq, max, min, sum or p95.", MarkdownDescription: "The aggregation applied to the value, such as `avg`, `count`, `uniq`, `max`, `min`, `sum` or `p95`."}, "value_type": schema.StringAttribute{Optional: true, Computed: true, Description: "rate to chart the value's rate of change.", MarkdownDescription: "`rate` to chart the value's rate of change."}, "operator": schema.StringAttribute{Optional: true, Computed: true, Description: "The comparison of a filter block."}, "operator_symbol": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter block's comparison written as a symbol."}, "condition_value": schema.StringAttribute{Optional: true, Computed: true, Description: "The value a filter block compares against."}, "series_name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name a Y-axis or coordinates block's series is shown as."}, "logical_operator": schema.StringAttribute{Optional: true, Computed: true, Description: "How a filter block joins the filters before it, and or or. Defaults to and.", MarkdownDescription: "How a filter block joins the filters before it, `and` or `or`. Defaults to `and`."}, "direction": schema.StringAttribute{Optional: true, Computed: true, Description: "The sort direction of an order block, asc or desc.", MarkdownDescription: "The sort direction of an order block, `asc` or `desc`."}, "interval_seconds": schema.Int64Attribute{Optional: true, Computed: true, Description: "The time bucket size in seconds, for a time block on the X axis."}, "kind": schema.StringAttribute{Optional: true, Computed: true, Description: "metric for an aggregated value, or label for a raw dimension.", MarkdownDescription: "`metric` for an aggregated value, or `label` for a raw dimension."}, "schema": schema.StringAttribute{Optional: true, Computed: true, Description: "The source's storage layout, row_based or column_based.", MarkdownDescription: "The source's storage layout, `row_based` or `column_based`."}}}, Description: "Coordinate blocks of a query_builder or tail_query_builder query, as an empty list when there are none. Read-only.", MarkdownDescription: "Coordinate blocks of a `query_builder` or `tail_query_builder` query, as an empty list when there are none. Read-only."}, "filters": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"explore_block_type": schema.StringAttribute{Optional: true, Computed: true, Description: "What the block reads, such as count, field, json_value, json_value_from_column, special_column, virtual_field or search.", MarkdownDescription: "What the block reads, such as `count`, `field`, `json_value`, `json_value_from_column`, `special_column`, `virtual_field` or `search`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The column or field the block reads, such as dt.", MarkdownDescription: "The column or field the block reads, such as `dt`."}, "type": schema.StringAttribute{Optional: true, Computed: true, Description: "The value's data type, such as datetime.", MarkdownDescription: "The value's data type, such as `datetime`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name the block is shown with. The editor shows value when it's empty.", MarkdownDescription: "The name the block is shown with. The editor shows `value` when it's empty."}, "measure": schema.StringAttribute{Optional: true, Computed: true, Description: "The aggregation applied to the value, such as avg, count, uniq, max, min, sum or p95.", MarkdownDescription: "The aggregation applied to the value, such as `avg`, `count`, `uniq`, `max`, `min`, `sum` or `p95`."}, "value_type": schema.StringAttribute{Optional: true, Computed: true, Description: "rate to chart the value's rate of change.", MarkdownDescription: "`rate` to chart the value's rate of change."}, "operator": schema.StringAttribute{Optional: true, Computed: true, Description: "The comparison of a filter block."}, "operator_symbol": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter block's comparison written as a symbol."}, "condition_value": schema.StringAttribute{Optional: true, Computed: true, Description: "The value a filter block compares against."}, "series_name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name a Y-axis or coordinates block's series is shown as."}, "logical_operator": schema.StringAttribute{Optional: true, Computed: true, Description: "How a filter block joins the filters before it, and or or. Defaults to and.", MarkdownDescription: "How a filter block joins the filters before it, `and` or `or`. Defaults to `and`."}, "direction": schema.StringAttribute{Optional: true, Computed: true, Description: "The sort direction of an order block, asc or desc.", MarkdownDescription: "The sort direction of an order block, `asc` or `desc`."}, "interval_seconds": schema.Int64Attribute{Optional: true, Computed: true, Description: "The time bucket size in seconds, for a time block on the X axis."}, "kind": schema.StringAttribute{Optional: true, Computed: true, Description: "metric for an aggregated value, or label for a raw dimension.", MarkdownDescription: "`metric` for an aggregated value, or `label` for a raw dimension."}, "schema": schema.StringAttribute{Optional: true, Computed: true, Description: "The source's storage layout, row_based or column_based.", MarkdownDescription: "The source's storage layout, `row_based` or `column_based`."}}}, Description: "Filter blocks of a query_builder or tail_query_builder query. Left out when not set. Read-only.", MarkdownDescription: "Filter blocks of a `query_builder` or `tail_query_builder` query. Left out when not set. Read-only."}, "where": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"explore_block_type": schema.StringAttribute{Optional: true, Computed: true, Description: "What the block reads, such as count, field, json_value, json_value_from_column, special_column, virtual_field or search.", MarkdownDescription: "What the block reads, such as `count`, `field`, `json_value`, `json_value_from_column`, `special_column`, `virtual_field` or `search`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The column or field the block reads, such as dt.", MarkdownDescription: "The column or field the block reads, such as `dt`."}, "type": schema.StringAttribute{Optional: true, Computed: true, Description: "The value's data type, such as datetime.", MarkdownDescription: "The value's data type, such as `datetime`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name the block is shown with. The editor shows value when it's empty.", MarkdownDescription: "The name the block is shown with. The editor shows `value` when it's empty."}, "measure": schema.StringAttribute{Optional: true, Computed: true, Description: "The aggregation applied to the value, such as avg, count, uniq, max, min, sum or p95.", MarkdownDescription: "The aggregation applied to the value, such as `avg`, `count`, `uniq`, `max`, `min`, `sum` or `p95`."}, "value_type": schema.StringAttribute{Optional: true, Computed: true, Description: "rate to chart the value's rate of change.", MarkdownDescription: "`rate` to chart the value's rate of change."}, "operator": schema.StringAttribute{Optional: true, Computed: true, Description: "The comparison of a filter block."}, "operator_symbol": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter block's comparison written as a symbol."}, "condition_value": schema.StringAttribute{Optional: true, Computed: true, Description: "The value a filter block compares against."}, "series_name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name a Y-axis or coordinates block's series is shown as."}, "logical_operator": schema.StringAttribute{Optional: true, Computed: true, Description: "How a filter block joins the filters before it, and or or. Defaults to and.", MarkdownDescription: "How a filter block joins the filters before it, `and` or `or`. Defaults to `and`."}, "direction": schema.StringAttribute{Optional: true, Computed: true, Description: "The sort direction of an order block, asc or desc.", MarkdownDescription: "The sort direction of an order block, `asc` or `desc`."}, "interval_seconds": schema.Int64Attribute{Optional: true, Computed: true, Description: "The time bucket size in seconds, for a time block on the X axis."}, "kind": schema.StringAttribute{Optional: true, Computed: true, Description: "metric for an aggregated value, or label for a raw dimension.", MarkdownDescription: "`metric` for an aggregated value, or `label` for a raw dimension."}, "schema": schema.StringAttribute{Optional: true, Computed: true, Description: "The source's storage layout, row_based or column_based.", MarkdownDescription: "The source's storage layout, `row_based` or `column_based`."}}}, Description: "Where blocks of a query_builder or tail_query_builder query, as an empty list when there are none. Read-only.", MarkdownDescription: "Where blocks of a `query_builder` or `tail_query_builder` query, as an empty list when there are none. Read-only."}, "group_by": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"explore_block_type": schema.StringAttribute{Optional: true, Computed: true, Description: "What the block reads, such as count, field, json_value, json_value_from_column, special_column, virtual_field or search.", MarkdownDescription: "What the block reads, such as `count`, `field`, `json_value`, `json_value_from_column`, `special_column`, `virtual_field` or `search`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The column or field the block reads, such as dt.", MarkdownDescription: "The column or field the block reads, such as `dt`."}, "type": schema.StringAttribute{Optional: true, Computed: true, Description: "The value's data type, such as datetime.", MarkdownDescription: "The value's data type, such as `datetime`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name the block is shown with. The editor shows value when it's empty.", MarkdownDescription: "The name the block is shown with. The editor shows `value` when it's empty."}, "measure": schema.StringAttribute{Optional: true, Computed: true, Description: "The aggregation applied to the value, such as avg, count, uniq, max, min, sum or p95.", MarkdownDescription: "The aggregation applied to the value, such as `avg`, `count`, `uniq`, `max`, `min`, `sum` or `p95`."}, "value_type": schema.StringAttribute{Optional: true, Computed: true, Description: "rate to chart the value's rate of change.", MarkdownDescription: "`rate` to chart the value's rate of change."}, "operator": schema.StringAttribute{Optional: true, Computed: true, Description: "The comparison of a filter block."}, "operator_symbol": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter block's comparison written as a symbol."}, "condition_value": schema.StringAttribute{Optional: true, Computed: true, Description: "The value a filter block compares against."}, "series_name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name a Y-axis or coordinates block's series is shown as."}, "logical_operator": schema.StringAttribute{Optional: true, Computed: true, Description: "How a filter block joins the filters before it, and or or. Defaults to and.", MarkdownDescription: "How a filter block joins the filters before it, `and` or `or`. Defaults to `and`."}, "direction": schema.StringAttribute{Optional: true, Computed: true, Description: "The sort direction of an order block, asc or desc.", MarkdownDescription: "The sort direction of an order block, `asc` or `desc`."}, "interval_seconds": schema.Int64Attribute{Optional: true, Computed: true, Description: "The time bucket size in seconds, for a time block on the X axis."}, "kind": schema.StringAttribute{Optional: true, Computed: true, Description: "metric for an aggregated value, or label for a raw dimension.", MarkdownDescription: "`metric` for an aggregated value, or `label` for a raw dimension."}, "schema": schema.StringAttribute{Optional: true, Computed: true, Description: "The source's storage layout, row_based or column_based.", MarkdownDescription: "The source's storage layout, `row_based` or `column_based`."}}}, Description: "Grouping blocks of a query_builder or tail_query_builder query. Left out when not set. Read-only.", MarkdownDescription: "Grouping blocks of a `query_builder` or `tail_query_builder` query. Left out when not set. Read-only."}, "having": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"explore_block_type": schema.StringAttribute{Optional: true, Computed: true, Description: "What the block reads, such as count, field, json_value, json_value_from_column, special_column, virtual_field or search.", MarkdownDescription: "What the block reads, such as `count`, `field`, `json_value`, `json_value_from_column`, `special_column`, `virtual_field` or `search`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The column or field the block reads, such as dt.", MarkdownDescription: "The column or field the block reads, such as `dt`."}, "type": schema.StringAttribute{Optional: true, Computed: true, Description: "The value's data type, such as datetime.", MarkdownDescription: "The value's data type, such as `datetime`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name the block is shown with. The editor shows value when it's empty.", MarkdownDescription: "The name the block is shown with. The editor shows `value` when it's empty."}, "measure": schema.StringAttribute{Optional: true, Computed: true, Description: "The aggregation applied to the value, such as avg, count, uniq, max, min, sum or p95.", MarkdownDescription: "The aggregation applied to the value, such as `avg`, `count`, `uniq`, `max`, `min`, `sum` or `p95`."}, "value_type": schema.StringAttribute{Optional: true, Computed: true, Description: "rate to chart the value's rate of change.", MarkdownDescription: "`rate` to chart the value's rate of change."}, "operator": schema.StringAttribute{Optional: true, Computed: true, Description: "The comparison of a filter block."}, "operator_symbol": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter block's comparison written as a symbol."}, "condition_value": schema.StringAttribute{Optional: true, Computed: true, Description: "The value a filter block compares against."}, "series_name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name a Y-axis or coordinates block's series is shown as."}, "logical_operator": schema.StringAttribute{Optional: true, Computed: true, Description: "How a filter block joins the filters before it, and or or. Defaults to and.", MarkdownDescription: "How a filter block joins the filters before it, `and` or `or`. Defaults to `and`."}, "direction": schema.StringAttribute{Optional: true, Computed: true, Description: "The sort direction of an order block, asc or desc.", MarkdownDescription: "The sort direction of an order block, `asc` or `desc`."}, "interval_seconds": schema.Int64Attribute{Optional: true, Computed: true, Description: "The time bucket size in seconds, for a time block on the X axis."}, "kind": schema.StringAttribute{Optional: true, Computed: true, Description: "metric for an aggregated value, or label for a raw dimension.", MarkdownDescription: "`metric` for an aggregated value, or `label` for a raw dimension."}, "schema": schema.StringAttribute{Optional: true, Computed: true, Description: "The source's storage layout, row_based or column_based.", MarkdownDescription: "The source's storage layout, `row_based` or `column_based`."}}}, Description: "Having blocks of a query_builder or tail_query_builder query, as an empty list when there are none. Read-only.", MarkdownDescription: "Having blocks of a `query_builder` or `tail_query_builder` query, as an empty list when there are none. Read-only."}, "order_by": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"explore_block_type": schema.StringAttribute{Optional: true, Computed: true, Description: "What the block reads, such as count, field, json_value, json_value_from_column, special_column, virtual_field or search.", MarkdownDescription: "What the block reads, such as `count`, `field`, `json_value`, `json_value_from_column`, `special_column`, `virtual_field` or `search`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The column or field the block reads, such as dt.", MarkdownDescription: "The column or field the block reads, such as `dt`."}, "type": schema.StringAttribute{Optional: true, Computed: true, Description: "The value's data type, such as datetime.", MarkdownDescription: "The value's data type, such as `datetime`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name the block is shown with. The editor shows value when it's empty.", MarkdownDescription: "The name the block is shown with. The editor shows `value` when it's empty."}, "measure": schema.StringAttribute{Optional: true, Computed: true, Description: "The aggregation applied to the value, such as avg, count, uniq, max, min, sum or p95.", MarkdownDescription: "The aggregation applied to the value, such as `avg`, `count`, `uniq`, `max`, `min`, `sum` or `p95`."}, "value_type": schema.StringAttribute{Optional: true, Computed: true, Description: "rate to chart the value's rate of change.", MarkdownDescription: "`rate` to chart the value's rate of change."}, "operator": schema.StringAttribute{Optional: true, Computed: true, Description: "The comparison of a filter block."}, "operator_symbol": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter block's comparison written as a symbol."}, "condition_value": schema.StringAttribute{Optional: true, Computed: true, Description: "The value a filter block compares against."}, "series_name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name a Y-axis or coordinates block's series is shown as."}, "logical_operator": schema.StringAttribute{Optional: true, Computed: true, Description: "How a filter block joins the filters before it, and or or. Defaults to and.", MarkdownDescription: "How a filter block joins the filters before it, `and` or `or`. Defaults to `and`."}, "direction": schema.StringAttribute{Optional: true, Computed: true, Description: "The sort direction of an order block, asc or desc.", MarkdownDescription: "The sort direction of an order block, `asc` or `desc`."}, "interval_seconds": schema.Int64Attribute{Optional: true, Computed: true, Description: "The time bucket size in seconds, for a time block on the X axis."}, "kind": schema.StringAttribute{Optional: true, Computed: true, Description: "metric for an aggregated value, or label for a raw dimension.", MarkdownDescription: "`metric` for an aggregated value, or `label` for a raw dimension."}, "schema": schema.StringAttribute{Optional: true, Computed: true, Description: "The source's storage layout, row_based or column_based.", MarkdownDescription: "The source's storage layout, `row_based` or `column_based`."}}}, Description: "Ordering blocks of a query_builder or tail_query_builder query, as an empty list when there are none. Read-only.", MarkdownDescription: "Ordering blocks of a `query_builder` or `tail_query_builder` query, as an empty list when there are none. Read-only."}}}, Description: "The chart's queries. You can write sql_expression, tail_query and static_text queries. Other types, such as query_builder, pql_expression and PromQL, are returned but can't be written. Updating a chart replaces all of its queries. A chart made or updated from query has the one query built from it. A chart other than static_text_chart needs at least one query, and only a line_chart can have more than one.", MarkdownDescription: "The chart's queries. You can write `sql_expression`, `tail_query` and `static_text` queries. Other types, such as `query_builder`, `pql_expression` and PromQL, are returned but can't be written. Updating a chart replaces all of its queries. A chart made or updated from `query` has the one query built from it. A chart other than `static_text_chart` needs at least one query, and only a `line_chart` can have more than one."},
+			"settings":     schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"unit": schema.StringAttribute{Optional: true, Computed: true, Description: "Unit the values are shown in, such as percent, bytes or ms. Table charts use column_units instead.", MarkdownDescription: "Unit the values are shown in, such as `percent`, `bytes` or `ms`. Table charts use `column_units` instead.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "custom_unit": schema.BoolAttribute{Optional: true, Description: "Whether unit is your own suffix, shown after the value as written and never scaled.", MarkdownDescription: "Whether `unit` is your own suffix, shown after the value as written and never scaled."}, "decimal_places": schema.Int64Attribute{Optional: true, Computed: true, Description: "Number of decimal places shown.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}}, "time_column": schema.StringAttribute{Optional: true, Computed: true, Description: "Column on the X axis, time by default. For a category bar chart it's the grouping column.", MarkdownDescription: "Column on the X axis, `time` by default. For a category bar chart it's the grouping column.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "x_axis_type": schema.StringAttribute{Optional: true, Computed: true, Description: "How the X axis is read. Usually time, value or category.", MarkdownDescription: "How the X axis is read. Usually `time`, `value` or `category`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "y_axis_type": schema.StringAttribute{Optional: true, Computed: true, Description: "How the Y axis of a scatter chart is read. Usually value or category.", MarkdownDescription: "How the Y axis of a scatter chart is read. Usually `value` or `category`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "series_column": schema.StringAttribute{Optional: true, Computed: true, Description: "Column that splits the data into series. On a heatmap it's the Y axis column.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "value_columns": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Result columns that hold the values to chart.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}}, "point_size_column": schema.StringAttribute{Optional: true, Computed: true, Description: "Column that sets each point's size on a scatter chart.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "location_column": schema.StringAttribute{Optional: true, Computed: true, Description: "Column holding the location on a map chart.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "location_label": schema.StringAttribute{Optional: true, Description: "What a map chart's tooltip names, either the closest city or country or the value as sent. Usually automatic or original_value.", MarkdownDescription: "What a map chart's tooltip names, either the closest city or country or the value as sent. Usually `automatic` or `original_value`."}, "label_column": schema.StringAttribute{Optional: true, Description: "Column that names each hexagon on a hierarchy chart."}, "group_by_columns": schema.ListAttribute{Optional: true, ElementType: types.StringType, Description: "Up to two columns a hierarchy chart groups its hexagons by."}, "palette": schema.StringAttribute{Optional: true, Computed: true, Description: "Color scale of a hierarchy chart. Usually green_to_red or red_to_green.", MarkdownDescription: "Color scale of a hierarchy chart. Usually `green_to_red` or `red_to_green`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "min_value": schema.Float64Attribute{Optional: true, Computed: true, Description: "Lowest value of a hierarchy chart's color scale.", PlanModifiers: []planmodifier.Float64{float64planmodifier.UseStateForUnknown()}}, "max_value": schema.Float64Attribute{Optional: true, Computed: true, Description: "Highest value of a hierarchy chart's color scale.", PlanModifiers: []planmodifier.Float64{float64planmodifier.UseStateForUnknown()}}, "link_template": schema.StringAttribute{Optional: true, Description: "Link a hierarchy chart opens when you click a hexagon, with {{column}} placeholders.", MarkdownDescription: "Link a hierarchy chart opens when you click a hexagon, with `{{column}}` placeholders."}, "y_axis_min": schema.Float64Attribute{Optional: true, Description: "Lowest value on the Y axis."}, "y_axis_max": schema.Float64Attribute{Optional: true, Description: "Highest value on the Y axis."}, "y_axis_auto_range": schema.StringAttribute{Optional: true, Description: "How a line chart fits its Y axis when no bounds are set. Usually include_zero or fit_data.", MarkdownDescription: "How a line chart fits its Y axis when no bounds are set. Usually `include_zero` or `fit_data`."}, "y_axis_scale": schema.StringAttribute{Optional: true, Computed: true, Description: "Scale of the Y axis. Usually linear or log.", MarkdownDescription: "Scale of the Y axis. Usually `linear` or `log`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "min": schema.Float64Attribute{Optional: true, Computed: true, Description: "Lower bound of a gauge.", PlanModifiers: []planmodifier.Float64{float64planmodifier.UseStateForUnknown()}}, "max": schema.Float64Attribute{Optional: true, Computed: true, Description: "Upper bound of a gauge, the goal value.", PlanModifiers: []planmodifier.Float64{float64planmodifier.UseStateForUnknown()}}, "treat_missing_values": schema.StringAttribute{Optional: true, Computed: true, Description: "How gaps in the data are drawn. Usually connected, disconnected, zero or previous.", MarkdownDescription: "How gaps in the data are drawn. Usually `connected`, `disconnected`, `zero` or `previous`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "stacking": schema.StringAttribute{Optional: true, Computed: true, Description: "How series are stacked. Usually dont_stack, stack or stack_to_100.", MarkdownDescription: "How series are stacked. Usually `dont_stack`, `stack` or `stack_to_100`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "orientation": schema.StringAttribute{Optional: true, Computed: true, Description: "Direction of the bars on a bar chart. Usually vertical or horizontal.", MarkdownDescription: "Direction of the bars on a bar chart. Usually `vertical` or `horizontal`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "legend": schema.StringAttribute{Optional: true, Computed: true, Description: "Where the legend is shown. Usually hidden, shown_below, shown_below_with_statistics or shown_right.", MarkdownDescription: "Where the legend is shown. Usually `hidden`, `shown_below`, `shown_below_with_statistics` or `shown_right`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "series_colors": schema.MapAttribute{Optional: true, ElementType: types.StringType, Description: "Color of each series, keyed by its series_name, as a hex color such as #22c55e.", MarkdownDescription: "Color of each series, keyed by its `series_name`, as a hex color such as `#22c55e`."}, "series_order": schema.ListAttribute{Optional: true, ElementType: types.StringType, Description: "Order the series are shown in, by name."}, "show_previous_period": schema.BoolAttribute{Optional: true, Description: "Whether a line chart also shows the previous period."}, "color_mode": schema.StringAttribute{Optional: true, Computed: true, Description: "How a number chart colors its value. Usually auto, high_green, high_red or specific_words.", MarkdownDescription: "How a number chart colors its value. Usually `auto`, `high_green`, `high_red` or `specific_words`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "color_upper_threshold": schema.Float64Attribute{Optional: true, Computed: true, Description: "Upper threshold of a number chart's colors.", PlanModifiers: []planmodifier.Float64{float64planmodifier.UseStateForUnknown()}}, "color_lower_threshold": schema.Float64Attribute{Optional: true, Computed: true, Description: "Lower threshold of a number chart's colors.", PlanModifiers: []planmodifier.Float64{float64planmodifier.UseStateForUnknown()}}, "color_green_words": schema.StringAttribute{Optional: true, Computed: true, Description: "Values a number chart shows in green, separated by commas.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "color_yellow_words": schema.StringAttribute{Optional: true, Computed: true, Description: "Values a number chart shows in yellow, separated by commas.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "color_red_words": schema.StringAttribute{Optional: true, Computed: true, Description: "Values a number chart shows in red, separated by commas.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "column_units": schema.MapNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"unit": schema.StringAttribute{Optional: true, Computed: true, Description: "Unit the column's values are shown in, such as auto, percent or bytes.", MarkdownDescription: "Unit the column's values are shown in, such as `auto`, `percent` or `bytes`."}, "custom_unit": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether unit is your own suffix, shown after the value as written and never scaled.", MarkdownDescription: "Whether `unit` is your own suffix, shown after the value as written and never scaled."}}}, Description: "Unit of each table column, by column name.", PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()}}, "percentage_highlight_columns": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Table columns holding ratios from 0 to 1, shown with a bar.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}}, "series_unit": schema.StringAttribute{Optional: true, Description: "Unit of a heatmap's Y axis labels."}, "series_custom_unit": schema.BoolAttribute{Optional: true, Description: "Whether series_unit is your own suffix.", MarkdownDescription: "Whether `series_unit` is your own suffix."}, "heatmap_color_mode": schema.StringAttribute{Optional: true, Description: "How a heatmap colors its cells. Usually gradient or categorized.", MarkdownDescription: "How a heatmap colors its cells. Usually `gradient` or `categorized`."}, "value_categories": schema.MapNestedAttribute{Optional: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"label": schema.StringAttribute{Optional: true, Computed: true, Description: "Text shown for the value."}, "color": schema.StringAttribute{Optional: true, Computed: true, Description: "Color of the cells with the value, as a hex color such as #22c55e.", MarkdownDescription: "Color of the cells with the value, as a hex color such as `#22c55e`."}}}, Description: "Label and color of each cell value of a categorized heatmap."}, "column_widths": schema.MapAttribute{Optional: true, Computed: true, ElementType: types.Float64Type, Description: "Width of each table column, by column name, as the chart editor saves it.", PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()}}, "table_width": schema.Int64Attribute{Optional: true, Computed: true, Description: "Width of the table the column_widths were saved for.", MarkdownDescription: "Width of the table the `column_widths` were saved for.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}}, "guessed_series_colors": schema.MapAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Colors the chart picked for its series, keyed by series_name.", MarkdownDescription: "Colors the chart picked for its series, keyed by `series_name`.", PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()}}, "label": schema.StringAttribute{Optional: true, Computed: true, Description: "A legend placement the chart editor saves next to legend, such as shown_below. Charts ignore it and place the legend by legend.", MarkdownDescription: "A legend placement the chart editor saves next to `legend`, such as `shown_below`. Charts ignore it and place the legend by `legend`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "text": schema.StringAttribute{Optional: true, Computed: true, Description: "Markdown text of a text chart.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "row_templates": schema.MapAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Live tail row format of each source, by source ID.", PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()}}, "sampling": schema.Int64Attribute{Optional: true, Description: "Percentage of data the chart samples."}, "fresh": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether the chart skips cached results.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}}, "funnel_unit_name": schema.StringAttribute{Optional: true, Computed: true, Description: "Word a funnel chart counts in, such as people.", MarkdownDescription: "Word a funnel chart counts in, such as `people`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "filtered_series": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Series the chart shows, by name.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}}, "filtered_releases": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Releases the chart shows.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}}, "force_source_series": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether the chart shows one series per source.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}}, "treat_zero_values": schema.StringAttribute{Optional: true, Description: "How zero values are drawn, keep or drop_disconnected. Defaults to keep.", MarkdownDescription: "How zero values are drawn, `keep` or `drop_disconnected`. Defaults to `keep`."}, "projection": schema.StringAttribute{Optional: true, Description: "Map projection of a map chart, such as mercator.", MarkdownDescription: "Map projection of a map chart, such as `mercator`."}, "published_format": schema.StringAttribute{Optional: true, Description: "Format a published chart is served in, json by default.", MarkdownDescription: "Format a published chart is served in, `json` by default."}, "published_cache_for": schema.Int64Attribute{Optional: true, Description: "Seconds a published chart's results are cached, 3 by default."}, "y_axis_annotations": schema.ListNestedAttribute{Optional: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"value": schema.Float64Attribute{Optional: true, Computed: true, Description: "The Y axis value the line is drawn at."}, "label": schema.StringAttribute{Optional: true, Computed: true, Description: "Text shown next to the line."}, "color": schema.StringAttribute{Optional: true, Computed: true, Description: "The line's color, as a hex color such as #22c55e. Left out, the line is gray.", MarkdownDescription: "The line's color, as a hex color such as `#22c55e`. Left out, the line is gray."}}}, Description: "Horizontal lines drawn at values on the Y axis, each with a label and color."}, "x_axis_annotations": schema.ListNestedAttribute{Optional: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"value": schema.StringAttribute{Optional: true, Computed: true, Description: "The X axis value the line is drawn at, a time or a number."}, "label": schema.StringAttribute{Optional: true, Computed: true, Description: "Text shown next to the line."}, "color": schema.StringAttribute{Optional: true, Computed: true, Description: "The line's color, as a hex color such as #22c55e. Left out, the line is gray.", MarkdownDescription: "The line's color, as a hex color such as `#22c55e`. Left out, the line is gray."}}}, Description: "Vertical lines drawn at values on the X axis, each with a label and color. A value is a time or a number, as the X axis reads it."}}, Description: "Display settings for the chart_type, such as unit, axes, legend, stacking and decimal places. An update replaces all of them. Switching x_axis_type to or from category in an update without queries turns the chart's Drag & drop queries into sql_expression queries with the same SQL. Defaults to an empty object.", MarkdownDescription: "Display settings for the `chart_type`, such as unit, axes, legend, stacking and decimal places. An update replaces all of them. Switching `x_axis_type` to or from `category` in an update without `queries` turns the chart's Drag & drop queries into `sql_expression` queries with the same SQL. Defaults to an empty object.", PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()}},
+			"team_id":      schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns the chart's dashboard, such as t123. Defaults to the provider's team_id. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", MarkdownDescription: "Team that owns the chart's dashboard, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_dashboard_chart"}}},
+			"w":            schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(6), Description: "Grid width."},
+			"x":            schema.Int64Attribute{Optional: true, Computed: true, Description: "The chart's horizontal position on the 12-column grid, from 0 at the left.", MarkdownDescription: "The chart's horizontal position on the 12-column grid, from `0` at the left.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
+			"y":            schema.Int64Attribute{Optional: true, Computed: true, Description: "The chart's vertical position on the grid, from 0 at the top.", MarkdownDescription: "The chart's vertical position on the grid, from `0` at the top.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -109,19 +2832,20 @@ func (r *DashboardChartResource) body(ctx context.Context, m DashboardChartModel
 	if !m.H.IsNull() && !m.H.IsUnknown() {
 		body["h"] = m.H.ValueInt64()
 	}
-	if !m.Settings.IsNull() && !m.Settings.IsUnknown() && !m.Settings.IsUnderlyingValueNull() && !m.Settings.IsUnderlyingValueUnknown() {
-		if tv, err := m.Settings.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-			if av, err := tftypesToAPI(tv); err == nil {
-				body["settings"] = projectAPIWrite(av, apiValueShape{})
-			}
-		}
+	if !m.Settings.IsNull() && !m.Settings.IsUnknown() {
+		body["settings"] = expandDashboardChartSettings(ctx, m.Settings)
 	}
-	if !m.Queries.IsNull() && !m.Queries.IsUnknown() && !m.Queries.IsUnderlyingValueNull() && !m.Queries.IsUnderlyingValueUnknown() {
-		if tv, err := m.Queries.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-			if av, err := tftypesToAPI(tv); err == nil {
-				body["queries"] = projectAPIWrite(av, apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"id": apiValueShape{ReadOnly: true}, "query_type": apiValueShape{}, "name": apiValueShape{}, "source_variable": apiValueShape{}, "sql_query": apiValueShape{}, "pql_query": apiValueShape{}, "where_condition": apiValueShape{}, "static_text": apiValueShape{}, "funnel_query": apiValueShape{}, "x_axis": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "y_axis": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "point_size": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "coordinates": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "filters": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "where": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "group_by": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "having": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "order_by": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}}}, Identity: "id"})
+	if !m.Queries.IsNull() && !m.Queries.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Queries.Elements()))
+		for _, el := range m.Queries.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandDashboardChartQueries(ctx, obj))
 			}
 		}
+		body["queries"] = items
+	}
+	if !m.Explanation.IsNull() && !m.Explanation.IsUnknown() {
+		body["explanation"] = m.Explanation.ValueString()
 	}
 	return body
 }
@@ -150,19 +2874,20 @@ func (r *DashboardChartResource) bodyForUpdate(ctx context.Context, m DashboardC
 	if !m.H.IsNull() && !m.H.IsUnknown() {
 		body["h"] = m.H.ValueInt64()
 	}
-	if !m.Settings.IsNull() && !m.Settings.IsUnknown() && !m.Settings.IsUnderlyingValueNull() && !m.Settings.IsUnderlyingValueUnknown() {
-		if tv, err := m.Settings.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-			if av, err := tftypesToAPI(tv); err == nil {
-				body["settings"] = projectAPIWrite(av, apiValueShape{})
-			}
-		}
+	if !m.Settings.IsNull() && !m.Settings.IsUnknown() {
+		body["settings"] = expandDashboardChartSettings(ctx, m.Settings)
 	}
-	if !m.Queries.IsNull() && !m.Queries.IsUnknown() && !m.Queries.IsUnderlyingValueNull() && !m.Queries.IsUnderlyingValueUnknown() {
-		if tv, err := m.Queries.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-			if av, err := tftypesToAPI(tv); err == nil {
-				body["queries"] = projectAPIWrite(av, apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"id": apiValueShape{ReadOnly: true}, "query_type": apiValueShape{}, "name": apiValueShape{}, "source_variable": apiValueShape{}, "sql_query": apiValueShape{}, "pql_query": apiValueShape{}, "where_condition": apiValueShape{}, "static_text": apiValueShape{}, "funnel_query": apiValueShape{}, "x_axis": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "y_axis": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "point_size": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "coordinates": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "filters": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "where": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "group_by": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "having": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "order_by": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}}}, Identity: "id"})
+	if !m.Queries.IsNull() && !m.Queries.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Queries.Elements()))
+		for _, el := range m.Queries.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandDashboardChartQueries(ctx, obj))
 			}
 		}
+		body["queries"] = items
+	}
+	if !m.Explanation.IsNull() && !m.Explanation.IsUnknown() {
+		body["explanation"] = m.Explanation.ValueString()
 	}
 	return body
 }
@@ -173,10 +2898,14 @@ func (r *DashboardChartResource) updateBody(ctx context.Context, config, plan, s
 	if !state.Description.IsNull() && !state.Description.IsUnknown() && plan.Description.IsNull() {
 		body["description"] = nil
 	}
+	if !state.Explanation.IsNull() && !state.Explanation.IsUnknown() && plan.Explanation.IsNull() {
+		body["explanation"] = nil
+	}
 	return body
 }
 
 func (r *DashboardChartResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer func() { syncIdentity(ctx, resp.State, resp.Identity, dashboardChartIdentityNames, &resp.Diagnostics) }()
 	defer rememberConfigured(ctx, req.Config, resp.Private, dashboardChartKeptOnRemoval, &resp.Diagnostics)
 	var plan DashboardChartModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -188,9 +2917,17 @@ func (r *DashboardChartResource) Create(ctx context.Context, req resource.Create
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["dashboard_id"] = plan.DashboardId.ValueString()
 	out, err := r.client.Create(ctx, dashboardChartBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating dashboard_chart", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating dashboard_chart", err, req.Plan.Raw.Type())
 		return
@@ -210,15 +2947,29 @@ func (r *DashboardChartResource) Create(ctx context.Context, req resource.Create
 }
 
 func (r *DashboardChartResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	defer func() { syncIdentity(ctx, resp.State, resp.Identity, dashboardChartIdentityNames, &resp.Diagnostics) }()
 	var state DashboardChartModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["dashboard_id"] = state.DashboardId.ValueString()
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, dashboardChartBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), dashboardChartBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading dashboard_chart", err, req.State.Raw.Type())
 		return
@@ -236,9 +2987,6 @@ func (r *DashboardChartResource) Read(ctx context.Context, req resource.ReadRequ
 func populateDashboardChart(ctx context.Context, m *DashboardChartModel, attrs map[string]interface{}) {
 	if attrs == nil {
 		return
-	}
-	if v, ok := stringFromAPI(attrs["dashboard_id"]); ok {
-		m.DashboardId = types.StringValue(v)
 	}
 	if v, ok := stringFromAPI(attrs["chart_type"]); ok {
 		m.ChartType = types.StringValue(v)
@@ -267,46 +3015,64 @@ func populateDashboardChart(ctx context.Context, m *DashboardChartModel, attrs m
 	if v, ok := int64FromAPI(attrs["h"]); ok {
 		m.H = types.Int64Value(v)
 	}
-	if raw, ok := attrs["settings"]; ok && raw != nil {
-		var prior interface{}
-		if !m.Settings.IsNull() && !m.Settings.IsUnknown() && !m.Settings.IsUnderlyingValueNull() && !m.Settings.IsUnderlyingValueUnknown() {
-			if tv, err := m.Settings.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-				prior, _ = tftypesToAPI(tv)
+	if raw, ok := attrs["settings"].(map[string]interface{}); ok {
+		m.Settings = flattenDashboardChartSettings(ctx, types.ObjectNull(dashboardChartSettingsAttrTypes()), raw)
+	}
+	if raw, ok := attrs["queries"].([]interface{}); ok {
+		priorByID := map[string]types.Object{}
+		for _, element := range m.Queries.Elements() {
+			if object, ok := element.(types.Object); ok && !object.IsNull() && !object.IsUnknown() {
+				if value := object.Attributes()["id"]; value != nil && !value.IsNull() && !value.IsUnknown() {
+					if tv, err := value.ToTerraformValue(ctx); err == nil {
+						if av, err := tftypesToAPI(tv); err == nil {
+							priorByID[stringifyScalar(av)] = object
+						}
+					}
+				}
 			}
 		}
-		raw = mergeAPIRead(raw, prior, apiValueShape{})
-		if dv, err := types.DynamicType.ValueFromTerraform(ctx, dynamicFromAPI(raw)); err == nil {
-			m.Settings = dv.(types.Dynamic)
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(dashboardChartQueriesAttrTypes())
+				if identity := stringifyScalar(mp["id"]); identity != "" {
+					if existing, ok := priorByID[identity]; ok {
+						prior = existing
+					}
+				}
+				items = append(items, flattenDashboardChartQueries(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: dashboardChartQueriesAttrTypes()}, items)
+		m.Queries = lv
+	}
+	if rawValue, exists := attrs["explanation"]; exists {
+		if rawValue == nil {
+			m.Explanation = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["explanation"]); ok {
+				m.Explanation = types.StringValue(v)
+			}
 		}
 	}
-	if raw, ok := attrs["queries"]; ok && raw != nil {
-		var prior interface{}
-		if !m.Queries.IsNull() && !m.Queries.IsUnknown() && !m.Queries.IsUnderlyingValueNull() && !m.Queries.IsUnderlyingValueUnknown() {
-			if tv, err := m.Queries.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-				prior, _ = tftypesToAPI(tv)
-			}
-		}
-		raw = mergeAPIRead(raw, prior, apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"id": apiValueShape{ReadOnly: true}, "query_type": apiValueShape{}, "name": apiValueShape{}, "source_variable": apiValueShape{}, "sql_query": apiValueShape{}, "pql_query": apiValueShape{}, "where_condition": apiValueShape{}, "static_text": apiValueShape{}, "funnel_query": apiValueShape{}, "x_axis": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "y_axis": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "point_size": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "coordinates": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "filters": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "where": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "group_by": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "having": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "order_by": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}}}, Identity: "id"})
-		raw = configuredAPIRead(raw, prior, apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"id": apiValueShape{ReadOnly: true}, "query_type": apiValueShape{}, "name": apiValueShape{}, "source_variable": apiValueShape{}, "sql_query": apiValueShape{}, "pql_query": apiValueShape{}, "where_condition": apiValueShape{}, "static_text": apiValueShape{}, "funnel_query": apiValueShape{}, "x_axis": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "y_axis": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "point_size": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "coordinates": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "filters": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "where": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "group_by": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "having": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "order_by": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}}}, Identity: "id"})
-		if dv, err := types.DynamicType.ValueFromTerraform(ctx, dynamicFromAPI(raw)); err == nil {
-			m.Queries = dv.(types.Dynamic)
-		}
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
 	}
-	if raw, ok := attrs["queries_result"]; ok && raw != nil {
-		var prior interface{}
-		if !m.QueriesResult.IsNull() && !m.QueriesResult.IsUnknown() && !m.QueriesResult.IsUnderlyingValueNull() && !m.QueriesResult.IsUnderlyingValueUnknown() {
-			if tv, err := m.QueriesResult.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-				prior, _ = tftypesToAPI(tv)
+}
+
+func (r *DashboardChartResource) mergeResponse(ctx context.Context, m DashboardChartModel, attrs map[string]interface{}) {
+	if raw, ok := attrs["dashboard_id"]; ok && !m.DashboardId.IsNull() && !m.DashboardId.IsUnknown() {
+		if tv, err := m.DashboardId.ToTerraformValue(ctx); err == nil {
+			if prior, err := tftypesToAPI(tv); err == nil {
+				attrs["dashboard_id"] = mergeAPIRead(raw, prior, apiValueShape{WriteOnly: true})
 			}
-		}
-		raw = mergeAPIRead(raw, prior, apiValueShape{ReadOnly: true, Element: &apiValueShape{Fields: map[string]apiValueShape{"id": apiValueShape{ReadOnly: true}, "query_type": apiValueShape{}, "name": apiValueShape{}, "source_variable": apiValueShape{}, "sql_query": apiValueShape{}, "pql_query": apiValueShape{}, "where_condition": apiValueShape{}, "static_text": apiValueShape{}, "funnel_query": apiValueShape{}, "x_axis": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "y_axis": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "point_size": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "coordinates": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "filters": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "where": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "group_by": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "having": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "order_by": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}}}, Identity: "id"})
-		if dv, err := types.DynamicType.ValueFromTerraform(ctx, dynamicFromAPI(raw)); err == nil {
-			m.QueriesResult = dv.(types.Dynamic)
 		}
 	}
 }
 
 func (r *DashboardChartResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
+	defer func() { syncIdentity(ctx, resp.State, resp.Identity, dashboardChartIdentityNames, &resp.Diagnostics) }()
 	defer rememberConfigured(ctx, req.Config, resp.Private, dashboardChartKeptOnRemoval, &resp.Diagnostics)
 	var plan DashboardChartModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -328,6 +3094,19 @@ func (r *DashboardChartResource) Update(ctx context.Context, req resource.Update
 	if !plan.W.Equal(state.W) {
 		request.W = plan.W
 	}
+	// The API replaces this object whole, so a change sends it as planned, with the parts the app
+	// wrote itself (keep_unset), and an unchanged one isn't sent, so the API keeps all of it.
+	if plan.Settings.Equal(state.Settings) {
+		request.Settings = types.ObjectNull(request.Settings.AttributeTypes(ctx))
+	} else {
+		request.Settings = plan.Settings
+	}
+	// The API recreates every item of this list under a new id when the list is sent, so an
+	// unchanged one isn't sent and its items keep their ids (ModifyPlan planned them from state).
+	if plan.Queries.Equal(state.Queries) {
+		request.Queries = types.ListNull(request.Queries.ElementType(ctx))
+	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
 	vars["dashboard_id"] = plan.DashboardId.ValueString()
 	vars["id"] = plan.Id.ValueString()
@@ -339,6 +3118,7 @@ func (r *DashboardChartResource) Update(ctx context.Context, req resource.Update
 	if out == nil {
 		out = map[string]interface{}{}
 	}
+	r.mergeResponse(ctx, state, out)
 	resp.State.Raw = stateFromPlan(req.Plan.Raw, req.State.Raw, out)
 }
 
@@ -348,6 +3128,7 @@ func (r *DashboardChartResource) Delete(ctx context.Context, req resource.Delete
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["dashboard_id"] = state.DashboardId.ValueString()
 	vars["id"] = state.Id.ValueString()
@@ -360,12 +3141,20 @@ func (r *DashboardChartResource) Delete(ctx context.Context, req resource.Delete
 var dashboardChartKeptOnRemoval = []string{"settings", "x", "y"}
 
 func (r *DashboardChartResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseUnnamedTeam(ctx, req, resp, r.client, "dashboard chart")
 	warnKeptOnRemoval(ctx, "betterstack_dashboard_chart", req, resp, dashboardChartKeptOnRemoval)
+	keepListItemIDs(ctx, req, resp, path.Root("queries"))
 }
 
 // The object hangs off a parent collection, so its address is composite:
 // dashboard_id/id.
 func (r *DashboardChartResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
+	if req.ID == "" && req.Identity != nil {
+		stateFromIdentity(ctx, req.Identity, &resp.State, dashboardChartIdentityNames, &resp.Diagnostics)
+		return
+	}
+	defer func() { syncIdentity(ctx, resp.State, resp.Identity, dashboardChartIdentityNames, &resp.Diagnostics) }()
 	parts := strings.Split(req.ID, "/")
 	if len(parts) != 2 {
 		resp.Diagnostics.AddError("importing dashboard_chart",
@@ -374,6 +3163,9 @@ func (r *DashboardChartResource) ImportState(ctx context.Context, req resource.I
 	}
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dashboard_id"), parts[0])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("name"), "Your chart")...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("w"), 6)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("h"), 4)...)
 }
 
 var _ resource.ResourceWithMoveState = &DashboardChartResource{}
@@ -382,6 +3174,6 @@ var _ resource.ResourceWithMoveState = &DashboardChartResource{}
 // logtail_dashboard_chart (registry.terraform.io/BetterStackHQ/logtail).
 func (r *DashboardChartResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{\"query\":\"queries\"},\"constants\":{},\"transforms\":[{\"op\":\"sentinel_null\",\"path\":\"settings\",\"value\":\"\"},{\"op\":\"json_decode\",\"path\":\"settings\"},{\"op\":\"sentinel_omit\",\"path\":\"queries[].name\",\"value\":\"\"},{\"op\":\"sentinel_omit\",\"path\":\"queries[].sql_query\",\"value\":\"\"},{\"op\":\"sentinel_omit\",\"path\":\"queries[].where_condition\",\"value\":\"\"},{\"op\":\"sentinel_omit\",\"path\":\"queries[].static_text\",\"value\":\"\"},{\"op\":\"sentinel_omit\",\"path\":\"queries[].source_variable\",\"value\":\"\"}],\"ignored_fields\":[\"created_at\",\"updated_at\"],\"instructions\":[\"Keep every attribute: the legacy provider wrote the same /api/v2/dashboards/:dashboard_id/charts fields. Convert query blocks to queries and jsondecode the legacy settings JSON string, preserving booleans/numbers/arrays, SQL, source variables and the x/y/w/h layout. The legacy dashboard_id/chart_id composite id becomes the bare chart id with dashboard_id beside it. created_at and updated_at are gone: the API never returned them. Never recreate a chart: that deletes its alerts. Keep read-only query-builder/PQL/funnel payloads unchanged.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_dashboard_chart\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"scope\":{\"kind\":\"parent\",\"field\":\"dashboard_id\",\"resource\":\"dashboard\"},\"source_attributes\":[{\"description\":\"The type of chart: 'line_chart', 'bar_chart', 'pie_chart', 'number_chart', 'table_chart', 'tail_chart', 'static_text_chart', 'scatter_chart', 'gauge_chart', 'heatmap_chart', 'map_chart', 'text_chart', 'funnel_chart', or 'anomalies_chart'.\",\"name\":\"chart_type\",\"required\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func44\",\"note\":\"14 values, line_chart..anomalies_chart\"},{\"computed\":true,\"description\":\"The time when this chart was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"description\":\"The ID of the dashboard this chart belongs to.\",\"force_new\":true,\"name\":\"dashboard_id\",\"required\":true,\"type\":\"string\",\"json\":\"(URL path)\"},{\"computed\":true,\"description\":\"The description of this chart.\",\"name\":\"description\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The height of this chart in grid units.\",\"name\":\"h\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The ID of this chart.\",\"name\":\"id\",\"type\":\"string\",\"note\":\"composite\"},{\"description\":\"The name of this chart.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"description\":\"The queries for this chart. At least one query is required.\",\"min_items\":1,\"name\":\"query\",\"required\":true,\"type\":\"list(object)\",\"note\":\"TF name `query` maps to JSON `queries`\",\"json\":\"queries\"},{\"computed\":true,\"description\":\"The ID of this query (read-only).\",\"name\":\"query.id\",\"type\":\"int\"},{\"computed\":true,\"description\":\"The name of the query.\",\"name\":\"query.name\",\"optional\":true,\"type\":\"string\"},{\"description\":\"The type of query: 'sql_expression', 'tail_query', or 'static_text'. Note: 'pql_expression', 'query_builder', and 'funnel_query' are read-only.\",\"name\":\"query.query_type\",\"required\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func45\",\"note\":\"last three are read-only per the docs\"},{\"computed\":true,\"description\":\"The source variable reference (default: 'source').\",\"name\":\"query.source_variable\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The SQL query string. Required when query_type is 'sql_expression'.\",\"name\":\"query.sql_query\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The static text content (markdown). Required when query_type is 'static_text'.\",\"name\":\"query.static_text\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The WHERE condition for filtering. Required when query_type is 'tail_query'.\",\"name\":\"query.where_condition\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Chart settings as a JSON string. Settings vary by chart type and include options like unit, decimal_places, legend, stacking, etc.\",\"diff_suppress_func\":\"provider.init.func8\",\"name\":\"settings\",\"optional\":true,\"type\":\"string\",\"note\":\"string in TF, OBJECT on the wire; JSON-normalizing DiffSuppress\"},{\"computed\":true,\"description\":\"The time when this chart was updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The width of this chart in grid units (1-12).\",\"name\":\"w\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The horizontal position of this chart in the dashboard grid (0-11).\",\"name\":\"x\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The vertical position of this chart in the dashboard grid.\",\"name\":\"y\",\"optional\":true,\"type\":\"int\"}],\"response_projections\":[{\"source\":\"queries\",\"target\":\"queries_result\",\"readonly_fields\":[\"queries[].id\"]}]}"),
+		legacyStateMover("{\"renames\":{\"query\":\"queries\"},\"constants\":{},\"transforms\":[{\"op\":\"composite_id\",\"path\":\"id\"},{\"op\":\"sentinel_omit\",\"path\":\"queries[].name\",\"value\":\"\"},{\"op\":\"sentinel_omit\",\"path\":\"queries[].sql_query\",\"value\":\"\"},{\"op\":\"sentinel_omit\",\"path\":\"queries[].where_condition\",\"value\":\"\"},{\"op\":\"sentinel_omit\",\"path\":\"queries[].static_text\",\"value\":\"\"},{\"op\":\"sentinel_omit\",\"path\":\"queries[].source_variable\",\"value\":\"\"}],\"ignored_fields\":[\"created_at\",\"updated_at\",\"query[].id\",\"settings\"],\"instructions\":[\"Keep every attribute. Convert query blocks to queries preserving SQL, source variables and the x/y/w/h layout. The legacy settings JSON string becomes the typed settings object: write each setting you manage as an attribute (for example unit, decimal_places, legend). The move leaves settings out of the moved state, and the first refresh reads them, so nothing on the chart changes. The legacy dashboard_id/chart_id composite id becomes the bare chart id with dashboard_id beside it. created_at and updated_at are gone: Better Stack never returned them. Never recreate a chart: that deletes its alerts. Keep read-only query-builder/PQL/funnel payloads unchanged.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_dashboard_chart\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"scope\":{\"kind\":\"parent\",\"field\":\"dashboard_id\",\"resource\":\"dashboard\"},\"lookup\":{\"action\":\"list\",\"params\":{\"dashboard_id\":\"dashboard_id\"},\"id_parts\":2,\"id_part\":1},\"defaults\":{\"name\":\"Your chart\",\"w\":6,\"h\":4},\"source_attributes\":[{\"description\":\"The type of chart: 'line_chart', 'bar_chart', 'pie_chart', 'number_chart', 'table_chart', 'tail_chart', 'static_text_chart', 'scatter_chart', 'gauge_chart', 'heatmap_chart', 'map_chart', 'text_chart', 'funnel_chart', or 'anomalies_chart'.\",\"name\":\"chart_type\",\"required\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func44\",\"note\":\"14 values, line_chart..anomalies_chart\"},{\"computed\":true,\"description\":\"The time when this chart was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"description\":\"The ID of the dashboard this chart belongs to.\",\"force_new\":true,\"name\":\"dashboard_id\",\"required\":true,\"type\":\"string\",\"json\":\"(URL path)\"},{\"computed\":true,\"description\":\"The description of this chart.\",\"name\":\"description\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The height of this chart in grid units.\",\"name\":\"h\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The ID of this chart.\",\"name\":\"id\",\"type\":\"string\",\"note\":\"composite\"},{\"description\":\"The name of this chart.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"description\":\"The queries for this chart. At least one query is required.\",\"min_items\":1,\"name\":\"query\",\"required\":true,\"type\":\"list(object)\",\"note\":\"TF name `query` maps to JSON `queries`\",\"json\":\"queries\"},{\"computed\":true,\"description\":\"The ID of this query (read-only).\",\"name\":\"query.id\",\"type\":\"int\"},{\"computed\":true,\"description\":\"The name of the query.\",\"name\":\"query.name\",\"optional\":true,\"type\":\"string\"},{\"description\":\"The type of query: 'sql_expression', 'tail_query', or 'static_text'. Note: 'pql_expression', 'query_builder', and 'funnel_query' are read-only.\",\"name\":\"query.query_type\",\"required\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func45\",\"note\":\"last three are read-only per the docs\"},{\"computed\":true,\"description\":\"The source variable reference (default: 'source').\",\"name\":\"query.source_variable\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The SQL query string. Required when query_type is 'sql_expression'.\",\"name\":\"query.sql_query\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The static text content (markdown). Required when query_type is 'static_text'.\",\"name\":\"query.static_text\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The WHERE condition for filtering. Required when query_type is 'tail_query'.\",\"name\":\"query.where_condition\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Chart settings as a JSON string. Settings vary by chart type and include options like unit, decimal_places, legend, stacking, etc.\",\"diff_suppress_func\":\"provider.init.func8\",\"name\":\"settings\",\"optional\":true,\"type\":\"string\",\"note\":\"string in TF, OBJECT on the wire; JSON-normalizing DiffSuppress\"},{\"computed\":true,\"description\":\"The time when this chart was updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The width of this chart in grid units (1-12).\",\"name\":\"w\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The horizontal position of this chart in the dashboard grid (0-11).\",\"name\":\"x\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The vertical position of this chart in the dashboard grid.\",\"name\":\"y\",\"optional\":true,\"type\":\"int\"}],\"response_projections\":[]}"),
 	}
 }

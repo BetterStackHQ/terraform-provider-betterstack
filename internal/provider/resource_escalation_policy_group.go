@@ -9,12 +9,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var _ resource.Resource = &EscalationPolicyGroupResource{}
 var _ resource.ResourceWithConfigure = &EscalationPolicyGroupResource{}
 var _ resource.ResourceWithImportState = &EscalationPolicyGroupResource{}
+var _ resource.ResourceWithModifyPlan = &EscalationPolicyGroupResource{}
 
 type EscalationPolicyGroupResource struct {
 	client *Client
@@ -29,6 +31,7 @@ type EscalationPolicyGroupModel struct {
 	CreatedAt types.String `tfsdk:"created_at"`
 	Name      types.String `tfsdk:"name"`
 	SortIndex types.Int64  `tfsdk:"sort_index"`
+	TeamId    types.String `tfsdk:"team_id"`
 	TeamName  types.String `tfsdk:"team_name"`
 	UpdatedAt types.String `tfsdk:"updated_at"`
 }
@@ -39,13 +42,15 @@ func (r *EscalationPolicyGroupResource) Metadata(ctx context.Context, req resour
 
 func (r *EscalationPolicyGroupResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "An escalation policy group: a container that groups related escalation policies.",
+		Description:         "An escalation policy group, a container that groups related escalation policies.",
+		MarkdownDescription: "An escalation policy group, a container that groups related escalation policies.",
 		Attributes: map[string]schema.Attribute{
 			"id":         schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"created_at": schema.StringAttribute{Computed: true, Description: "When the group was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"name":       schema.StringAttribute{Required: true, Description: "Group name."},
-			"sort_index": schema.Int64Attribute{Optional: true, Description: "Display order of the group among the team's escalation policy groups. When writing, you can also send it as position."},
-			"team_name":  schema.StringAttribute{Computed: true, Description: "Name of the team that owns this group."},
+			"sort_index": schema.Int64Attribute{Optional: true, Description: "The group's position in your list of escalation policy groups, lower values first. null when no position was set.", MarkdownDescription: "The group's position in your list of escalation policy groups, lower values first. `null` when no position was set."},
+			"team_id":    schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns this group, such as t123. Defaults to the provider's team_id. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", MarkdownDescription: "Team that owns this group, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_escalation_policy_group"}}},
+			"team_name":  schema.StringAttribute{Computed: true, Description: "Name of the team that owns this group.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"updated_at": schema.StringAttribute{Computed: true, Description: "When the group was last updated."},
 		},
 	}
@@ -89,8 +94,16 @@ func (r *EscalationPolicyGroupResource) Create(ctx context.Context, req resource
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
 	out, err := r.client.Create(ctx, escalationPolicyGroupBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating escalation_policy_group", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating escalation_policy_group", err, req.Plan.Raw.Type())
 		return
@@ -115,9 +128,22 @@ func (r *EscalationPolicyGroupResource) Read(ctx context.Context, req resource.R
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, escalationPolicyGroupBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), escalationPolicyGroupBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading escalation_policy_group", err, req.State.Raw.Type())
 		return
@@ -139,9 +165,6 @@ func populateEscalationPolicyGroup(ctx context.Context, m *EscalationPolicyGroup
 	if v, ok := stringFromAPI(attrs["name"]); ok {
 		m.Name = types.StringValue(v)
 	}
-	if v, ok := stringFromAPI(attrs["team_name"]); ok {
-		m.TeamName = types.StringValue(v)
-	}
 	if rawValue, exists := attrs["sort_index"]; exists {
 		if rawValue == nil {
 			m.SortIndex = types.Int64Null()
@@ -157,9 +180,16 @@ func populateEscalationPolicyGroup(ctx context.Context, m *EscalationPolicyGroup
 	if v, ok := stringFromAPI(attrs["updated_at"]); ok {
 		m.UpdatedAt = datetimeValue(m.UpdatedAt, v)
 	}
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(attrs["team_name"]); ok {
+		m.TeamName = types.StringValue(v)
+	}
 }
 
 func (r *EscalationPolicyGroupResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	var plan EscalationPolicyGroupModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request EscalationPolicyGroupModel
@@ -169,6 +199,7 @@ func (r *EscalationPolicyGroupResource) Update(ctx context.Context, req resource
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, err := r.client.Update(ctx, escalationPolicyGroupBinding, vars, r.updateBody(ctx, request, plan, state))
@@ -188,6 +219,7 @@ func (r *EscalationPolicyGroupResource) Delete(ctx context.Context, req resource
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	if err := r.client.Delete(ctx, escalationPolicyGroupBinding, vars); err != nil {
@@ -195,7 +227,12 @@ func (r *EscalationPolicyGroupResource) Delete(ctx context.Context, req resource
 	}
 }
 
+func (r *EscalationPolicyGroupResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseUnnamedTeam(ctx, req, resp, r.client, "escalation policy group")
+}
+
 func (r *EscalationPolicyGroupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
@@ -205,6 +242,6 @@ var _ resource.ResourceWithMoveState = &EscalationPolicyGroupResource{}
 // betteruptime_policy_group (registry.terraform.io/BetterStackHQ/better-uptime).
 func (r *EscalationPolicyGroupResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[],\"ignored_fields\":[\"team_name\"],\"instructions\":[\"Rename the resource to betterstack_escalation_policy_group and keep name and sort_index: the legacy provider wrote the same fields on /api/v2/policy-groups. Move team_name to the provider's team_id or provider alias. Import uses the existing group id.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/better-uptime\",\"source_type\":\"betteruptime_policy_group\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"computed\":true,\"description\":\"The time when this policy group was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this policy group.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"A name of the group that you can see in the dashboard.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Set sort_index to specify how to sort your policy groups.\",\"diff_suppress_func\":\"provider.init.func11\",\"name\":\"sort_index\",\"optional\":true,\"type\":\"int\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.teamNameSchema.func1\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this policy group was updated.\",\"name\":\"updated_at\",\"type\":\"string\"}],\"response_projections\":[]}"),
+		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[],\"ignored_fields\":[\"team_name\"],\"instructions\":[\"Rename the resource to betterstack_escalation_policy_group and keep name and sort_index. Move team_name to the provider's team_id, or to the resource's own team_id for an object in another team. Import uses the existing group id.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/better-uptime\",\"source_type\":\"betteruptime_policy_group\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"defaults\":{},\"source_attributes\":[{\"computed\":true,\"description\":\"The time when this policy group was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this policy group.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"A name of the group that you can see in the dashboard.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Set sort_index to specify how to sort your policy groups.\",\"diff_suppress_func\":\"provider.init.func11\",\"name\":\"sort_index\",\"optional\":true,\"type\":\"int\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.teamNameSchema.func1\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this policy group was updated.\",\"name\":\"updated_at\",\"type\":\"string\"}],\"response_projections\":[]}"),
 	}
 }

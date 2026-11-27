@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"strings"
 	"testing"
@@ -320,6 +322,49 @@ func TestListFollowsTheDeclaredPagination(t *testing.T) {
 	}
 }
 
+// Numbered pages: the provider asks for the most per page, reads until it has the total, whatever
+// page size the API answers with, and refuses a list it can't know is whole.
+func TestListReadsNumberedPagesToTheTotal(t *testing.T) {
+	for name, tc := range map[string]struct {
+		pages []string
+		count int
+		fails string
+	}{
+		"smaller pages than asked": {[]string{`{"data":[{"id":"1"},{"id":"2"}],"meta":{"total":3}}`, `{"data":[{"id":"3"}],"meta":{"total":3}}`}, 3, ""},
+		"one full page":            {[]string{`{"data":[{"id":"1"}],"meta":{"total":1}}`}, 1, ""},
+		"none":                     {[]string{`{"data":[],"meta":{"total":0}}`}, 0, ""},
+		"no total":                 {[]string{`{"data":[{"id":"1"}]}`}, 0, "doesn't say how many"},
+		"ends early":               {[]string{`{"data":[{"id":"1"}],"meta":{"total":2}}`, `{"data":[],"meta":{"total":2}}`}, 0, "read 1 of 2"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var asked []string
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				q := r.URL.Query()
+				asked = append(asked, q.Get("page")+"/"+q.Get("per_page")+"/"+q.Get("name"))
+				w.Write([]byte(tc.pages[len(asked)-1]))
+			}))
+			defer srv.Close()
+			b := testBinding(srv.URL, flatWrites)
+			b.Pagination = pagination{Via: "increment", Path: []string{"meta", "total"}, Param: "page", Size: "per_page", Max: 1000}
+			records, err := testClient(srv.URL).List(context.Background(), b, map[string]string{}, url.Values{"name": {"a"}})
+			if tc.fails != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.fails) {
+					t.Fatalf("expected %q, got %v", tc.fails, err)
+				}
+				return
+			}
+			if err != nil || len(records) != tc.count {
+				t.Fatalf("got %d records, %v", len(records), err)
+			}
+			for i, request := range asked {
+				if want := fmt.Sprintf("%d/1000/a", i+1); request != want {
+					t.Fatalf("request %d asked %s, want %s", i, request, want)
+				}
+			}
+		})
+	}
+}
+
 func TestPaginationNextURLAcceptsRelativeAndNormalizedSameOriginURLs(t *testing.T) {
 	b := testBinding("https://api.example.com", flatWrites)
 	for _, tc := range []struct {
@@ -617,6 +662,95 @@ func TestCredentialIsPresentedAsDescribed(t *testing.T) {
 	}
 }
 
+// An endpoint whose action takes no tenant selector (a release list, where team_id names the team an
+// SDK reports for and the API refuses the provider's team) gets none, while the binding's others do.
+func TestAnEndpointThatRefusesTheSelectorDoesNotGetIt(t *testing.T) {
+	var queries []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queries = append(queries, r.URL.Query().Get("team_id"))
+		w.Write([]byte(`{"data":{"id":"1","attributes":{}}}`))
+	}))
+	defer srv.Close()
+	b := testBinding(srv.URL, flatWrites)
+	b.Selector = &tenantSelector{In: "query", Name: "team_id"}
+	b.Read.NoSelector = true
+	c := NewClient("tok", srv.URL, map[string]string{"team_id": "t7"}, "test")
+	_, _, _ = c.Get(context.Background(), b, map[string]string{"id": "1"})
+	b.Read.NoSelector = false
+	_, _, _ = c.Get(context.Background(), b, map[string]string{"id": "1"})
+	if len(queries) != 2 || queries[0] != "" || queries[1] != "t7" {
+		t.Fatalf("team_id per call: got %q, want no selector and then t7", queries)
+	}
+}
+
+// A resource's own team_id replaces the provider's for its requests, and a read with no team selects
+// none, so it finds a moved or imported object in whichever team the token reaches.
+func TestAResourceTeamReplacesTheProviderTeam(t *testing.T) {
+	var queries []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, set := r.URL.Query()["team_id"]; set {
+			queries = append(queries, r.URL.Query().Get("team_id"))
+		} else {
+			queries = append(queries, "none")
+		}
+		w.Write([]byte(`{"data":{"id":"1","attributes":{}}}`))
+	}))
+	defer srv.Close()
+	b := testBinding(srv.URL, flatWrites)
+	b.Selector = &tenantSelector{In: "query", Name: "team_id"}
+	c := NewClient("tok", srv.URL, map[string]string{"team_id": "t7"}, "test")
+	for _, ctx := range []context.Context{context.Background(), inTeam(context.Background(), ""), inTeam(context.Background(), "t8"), inNoTeam(context.Background())} {
+		_, _, _ = c.Get(ctx, b, map[string]string{"id": "1"})
+	}
+	if want := []string{"t7", "t7", "t8", "none"}; !reflect.DeepEqual(queries, want) {
+		t.Fatalf("team_id per call: got %q, want %q", queries, want)
+	}
+}
+
+// A team read back into state selects only instead of the provider's team_id: with none (a team token,
+// or an organization token that picks no team) a request by ID selects no team, since the ID fixes the
+// team and a team token refuses any selector.
+func TestAStateTeamSelectsOnlyInsteadOfTheProviderTeam(t *testing.T) {
+	var queries []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, set := r.URL.Query()["team_id"]; set {
+			queries = append(queries, r.URL.Query().Get("team_id"))
+		} else {
+			queries = append(queries, "none")
+		}
+		w.Write([]byte(`{"data":{"id":"1","attributes":{}}}`))
+	}))
+	defer srv.Close()
+	b := testBinding(srv.URL, flatWrites)
+	b.Selector = &tenantSelector{In: "query", Name: "team_id"}
+	ctx := inStateTeam(context.Background(), "t8")
+	for _, c := range []*Client{
+		NewClient("tok", srv.URL, map[string]string{"team_id": "t7"}, "test"),
+		NewClient("tok", srv.URL, map[string]string{}, "test"),
+	} {
+		_, _, _ = c.Get(ctx, b, map[string]string{"id": "1"})
+		_, _ = c.Update(ctx, b, map[string]string{"id": "1"}, map[string]interface{}{"name": "x"})
+		_ = c.Delete(ctx, b, map[string]string{"id": "1"})
+		_, _, _ = c.Get(inTeam(context.Background(), "t8"), b, map[string]string{"id": "1"})
+	}
+	if want := []string{"t8", "t8", "t8", "t8", "none", "none", "none", "t8"}; !reflect.DeepEqual(queries, want) {
+		t.Fatalf("team_id per call: got %q, want %q", queries, want)
+	}
+}
+
+// Only a refusal to read with no team keeps the first read's "not found"; an outage or an auth
+// failure is reported.
+func TestOnlyARefusalOfNoTeamCountsAsNotFound(t *testing.T) {
+	for status, want := range map[int]bool{400: true, 403: true, 422: true, 401: false, 404: false, 429: false, 500: false, 503: false} {
+		if got := refusedWithoutTeam(&APIError{Status: status}); got != want {
+			t.Errorf("status %d: got %v, want %v", status, got, want)
+		}
+	}
+	if refusedWithoutTeam(errors.New("dial tcp: timeout")) {
+		t.Error("a network error must be reported")
+	}
+}
+
 // configuredClient runs Configure the way Terraform would, with only the token and the endpoint
 // set, and returns the client the provider hands its resources.
 func configuredClient(t *testing.T, p provider.Provider, endpoint string) *Client {
@@ -640,7 +774,7 @@ func configuredClient(t *testing.T, p provider.Provider, endpoint string) *Clien
 }
 
 // The User-Agent names the caller: the provider by its own version, a bridge by its own product,
-// so API-side traffic can tell them apart.
+// so API-side traffic can tell them apart, and both name the unified-api version they come from.
 func TestUserAgentNamesTheProviderOrItsBridge(t *testing.T) {
 	mock := newMockAPI(t)
 	for _, tc := range []struct {
@@ -648,14 +782,27 @@ func TestUserAgentNamesTheProviderOrItsBridge(t *testing.T) {
 		factory func() provider.Provider
 		want    string
 	}{
-		{"terraform", New("1.2.3"), "terraform-provider-betterstack/1.2.3"},
-		{"bridge", NewWithUserAgent("1.2.3", "pulumi-example/4.5.6"), "pulumi-example/4.5.6"},
+		{"terraform", New("1.2.3"), "terraform-provider-betterstack/1.2.3 (unified-api 1.2.3)"},
+		{"bridge", NewWithUserAgent("1.2.3", UserAgent("pulumi-example", "4.5.6")), "pulumi-example/4.5.6 (unified-api 4.5.6)"},
 	} {
 		c := configuredClient(t, tc.factory(), mock.URL())
 		_, _, _ = c.Get(context.Background(), allBindings[0], map[string]string{})
 		if got := mock.LastUserAgent(); got != tc.want {
 			t.Fatalf("%s: User-Agent %q, want %q", tc.name, got, tc.want)
 		}
+	}
+}
+
+// A build between releases names the unified-api commit it was generated from (set with -ldflags).
+func TestUserAgentNamesTheUnifiedAPICommitOfABuildBetweenReleases(t *testing.T) {
+	previous := UnifiedAPIVersion
+	UnifiedAPIVersion = "9309c1bb4a1c"
+	t.Cleanup(func() { UnifiedAPIVersion = previous })
+	mock := newMockAPI(t)
+	c := configuredClient(t, New("dev")(), mock.URL())
+	_, _, _ = c.Get(context.Background(), allBindings[0], map[string]string{})
+	if got, want := mock.LastUserAgent(), "terraform-provider-betterstack/dev (unified-api 9309c1bb4a1c)"; got != want {
+		t.Fatalf("User-Agent %q, want %q", got, want)
 	}
 }
 
@@ -693,6 +840,27 @@ func TestWrapAndSetPathRoundTrip(t *testing.T) {
 	}
 	if got := wrapPath([]string{}, "leaf"); got != "leaf" {
 		t.Fatalf("an empty path must not wrap: %#v", got)
+	}
+}
+
+type fakePrivate map[string][]byte
+
+func (f fakePrivate) GetKey(_ context.Context, key string) ([]byte, diag.Diagnostics) {
+	return f[key], nil
+}
+
+// An import leaves a create-only value out of state. Only that gap is exempt from replacement, and
+// only while the import mark lasts: a changed value, or one added after the first update, replaces.
+func TestOnlyAnImportsMissingCreateOnlyValueSkipsReplacement(t *testing.T) {
+	imported := fakePrivate{importedKey: []byte("true")}
+	if !keepImported(context.Background(), imported, true) {
+		t.Fatal("an imported object's missing create-only value must not force replacement")
+	}
+	if keepImported(context.Background(), imported, false) {
+		t.Fatal("a create-only value changed after the import must force replacement")
+	}
+	if keepImported(context.Background(), fakePrivate{}, true) {
+		t.Fatal("a create-only value added to an object Terraform created must force replacement")
 	}
 }
 

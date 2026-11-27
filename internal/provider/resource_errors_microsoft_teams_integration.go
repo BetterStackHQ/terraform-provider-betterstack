@@ -402,20 +402,21 @@ func (r *ErrorsMicrosoftTeamsIntegrationResource) Metadata(ctx context.Context, 
 
 func (r *ErrorsMicrosoftTeamsIntegrationResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "An Error tracking Microsoft Teams integration: which errors reach which channels of the team the Better Stack app was added to.",
+		Description:         "An Error tracking Microsoft Teams integration. It sets which errors reach which channels of the team the Better Stack app was added to.",
+		MarkdownDescription: "An Error tracking Microsoft Teams integration. It sets which errors reach which channels of the team the Better Stack app was added to.",
 		Attributes: map[string]schema.Attribute{
 			// The declared lifecycle addresses an existing object, so identity is configured.
-			"id":                             schema.StringAttribute{Required: true, Description: "Existing remote object ID to adopt; no remote object is created.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_errors_microsoft_teams_integration"}}},
-			"affected_users_threshold_count": schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Total number of affected users for `notifications.affected_users_threshold`."},
-			"microsoft_teams_channel_name":   schema.StringAttribute{Computed: true, Description: "Channel the app was added to, which gets every error while `routes` is empty."},
+			"id":                             schema.StringAttribute{Required: true, Description: "ID of the object in Better Stack this resource takes over. Changing it takes over that object instead. The previous one keeps its settings in Better Stack.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_errors_microsoft_teams_integration"}}},
+			"affected_users_threshold_count": schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Total number of affected users for notifications.affected_users_threshold. A positive whole number.", MarkdownDescription: "Total number of affected users for `notifications.affected_users_threshold`. A positive whole number."},
+			"microsoft_teams_channel_name":   schema.StringAttribute{Computed: true, Description: "Channel the app was added to, which gets every error while routes is empty.", MarkdownDescription: "Channel the app was added to, which gets every error while `routes` is empty."},
 			"microsoft_teams_team_name":      schema.StringAttribute{Computed: true, Description: "Microsoft Teams team the Better Stack app was added to."},
-			"notifications":                  schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"spikes": schema.BoolAttribute{Optional: true, Computed: true, Description: "Application has a spike in errors."}, "spike_protection": schema.BoolAttribute{Optional: true, Computed: true, Description: "Spike protection starts sampling exceptions."}, "new_releases": schema.BoolAttribute{Optional: true, Computed: true, Description: "New release is observed."}, "new_errors": schema.BoolAttribute{Optional: true, Computed: true, Description: "New error occurs."}, "occurrence_milestones": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches an occurrence milestone (10, 100, 200, 500...)."}, "occurrence_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error occurs `occurrence_threshold_count` times within `occurrence_threshold_interval`."}, "automatically_reopened": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error is automatically re-opened."}, "affected_users_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches `affected_users_threshold_count` affected users."}}, Description: "\"Notify me when\": which events post to the channels. An update changes only the toggles sent.", PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()}},
-			"occurrence_threshold_count":     schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Number of occurrences for `notifications.occurrence_threshold`."},
-			"occurrence_threshold_interval":  schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("minute"), Description: "Time window for `notifications.occurrence_threshold`.", Validators: []validator.String{stringvalidator.OneOf("minute", "hour", "day", "week")}},
-			"routes":                         schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"applications": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"application_id": schema.StringAttribute{Optional: true, Computed: true}, "environments": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType}}}, Description: "Applications whose errors this route sends, each with its environments. Empty means any application."}, "channels": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Optional: true, Computed: true, Description: "Microsoft Teams channel ID: a standard channel of the team the app was added to."}, "name": schema.StringAttribute{Computed: true, Description: "Channel name, as Teams lists it."}}}, Description: "Channels the route posts to. At least one."}}}, Description: "Which applications' errors go to which channels. An application in no route gets no messages unless a route has no applications. Empty means everything goes to the channel the app was added to. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"tag_filter":                     schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"tag": schema.StringAttribute{Optional: true, Computed: true, Description: "Exception tag, such as environment or level."}, "values": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Matches any of these values."}}}, Description: "Acts on an error only when one of its exceptions has every tag listed, each with one of its values. Empty means every error. At most 10 tags with 50 values each, 200 characters per tag or value, each tag once. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"team_id":                        schema.StringAttribute{Computed: true, Description: "ID of the team that owns the integration, as the web app shows it (t123).", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"team_name":                      schema.StringAttribute{Computed: true, Description: "Name of the team that owns the integration."},
+			"notifications":                  schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"spikes": schema.BoolAttribute{Optional: true, Computed: true, Description: "Application has a spike in errors."}, "spike_protection": schema.BoolAttribute{Optional: true, Computed: true, Description: "Spike protection starts sampling exceptions."}, "new_releases": schema.BoolAttribute{Optional: true, Computed: true, Description: "New release is observed."}, "new_errors": schema.BoolAttribute{Optional: true, Computed: true, Description: "New error occurs."}, "occurrence_milestones": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches an occurrence milestone of 10, 100, 200, 500 and so on."}, "occurrence_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error occurs occurrence_threshold_count times within occurrence_threshold_interval.", MarkdownDescription: "Error occurs `occurrence_threshold_count` times within `occurrence_threshold_interval`."}, "automatically_reopened": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error is automatically re-opened."}, "affected_users_threshold": schema.BoolAttribute{Optional: true, Computed: true, Description: "Error reaches affected_users_threshold_count affected users.", MarkdownDescription: "Error reaches `affected_users_threshold_count` affected users."}}, Description: "Which events post to the channels, as under Notify me when in the web app. An update changes only the toggles sent.", MarkdownDescription: "Which events post to the channels, as under **Notify me when** in the web app. An update changes only the toggles sent.", PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()}},
+			"occurrence_threshold_count":     schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(10), Description: "Number of occurrences for notifications.occurrence_threshold. A positive whole number.", MarkdownDescription: "Number of occurrences for `notifications.occurrence_threshold`. A positive whole number."},
+			"occurrence_threshold_interval":  schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("minute"), Description: "Time window for notifications.occurrence_threshold.", MarkdownDescription: "Time window for `notifications.occurrence_threshold`.", Validators: []validator.String{stringvalidator.OneOf("minute", "hour", "day", "week")}},
+			"routes":                         schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"applications": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"application_id": schema.StringAttribute{Optional: true, Computed: true, Description: "The ID of the application whose errors the route sends."}, "environments": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "The environments whose errors the route sends, such as production. Empty means every environment.", MarkdownDescription: "The environments whose errors the route sends, such as `production`. Empty means every environment."}}}, Description: "Applications whose errors this route sends, each with its environments. Empty means any application."}, "channels": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Optional: true, Computed: true, Description: "Microsoft Teams channel ID of a standard channel in the team the app was added to."}, "name": schema.StringAttribute{Computed: true, Description: "Channel name, as Teams lists it."}}}, Description: "Channels the route posts to. At least one."}}}, Description: "Which applications' errors go to which channels. An application in no route gets no messages unless a route has no applications. Empty means everything goes to the channel the app was added to. An update replaces the whole list.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"tag_filter":                     schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"tag": schema.StringAttribute{Optional: true, Computed: true, Description: "Exception tag, such as environment or level."}, "values": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Matches any of these values."}}}, Description: "Posts an error only when one of its exceptions has every tag listed, each with one of its values. Empty means every error. At most 10 tags with 50 values each, 200 characters per tag or value, each tag once. An update replaces the whole list. The new_releases and spike_protection notifications and state changes are posted whatever the tags.", MarkdownDescription: "Posts an error only when one of its exceptions has every tag listed, each with one of its values. Empty means every error. At most 10 tags with 50 values each, 200 characters per tag or value, each tag once. An update replaces the whole list. The `new_releases` and `spike_protection` notifications and state changes are posted whatever the tags.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"team_id":                        schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the team that owns the integration, such as t123. Defaults to the provider's team_id. Set it when the object is in another team. Changing it replaces the resource, which takes over the object in that team instead.", MarkdownDescription: "ID of the team that owns the integration, such as `t123`. Defaults to the provider's `team_id`. Set it when the object is in another team. Changing it replaces the resource, which takes over the object in that team instead.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_errors_microsoft_teams_integration"}}},
+			"team_name":                      schema.StringAttribute{Computed: true, Description: "Name of the team that owns the integration.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -477,6 +478,7 @@ func (r *ErrorsMicrosoftTeamsIntegrationResource) Create(ctx context.Context, re
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, found, err := r.client.Get(ctx, errorsMicrosoftTeamsIntegrationBinding, vars)
@@ -501,6 +503,13 @@ func (r *ErrorsMicrosoftTeamsIntegrationResource) Create(ctx context.Context, re
 		return
 	}
 	out, err = r.client.Update(ctx, errorsMicrosoftTeamsIntegrationBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating errors_microsoft_teams_integration", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating errors_microsoft_teams_integration", err, req.Plan.Raw.Type())
 		return
@@ -521,9 +530,22 @@ func (r *ErrorsMicrosoftTeamsIntegrationResource) Read(ctx context.Context, req 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, errorsMicrosoftTeamsIntegrationBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), errorsMicrosoftTeamsIntegrationBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading errors_microsoft_teams_integration", err, req.State.Raw.Type())
 		return
@@ -541,12 +563,6 @@ func (r *ErrorsMicrosoftTeamsIntegrationResource) Read(ctx context.Context, req 
 func populateErrorsMicrosoftTeamsIntegration(ctx context.Context, m *ErrorsMicrosoftTeamsIntegrationModel, attrs map[string]interface{}) {
 	if attrs == nil {
 		return
-	}
-	if v, ok := stringFromAPI(attrs["team_id"]); ok {
-		m.TeamId = types.StringValue(v)
-	}
-	if v, ok := stringFromAPI(attrs["team_name"]); ok {
-		m.TeamName = types.StringValue(v)
 	}
 	if raw, ok := attrs["notifications"].(map[string]interface{}); ok {
 		m.Notifications = flattenErrorsMicrosoftTeamsIntegrationNotifications(ctx, m.Notifications, raw)
@@ -600,9 +616,16 @@ func populateErrorsMicrosoftTeamsIntegration(ctx context.Context, m *ErrorsMicro
 		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: errorsMicrosoftTeamsIntegrationRoutesAttrTypes()}, items)
 		m.Routes = lv
 	}
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(attrs["team_name"]); ok {
+		m.TeamName = types.StringValue(v)
+	}
 }
 
 func (r *ErrorsMicrosoftTeamsIntegrationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	defer rememberConfigured(ctx, req.Config, resp.Private, errorsMicrosoftTeamsIntegrationKeptOnRemoval, &resp.Diagnostics)
 	var plan ErrorsMicrosoftTeamsIntegrationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -624,6 +647,7 @@ func (r *ErrorsMicrosoftTeamsIntegrationResource) Update(ctx context.Context, re
 	if !plan.OccurrenceThresholdInterval.Equal(state.OccurrenceThresholdInterval) {
 		request.OccurrenceThresholdInterval = plan.OccurrenceThresholdInterval
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, err := r.client.Update(ctx, errorsMicrosoftTeamsIntegrationBinding, vars, r.body(ctx, request))
@@ -646,9 +670,24 @@ func (r *ErrorsMicrosoftTeamsIntegrationResource) Delete(ctx context.Context, re
 var errorsMicrosoftTeamsIntegrationKeptOnRemoval = []string{"notifications", "routes", "tag_filter"}
 
 func (r *ErrorsMicrosoftTeamsIntegrationResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseUnnamedTeam(ctx, req, resp, r.client, "errors microsoft teams integration")
 	warnKeptOnRemoval(ctx, "betterstack_errors_microsoft_teams_integration", req, resp, errorsMicrosoftTeamsIntegrationKeptOnRemoval)
 }
 
 func (r *ErrorsMicrosoftTeamsIntegrationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("occurrence_threshold_count"), 10)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("occurrence_threshold_interval"), "minute")...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("affected_users_threshold_count"), 10)...)
+}
+
+var _ resource.ResourceWithMoveState = &ErrorsMicrosoftTeamsIntegrationResource{}
+
+// MoveState accepts `moved {}` blocks from the superseded provider resource(s):
+// logtail_errors_microsoft_teams_integration (registry.terraform.io/BetterStackHQ/logtail).
+func (r *ErrorsMicrosoftTeamsIntegrationResource) MoveState(ctx context.Context) []resource.StateMover {
+	return []resource.StateMover{
+		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"singleton\",\"path\":\"notifications\"},{\"op\":\"wrap\",\"path\":\"routes[].channel_ids\",\"to\":\"routes[].channels\",\"key\":\"id\"},{\"op\":\"string_id\",\"path\":\"routes[].applications[].application_id\"}],\"ignored_fields\":[\"integration_id\",\"team_id\",\"team_name\"],\"instructions\":[\"Rename to betterstack_errors_microsoft_teams_integration, keeping the integration ID, which the legacy provider stored as both id and integration_id. Drop integration_id, convert the single notifications block to an object and replace team_name with the provider's team. Each route's channel_ids become channels entries of {id = ...}, in the same order.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_errors_microsoft_teams_integration\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"defaults\":{\"occurrence_threshold_count\":10,\"occurrence_threshold_interval\":\"minute\",\"affected_users_threshold_count\":10},\"source_attributes\":[{\"computed\":true,\"description\":\"How many affected users trigger the `affected_users_threshold` notification.\",\"name\":\"affected_users_threshold_count\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The ID of the integration, the same as `integration_id`.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"The ID of the existing Microsoft Teams integration to manage, as in the URL of its Configure page in Error tracking › Integrations, or as listed by `GET /api/v1/microsoft-teams-integrations`. Changing it adopts a different integration and leaves the previous one as it is.\",\"name\":\"integration_id\",\"required\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The channel the Better Stack app was added to. Without `routes`, every error goes to this channel.\",\"name\":\"microsoft_teams_channel_name\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The Microsoft Teams team the Better Stack app was added to.\",\"name\":\"microsoft_teams_team_name\",\"type\":\"string\"},{\"max_items\":1,\"name\":\"notifications\",\"optional\":true,\"type\":\"list(object)\"},{\"computed\":true,\"description\":\"Notify when an error affects more than `affected_users_threshold_count` users.\",\"name\":\"notifications.affected_users_threshold\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when an error is automatically re-opened.\",\"name\":\"notifications.automatically_reopened\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when a new error occurs.\",\"name\":\"notifications.new_errors\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when a new release is observed.\",\"name\":\"notifications.new_releases\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when an error reaches an occurrence milestone (10, 100, 200, 500, …).\",\"name\":\"notifications.occurrence_milestones\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when an error occurs more than `occurrence_threshold_count` times per `occurrence_threshold_interval`.\",\"name\":\"notifications.occurrence_threshold\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when spike protection starts sampling exceptions.\",\"name\":\"notifications.spike_protection\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Notify when the application has a spike in errors.\",\"name\":\"notifications.spikes\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"How many occurrences per `occurrence_threshold_interval` trigger the `occurrence_threshold` notification.\",\"name\":\"occurrence_threshold_count\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The interval of `occurrence_threshold_count`: `minute`, `hour`, `day` or `week`.\",\"name\":\"occurrence_threshold_interval\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Which applications' errors go to which channels, each route as `{ applications = […], channel_ids = […] }`. Without routes, every error goes to the channel the Better Stack app was added to. Set to `[]` to remove every route.\",\"name\":\"routes\",\"optional\":true,\"type\":\"list(object)\"},{\"name\":\"routes.applications\",\"optional\":true,\"type\":\"set(object)\"},{\"name\":\"routes.applications.application_id\",\"optional\":true,\"type\":\"int\"},{\"name\":\"routes.applications.environments\",\"optional\":true,\"type\":\"list(string)\"},{\"name\":\"routes.channel_ids\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"Only errors whose tags match every row reach the integration, each row as `{ tag = \\\"region\\\", values = [\\\"eu\\\"] }`. Set to `[]` to remove the filter.\",\"name\":\"tag_filter\",\"optional\":true,\"type\":\"list(object)\"},{\"name\":\"tag_filter.tag\",\"optional\":true,\"type\":\"string\"},{\"name\":\"tag_filter.values\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"The ID of the team the integration belongs to.\",\"name\":\"team_id\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The name of the team the integration belongs to.\",\"name\":\"team_name\",\"type\":\"string\"}],\"response_projections\":[]}"),
+	}
 }

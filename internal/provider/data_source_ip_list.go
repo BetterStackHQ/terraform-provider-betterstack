@@ -73,7 +73,8 @@ func (d *IpListDataSource) Metadata(ctx context.Context, req datasource.Metadata
 
 func (d *IpListDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "The IP addresses Better Stack monitors check from, grouped by cluster. Use this public list to keep firewall allowlists up to date.",
+		Description:         "List the IP addresses Better Stack monitors check from, grouped by cluster. Use this public list to keep firewall allowlists up to date.",
+		MarkdownDescription: "List the IP addresses Better Stack monitors check from, grouped by cluster. Use this public list to keep firewall allowlists up to date.",
 		Attributes: map[string]schema.Attribute{
 			"id":              schema.StringAttribute{Computed: true},
 			"all_clusters":    schema.ListAttribute{Computed: true, ElementType: types.StringType},

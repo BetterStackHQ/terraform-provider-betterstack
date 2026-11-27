@@ -9,15 +9,37 @@ description: |-
 
 A public or private status page that communicates service health to your users.
 
+~> Destroying a status page deletes its data for good, so `deletion_protection` is on by default: Terraform refuses to destroy or replace it until you set `deletion_protection = false` and apply.
+
 -> Replaces `betteruptime_status_page`. Existing state moves over with a `moved {}` block; see the [migration guide](../guides/migration.md).
 
 ## Example Usage
 
+### Create a status page
+
 ```terraform
 resource "betterstack_status_page" "example" {
-  company_name = "example"
-  subdomain    = "example-page"
-  timezone     = "UTC"
+  company_url  = "https://best-company.com"
+  company_name = "Best company"
+  subdomain    = "best-company-tokyo"
+  timezone     = "Tokyo"
+}
+```
+
+### In a status page group
+
+```terraform
+resource "betterstack_status_page_group" "example" {
+  name       = "Production Status Pages"
+  sort_index = 1
+}
+
+resource "betterstack_status_page" "in_status_page_group" {
+  company_url          = "https://best-company.com"
+  company_name         = "Best company"
+  subdomain            = "best-company-tokyo"
+  timezone             = "Tokyo"
+  status_page_group_id = betterstack_status_page_group.example.id
 }
 ```
 
@@ -26,123 +48,194 @@ resource "betterstack_status_page" "example" {
 ### Required
 
 - `company_name` (String) Company name shown on the page.
-- `subdomain` (String) betterstack.com subdomain for the page.
-- `timezone` (String) Timezone for displayed times.
+- `subdomain` (String) Subdomain of the page's default address. It must be unique across Better Stack, up to 63 characters of letters, digits, dashes and underscores.
+- `timezone` (String) Time zone the page shows times in, as a Rails time zone name such as `Tokyo` or an IANA ID such as `Europe/Prague`. Returned as the Rails name.
 
 ### Optional
 
-Optional attributes are also computed: left unset, they take the server-side default.
-
-- `organization_id` (String) Organization the page belongs to, as its Better Stack organization id. Defaults to the first organization the token can access. An organization the token can't access returns a 422 error that lists the ones it can. Ignored on update. Can only be set when creating the resource; changing it afterwards replaces the resource.
-- `company_url` (String) Company website URL. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `custom_domain` (String) Custom domain for the page. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `contact_url` (String) Contact URL shown on the page. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `logo_url` (String) The logo shown in light mode. Send an image URL and the logo is fetched from it. Responses return the URL of the stored logo. Send `null` to remove the logo. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `dark_logo_url` (String) The logo shown in dark mode. Send an image URL and the logo is fetched from it. Responses return the URL of the stored logo. Send `null` to remove the logo. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `logo_remote_url` (String) The URL the light mode logo was fetched from. Send `null` to remove the logo. When both are sent, `logo_url` wins. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `dark_logo_remote_url` (String) The URL the dark mode logo was fetched from. Send `null` to remove the logo. When both are sent, `dark_logo_url` wins. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `custom_css` (String) Custom CSS added to the page. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `custom_javascript` (String) Custom JavaScript added to the page. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `google_analytics_id` (String) Google Analytics measurement ID. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `min_incident_length` (Number) Shortest incident the page shows, in seconds. Must be less than a year. Defaults to `0`.
+- `deletion_protection` (Boolean) Whether destroying or replacing this status page is refused. Defaults to `true`. Set it to `false` and apply before you delete or replace it on purpose. It's kept in state and never sent to Better Stack.
+- `organization_id` (String, Forces replacement) The ID of the organization the page belongs to, such as `123`. Get the ID from `organization_id` in [List teams](https://betterstack.com/docs/uptime/api/teams/list/). Required on create when you sign in with OAuth and can access more than one organization.
+- `company_url` (String) Company website URL.
+- `custom_domain` (String) A host name you own to serve the page from, such as `status.example.com`. Point its CNAME record to `statuspage.betteruptime.com`.
+- `contact_url` (String) URL visitors can use to get in touch, such as a support page or a `mailto:` address like `mailto:support@example.com`.
+- `logo_url` (String) The logo shown in light mode. Responses return the URL of the stored logo. It accepts the URL of an image under 20 MB, and we fetch the logo from it. Remove the argument to remove the logo.
+- `dark_logo_url` (String) The logo shown in dark mode. Responses return the URL of the stored logo. It accepts the URL of an image under 20 MB, and we fetch the logo from it. Remove the argument to remove the logo.
+- `logo_remote_url` (String) The URL the light mode logo was fetched from. Remove the argument to remove the logo. When both are sent, `logo_url` wins.
+- `dark_logo_remote_url` (String) The URL the dark mode logo was fetched from. Remove the argument to remove the logo. When both are sent, `dark_logo_url` wins.
+- `favicon_remote_url` (String) The URL the favicon was fetched from. It accepts the URL of an image under 20 MB, and we fetch the favicon from it. Remove the argument to remove the favicon.
+- `custom_css` (String) Custom CSS added to the page.
+- `custom_javascript` (String) Custom JavaScript added to the page.
+- `google_analytics_id` (String) Your Google Analytics ID, such as `G-XXXXXXXX`. It must start with `G-`, `UA-` or `GTM-`.
+- `min_incident_length` (Number) Shortest incident the page shows, in seconds. `0` shows every incident. Must be less than a year. Defaults to `0`.
 - `subscribable` (Boolean) Whether visitors can subscribe to updates. Defaults to `false`.
 - `hide_from_search_engines` (Boolean) Whether to hide the page from search engines with a `noindex` tag. Defaults to `false`.
-- `password_enabled` (Boolean) Whether visitors need a password to view the page. Defaults to `false`.
-- `password` (String, Sensitive) Password visitors enter to view the page. Never returned. Setting a password also turns on `password_enabled`, unless you send `password_enabled` too. An empty password removes the password and turns protection off. Write-only: the API never returns it; Terraform keeps the configured value. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `require_sso` (Boolean) Whether visitors must sign in with SSO to view the page. Defaults to `false`.
+- `password_enabled` (Boolean, Computed) Whether visitors need a password to view the page. Off unless you turn it on or set `password`.
+- `password` (String, Sensitive) Password visitors enter to view the page. Never returned. Setting a password also turns on `password_enabled`, unless `password_enabled` is set too. An empty password removes the password and turns protection off. Better Stack never returns it, so Terraform keeps the value you set.
+- `require_sso` (Boolean) Whether visitors must sign in with SSO to view the page. Needs SSO set up for your organization, and can't be on together with `password_enabled`. Defaults to `false`.
 - `published` (Boolean) Whether the page is published and publicly visible. An unpublished page is a draft. Publishing a draft fails when the organization already has as many published status pages as its plan allows. Defaults to `true`.
 - `history` (Number) Number of days of history the page shows, from 7 to 365. Defaults to `90`.
-- `design` (String) Page design: `v1` for the classic look or `v2` for the modern one. Valid values: `v1`, `v2`. Defaults to `v1`.
-- `theme` (String) Color theme. Valid values: `light`, `dark`, `system`. Defaults to `light`.
-- `layout` (String) How resources are laid out on the page. Valid values: `vertical`, `horizontal`. Defaults to `vertical`.
-- `automatic_reports` (Boolean) Whether maintenance reports are created automatically. Defaults to `false`.
-- `status_page_group_id` (String) Status page group the page belongs to. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `treat_not_monitored_as_operational` (Boolean) Whether the days a resource wasn't monitored show as operational in its history and count toward its uptime, instead of showing as not monitored. Defaults to `false`.
+- `design` (String) Page design. Defaults to `v1`.
+  - `v1`: The classic design.
+  - `v2`: The modern design.
+- `theme` (String) Color theme. Only the `v2` design uses it. Valid values: `light`, `dark`, `system`. Defaults to `light`.
+- `layout` (String) Header layout of the page. Only the `v2` design uses it. Valid values: `vertical`, `horizontal`. Defaults to `vertical`.
+- `automatic_reports` (Boolean) Whether status page reports are created automatically for new incidents. Defaults to `false`.
+- `status_page_group_id` (String) The ID of the status page group the page belongs to. Get the ID via [List status page groups](https://betterstack.com/docs/uptime/api/list-all-status-page-groups/).
 - `whitelabeled` (Boolean) Whether to remove Better Stack branding from the page. Defaults to `false`.
-- `announcement` (String) Announcement banner text. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `announcement` (String) Announcement banner text.
 - `announcement_embed_visible` (Boolean) Whether the embeddable widget shows the announcement. Defaults to `true`.
-- `announcement_embed_link` (String) Link the announcement points to on the embeddable widget. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `announcement_embed_css` (String) Custom CSS for the announcement on the embeddable widget. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
-- `navigation_links` (Attributes List, see [nested schema](#nestedatt--navigation_links)) Up to four links in the page's navigation, each with `text` and `href`. Only the `v2` design shows them. Send `[]` to remove them all. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
-- `ip_allowlist` (List of String) IP addresses or CIDR ranges allowed to view the page. Send `[]` to remove them all. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it.
-- `sections` (Attributes List, see [nested schema](#nestedatt--sections)) The page's sections in display order, each with its resources in display order. Sent, the list replaces the page's whole structure: sections and resources are matched by id, ones without an id are created, and ones left out are removed from the page. The monitors and other records behind them aren't affected. An attribute a resource leaves out keeps its value. Left out, the structure stays as it is. Writable on update only, so a new page gets its sections in a follow-up update. Removing this argument keeps its current value in Better Stack, since it has no default to reset to, and the plan warns about it. Not accepted by the create request; the provider applies it in an immediate follow-up call once the resource exists.
+- `announcement_embed_link` (String) Link the announcement points to on the embeddable widget. Defaults to the status page.
+- `announcement_embed_css` (String) Your own CSS for the announcement on the embeddable widget.
+- `navigation_links` (Attributes List, Computed) Up to four links in the page's navigation, each with `text` and `href`. Only the `v2` design shows them. An empty list removes them all. (see [below for nested schema](#nestedatt--navigation_links))
+- `ip_allowlist` (List of String, Computed) IP addresses or CIDR ranges allowed to view the page. Entries starting with `#` are comments. Set it to `[]` to let anyone view it.
+- `sections` (Attributes List, Computed) The page's sections and their resources, in display order. Setting it replaces the whole structure. Sections and resources are matched by `id`. Ones without an `id` are created. Ones left out are removed from the page. The monitors and other records behind them aren't affected. An attribute a resource leaves out keeps its value. Leave it out to keep the structure as it is. Only an update accepts it. In Terraform, an item without an id keeps the id of the existing item with the same `name`, so a reorder or a move updates it in place. An item that matches none keeps the id of the existing item at its position when no other item took that one, so a rename updates it in place too. (see [below for nested schema](#nestedatt--sections))
 
 ### Read-Only
 
-- `id` (String) The id of this status_page.
-- `aggregate_state` (String) The page's overall status: `operational`, `degraded`, `downtime` or `maintenance`.
+- `id` (String) The ID of this status page.
+- `favicon_url` (String) The icon browsers show in the page's tab, as the URL of the stored favicon. Only the `v2` design shows it.
+- `aggregate_state` (String) The page's overall status.
+  - `operational`: No resource on the page is down, degraded or in maintenance.
+  - `degraded`: A resource is degraded and none is down.
+  - `downtime`: A resource is down.
+  - `maintenance`: A resource is in maintenance and none is down or degraded.
+- `public_url` (String) The address visitors open the page at. It is the `custom_domain` when the page has one, otherwise the betterstack.com `subdomain`.
 - `created_at` (String (RFC 3339)) When the status page was created.
 - `updated_at` (String (RFC 3339)) When the status page was last updated.
 
 <a id="nestedatt--navigation_links"></a>
 ### Nested Schema for `navigation_links`
 
-- `text` (String)
-- `href` (String)
+Optional:
+
+- `text` (String) The link's text, such as `Maintenance`.
+- `href` (String) Where the link goes, a full URL, or `/`, `/maintenance` or `/incidents` for the status page's own pages.
 
 <a id="nestedatt--sections"></a>
 ### Nested Schema for `sections`
 
+Optional:
+
 - `id` (String) Section id. Leave it out for a new section. An id keeps the section, even when it moves.
 - `name` (String) Section name.
-- `resources` (Attributes List, see [nested schema](#nestedatt--sections--resources)) The section's resources, in display order. Left out, the section keeps its resources as they are, and a new section starts empty.
+- `resources` (Attributes List) The section's resources, in display order. Leave it out to keep the section's resources as they are. A new section starts empty. In Terraform, an item without an id keeps the id of the existing item with the same `resource_type` and `resource_id`, or else the same `resource_type` and `public_name`, so a reorder or a move updates it in place. (see [below for nested schema](#nestedatt--sections--resources))
 
 <a id="nestedatt--sections--resources"></a>
 ### Nested Schema for `sections.resources`
 
+Optional:
+
 - `id` (String) Resource id. Leave it out for a new resource. An id keeps the resource and its subscribers, even when it moves to another section.
-- `resource_type` (String) Type of the underlying resource. Required for a new resource. ThirdPartyService is added in the web app only: an item read back keeps its type and services when listed by id. Valid values: `Monitor`, `MonitorGroup`, `Heartbeat`, `HeartbeatGroup`, `WebhookIntegration`, `EmailIntegration`, `IncomingWebhook`, `AmazonSnsIntegration`, `ManuallyTrackedItem`, `LogsChart`, `CatalogReference`, `ThirdPartyService`.
-- `resource_id` (String) Id of the underlying monitor, heartbeat, group or other record. Required for a new resource, unless resource_type is ManuallyTrackedItem, which creates its backing record.
+- `resource_type` (String) Type of the underlying resource. Required for a new resource.
+  - `Monitor`: Shows a monitor.
+  - `MonitorGroup`: Shows a monitor group.
+  - `Heartbeat`: Shows a heartbeat.
+  - `HeartbeatGroup`: Shows a heartbeat group.
+  - `WebhookIntegration`: Shows an integration that opens incidents from another tool's alerts, such as Datadog or Grafana.
+  - `EmailIntegration`: Shows an e-mail integration.
+  - `IncomingWebhook`: Shows an incoming webhook.
+  - `AmazonSnsIntegration`: Shows an Amazon SNS integration.
+  - `ManuallyTrackedItem`: Shows a manually tracked item. Better Stack creates it when you leave out `resource_id`.
+  - `LogsChart`: Shows a dashboard chart, given in `chart_id`.
+  - `CatalogReference`: Shows a catalog value, given in `catalog_reference`.
+  - `ThirdPartyService`: Shows the status of a third-party service. It can only be added in the status page editor, and sent back with its `id` it keeps the services it shows.
+- `resource_id` (String) ID of the underlying monitor, heartbeat, group or other record. Required for a new resource. A `ManuallyTrackedItem` doesn't need it, since it creates its backing record. Neither does a resource whose `catalog_reference` names a catalog value or whose `chart_id` names a dashboard chart.
+- `catalog_reference` (Attributes) For a `CatalogReference` resource, the catalog value it shows, as on a status page resource. When it's set, the value is found or created and decides the resource's `resource_id`, so a `resource_id` set with it is ignored. `null` for every other type. (see [below for nested schema](#nestedatt--sections--resources--catalog_reference))
+- `chart_id` (String) For a `LogsChart` resource, the ID of the dashboard chart it shows, as on a status page resource. The chart must be on one of your organization's dashboards. It decides the resource's `resource_id`, so a `resource_id` sent with it is ignored. `null` for every other type.
 - `public_name` (String) Name shown publicly. Required for a new resource.
 - `explanation` (String) Tooltip explanation shown to visitors.
-- `widget_type` (String) How this resource is rendered. Valid values: `plain`, `history`, `intraday_history`, `response_times`, `intraday_response_times`, `chart_only`.
-- `mark_as_down_for` (String) When an incident marks this resource as down. Valid values: `no_incident`, `any_incident`, `incident_matching_metadata`.
-- `mark_as_down_metadata_rule` (Attributes, see [nested schema](#nestedatt--sections--resources--mark_as_down_metadata_rule)) Metadata rule used when mark_as_down_for is incident_matching_metadata, as on a status page resource.
-- `mark_as_degraded_for` (String) When an incident marks this resource as degraded. Valid values: `no_incident`, `any_incident`, `incident_matching_metadata`.
-- `mark_as_degraded_metadata_rule` (Attributes, see [nested schema](#nestedatt--sections--resources--mark_as_degraded_metadata_rule)) Metadata rule used when mark_as_degraded_for is incident_matching_metadata, in the shape of mark_as_down_metadata_rule.
+- `widget_type` (String) How this resource is rendered.
+  - `plain`: Shows only the current status.
+  - `history`: Shows the current status and a history of it.
+  - `intraday_history`: Shows the current status and a detailed history of it.
+  - `response_times`: Shows a history of the status and a response times chart, for a monitor or a logs chart.
+  - `intraday_response_times`: Shows a detailed history of the status and a response times chart, for a monitor or a logs chart.
+  - `chart_only`: Shows only the chart, for a logs chart.
+- `mark_as_down_for` (String) When an incident marks this resource as down. A `ManuallyTrackedItem` has no incidents, so this has no effect on one.
+  - `no_incident`: No incident marks the resource down.
+  - `any_incident`: Every open incident of the resource marks it down.
+  - `incident_matching_metadata`: An open incident marks the resource down when its metadata matches `mark_as_down_metadata_rule`.
+- `mark_as_down_metadata_rule` (Attributes) Metadata rule used when `mark_as_down_for` is `incident_matching_metadata`, as on a status page resource. A user is `u123` or their e-mail, and a team is `t123`. Get a user's ID via [List team members](https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via [List teams](https://betterstack.com/docs/uptime/api/teams/list/). A `ManuallyTrackedItem` has no incidents, so this has no effect on one. (see [below for nested schema](#nestedatt--sections--resources--mark_as_down_metadata_rule))
+- `mark_as_degraded_for` (String) When an incident marks this resource as degraded. A `ManuallyTrackedItem` has no incidents, so this has no effect on one.
+  - `no_incident`: No incident marks the resource degraded.
+  - `any_incident`: Every open incident of the resource marks it degraded.
+  - `incident_matching_metadata`: An open incident marks the resource degraded when its metadata matches `mark_as_degraded_metadata_rule`.
+- `mark_as_degraded_metadata_rule` (Attributes) Metadata rule used when `mark_as_degraded_for` is `incident_matching_metadata`, in the shape of `mark_as_down_metadata_rule`. A `ManuallyTrackedItem` has no incidents, so this has no effect on one. (see [below for nested schema](#nestedatt--sections--resources--mark_as_degraded_metadata_rule))
+
+<a id="nestedatt--sections--resources--catalog_reference"></a>
+### Nested Schema for `sections.resources.catalog_reference`
+
+Optional:
+
+- `key` (String) The catalog relation's name.
+- `value` (Attributes) The catalog value to show, a plain string or a catalog item. (see [below for nested schema](#nestedatt--sections--resources--catalog_reference--value))
+
+<a id="nestedatt--sections--resources--catalog_reference--value"></a>
+### Nested Schema for `sections.resources.catalog_reference.value`
+
+Optional:
+
+- `type` (String) `String` for a plain value, or the type of the catalog item, such as `User` or `Team`.
+- `value` (String) The plain value, when `type` is `String`.
+- `item_id` (String) The catalog item's ID, when `type` isn't `String`. A user is `u123` or their e-mail, and a team is `t123`.
+- `name` (String) The catalog item's name. Set it instead of `item_id` to find the item.
+- `email` (String) The user's e-mail, when `type` is `User`. Set it instead of `item_id` to find the user.
 
 <a id="nestedatt--sections--resources--mark_as_down_metadata_rule"></a>
 ### Nested Schema for `sections.resources.mark_as_down_metadata_rule`
 
-- `key` (String)
-- `values` (Attributes List, see [nested schema](#nestedatt--sections--resources--mark_as_down_metadata_rule--values))
+Optional:
+
+- `key` (String) The incident metadata key to match.
+- `values` (Attributes List) The values to match. An incident matches when its metadata under `key` holds one of them. (see [below for nested schema](#nestedatt--sections--resources--mark_as_down_metadata_rule--values))
 
 <a id="nestedatt--sections--resources--mark_as_down_metadata_rule--values"></a>
 ### Nested Schema for `sections.resources.mark_as_down_metadata_rule.values`
 
-- `type` (String)
-- `value` (String)
-- `item_id` (String)
-- `name` (String)
-- `email` (String)
+Optional:
+
+- `type` (String) `String` for a plain value, or the type of the catalog item, such as `User` or `Team`.
+- `value` (String) The plain value, when `type` is `String`.
+- `item_id` (String) The catalog item's ID, when `type` isn't `String`. A user is `u123` or their e-mail, and a team is `t123`. Get the user ID via [List team members](https://betterstack.com/docs/uptime/api/team-members/list/).
+- `name` (String) The catalog item's name. Set it instead of `item_id` to find the item.
+- `email` (String) The user's e-mail, when `type` is `User`. Set it instead of `item_id` to find the user.
 
 <a id="nestedatt--sections--resources--mark_as_degraded_metadata_rule"></a>
 ### Nested Schema for `sections.resources.mark_as_degraded_metadata_rule`
 
-- `key` (String)
-- `values` (Attributes List, see [nested schema](#nestedatt--sections--resources--mark_as_degraded_metadata_rule--values))
+Optional:
+
+- `key` (String) The incident metadata key to match.
+- `values` (Attributes List) The values to match. An incident matches when its metadata under `key` holds one of them. (see [below for nested schema](#nestedatt--sections--resources--mark_as_degraded_metadata_rule--values))
 
 <a id="nestedatt--sections--resources--mark_as_degraded_metadata_rule--values"></a>
 ### Nested Schema for `sections.resources.mark_as_degraded_metadata_rule.values`
 
-- `type` (String)
-- `value` (String)
-- `item_id` (String)
-- `name` (String)
-- `email` (String)
+Optional:
 
-## Endpoints
+- `type` (String) `String` for a plain value, or the type of the catalog item, such as `User` or `Team`.
+- `value` (String) The plain value, when `type` is `String`.
+- `item_id` (String) The catalog item's ID, when `type` isn't `String`. A user is `u123` or their e-mail, and a team is `t123`. Get the user ID via [List team members](https://betterstack.com/docs/uptime/api/team-members/list/).
+- `name` (String) The catalog item's name. Set it instead of `item_id` to find the item.
+- `email` (String) The user's e-mail, when `type` is `User`. Set it instead of `item_id` to find the user.
 
-- `GET /api/v5/status-pages`
-- `GET /api/v5/status-pages/:id`
-- `POST /api/v5/status-pages`
-- `PATCH /api/v5/status-pages/:id`
-- `DELETE /api/v5/status-pages/:id`
-
--> Sending `null` for a setting that can't be empty keeps its current value. That covers every true or false setting, `min_incident_length`, `history`, `design`, `theme`, `layout` and `navigation_links`.
-
--> `logo_url`, `logo_remote_url`, `dark_logo_url` and `dark_logo_remote_url` must be absolute URLs, or the request returns a 422 error. Leaving out a logo's fields keeps the logo.
+-> The `logo_url`, `logo_remote_url`, `dark_logo_url`, `dark_logo_remote_url` and `favicon_remote_url` attributes must be absolute URLs, or the change is refused. Leaving out an image's fields keeps the image.
 
 ## Import
+
+Import an existing status page by its ID.
+
+With Terraform 1.5 or later, use an `import` block:
+
+```terraform
+import {
+  to = betterstack_status_page.example
+  id = "12345"
+}
+```
+
+Or run `terraform import`:
 
 ```shell
 terraform import betterstack_status_page.example 12345

@@ -6,10 +6,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
@@ -35,15 +39,15 @@ func TestProviderProtocolSchemaHasNoImplementationDiagnostics(t *testing.T) {
 	}
 }
 
-func TestMetricDataSourceKeepsGroupQueryScopeWhenResultBelongsToSiblingSource(t *testing.T) {
+func TestExtractedMetricDataSourceKeepsGroupQueryScopeWhenResultBelongsToSiblingSource(t *testing.T) {
 	ctx := context.Background()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.Method != http.MethodGet {
 			t.Errorf("lookup attempted %s", req.Method)
 		}
 		record := `{"id":"17","attributes":{"source_id":"sibling","name":"duration","sql_expression":"count()","type":"uint64","aggregations":["count"]}}`
-		// The source is a path segment: /api/v2/sources/:source_id/metrics has no show, so an id is found in the list.
-		if req.URL.Path == "/api/v2/sources/scope/metrics" {
+		// The source is a path segment: /api/v4/sources/:source_id/extracted-metrics has no show, so an id is found in the list.
+		if req.URL.Path == "/api/v4/sources/scope/extracted-metrics" {
 			w.Write([]byte(`{"data":[` + record + `]}`))
 		} else {
 			t.Errorf("unexpected lookup path %s", req.URL.Path)
@@ -51,7 +55,7 @@ func TestMetricDataSourceKeepsGroupQueryScopeWhenResultBelongsToSiblingSource(t 
 		}
 	}))
 	defer srv.Close()
-	d := &MetricDataSource{client: testClient(srv.URL)}
+	d := &ExtractedMetricDataSource{client: testClient(srv.URL)}
 	var schemaResponse datasource.SchemaResponse
 	d.Schema(ctx, datasource.SchemaRequest{}, &schemaResponse)
 	typ := schemaResponse.Schema.Type().TerraformType(ctx)
@@ -61,7 +65,7 @@ func TestMetricDataSourceKeepsGroupQueryScopeWhenResultBelongsToSiblingSource(t 
 	if response.Diagnostics.HasError() {
 		t.Fatal(response.Diagnostics)
 	}
-	var result MetricModel
+	var result ExtractedMetricModel
 	if diagnostics := response.State.Get(ctx, &result); diagnostics.HasError() {
 		t.Fatal(diagnostics)
 	}
@@ -70,16 +74,16 @@ func TestMetricDataSourceKeepsGroupQueryScopeWhenResultBelongsToSiblingSource(t 
 	}
 }
 
-func TestMetricDataSourceIDCannotBypassConfiguredQueryScope(t *testing.T) {
+func TestExtractedMetricDataSourceIDCannotBypassConfiguredQueryScope(t *testing.T) {
 	ctx := context.Background()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if req.Method != http.MethodGet || req.URL.Path != "/api/v2/sources/scope/metrics" {
+		if req.Method != http.MethodGet || req.URL.Path != "/api/v4/sources/scope/extracted-metrics" {
 			t.Errorf("identity lookup bypassed its group scope: %s %s", req.Method, req.URL)
 		}
 		w.Write([]byte(`{"data":[]}`))
 	}))
 	defer srv.Close()
-	d := &MetricDataSource{client: testClient(srv.URL)}
+	d := &ExtractedMetricDataSource{client: testClient(srv.URL)}
 	var schemaResponse datasource.SchemaResponse
 	d.Schema(ctx, datasource.SchemaRequest{}, &schemaResponse)
 	typ := schemaResponse.Schema.Type().TerraformType(ctx)
@@ -91,7 +95,7 @@ func TestMetricDataSourceIDCannotBypassConfiguredQueryScope(t *testing.T) {
 	}
 }
 
-func TestDynamicQueryReadKeepsConfiguredShapeAndComputedResult(t *testing.T) {
+func TestQueryReadFillsServerFieldsAndWritesOnlyInputs(t *testing.T) {
 	ctx := context.Background()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.Method != http.MethodGet {
@@ -111,33 +115,17 @@ func TestDynamicQueryReadKeepsConfiguredShapeAndComputedResult(t *testing.T) {
 	if response.Diagnostics.HasError() {
 		t.Fatal(response.Diagnostics)
 	}
-	result, err := tftypesToAPI(response.State.Raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	state := result.(map[string]interface{})
-	if !reflect.DeepEqual(state["queries"], []interface{}{query}) {
-		t.Fatalf("refresh changed the configured dynamic shape: %#v", state["queries"])
-	}
-	computed := state["queries_result"].([]interface{})[0].(map[string]interface{})
-	if computed["id"] != "9" || computed["name"] != "server default" {
-		t.Fatalf("computed query result lost server fields: %#v", computed)
-	}
 	var model ExplorationModel
 	if diagnostics := response.State.Get(ctx, &model); diagnostics.HasError() {
 		t.Fatal(diagnostics)
 	}
-	model.Queries = model.QueriesResult
 	body := r.body(ctx, model)
-	if _, exists := body["queries_result"]; exists {
-		t.Fatal("computed result was sent as an API input")
-	}
-	sent := body["queries"].([]interface{})[0].(map[string]interface{})
+	sent := body["queries"].([]map[string]interface{})[0]
 	if _, exists := sent["id"]; exists {
-		t.Fatal("nested computed identity was sent as an API input")
+		t.Fatal("the read-only query id was sent as an API input")
 	}
-	if sent["sql_query"] != "SELECT 1" {
-		t.Fatal("dynamic query input was lost")
+	if sent["sql_query"] != "SELECT 1" || sent["name"] != "server default" {
+		t.Fatalf("query inputs were lost: %#v", sent)
 	}
 }
 
@@ -158,12 +146,12 @@ func TestRepresentativeBindingsMatchLiteralContracts(t *testing.T) {
 			envelope: envelope{
 				ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"},
 				IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{},
-				RelationshipsPath: []string{"relationships"}, IncludedPath: []string{"included"},
+				RelationshipsPath: []string{"relationships"}, IncludedPath: nil, // monitors link records without sideloading them: no included list
 			},
 		},
 		{
 			name: "telemetry exploration", binding: explorationBinding,
-			createPath: "/api/v2/explorations", readPath: "/api/v2/explorations/{id}",
+			createPath: "/api/v3/explorations", readPath: "/api/v3/explorations/{id}",
 			envelope: envelope{
 				ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"},
 				IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{},
@@ -182,9 +170,9 @@ func TestRepresentativeBindingsMatchLiteralContracts(t *testing.T) {
 			selector: "team_id",
 		},
 		{
-			name: "flat status page resource", binding: statusPageResourceBinding,
-			createPath: "/api/v3/status-pages/{status_page_id}/resources",
-			readPath:   "/api/v3/status-pages/{status_page_id}/resources/{id}",
+			name: "flat status page", binding: statusPageBinding,
+			createPath: "/api/v5/status-pages",
+			readPath:   "/api/v5/status-pages/{id}",
 			envelope: envelope{
 				ItemPath: []string{"data"}, ListPath: []string{"data"}, AttributesPath: []string{"attributes"},
 				IDPath: []string{"id"}, TypePath: []string{"type"}, RequestPath: []string{},
@@ -220,15 +208,58 @@ func TestRepresentativeBindingsMatchLiteralContracts(t *testing.T) {
 	}
 }
 
-func TestNestedFreeFormValuesAndWriteOnlySecretsSurviveRefresh(t *testing.T) {
+func compactOrFail(t *testing.T, v interface{}) string {
+	text, ok := compactJSON(v)
+	if !ok {
+		t.Fatalf("not JSON: %#v", v)
+	}
+	return text
+}
+
+// A webhook body template is text that need not be valid JSON: the on-call template puts
+// $EMAILS_JSON_ARRAY in unquoted. It reaches the request exactly as written, and a template that is
+// valid JSON is sent as the same string, never decoded into an object.
+func TestOutgoingWebhookBodyTemplateIsSentAsWritten(t *testing.T) {
 	ctx := context.Background()
-	settings := map[string]interface{}{"enabled": true, "threshold": json.Number("2.5"),
-		"axes": []interface{}{map[string]interface{}{"name": "duration", "visible": false}}}
+	templates := []string{
+		"{\n  \"data\":{\n    \"message\": \"$MESSAGE\",\n    \"emails\": $EMAILS_JSON_ARRAY,\n    \"calendar_id\": $ON_CALL_CALENDAR_ID\n  }\n}\n",
+		"{\"incident_id\": \"$INCIDENT_ID\",  \"cause\": \"$CAUSE\"}",
+	}
+	for _, template := range templates {
+		model := IncidentsOutgoingWebhookIntegrationCustomWebhookTemplateAttributesModel{
+			Id: types.StringNull(), HttpMethod: types.StringValue("post"),
+			HeadersTemplate: types.ListNull(types.ObjectType{AttrTypes: incidentsOutgoingWebhookIntegrationCustomWebhookTemplateAttributesHeadersTemplateAttrTypes()}),
+			BodyTemplate:    types.StringValue(template), AuthUsername: types.StringNull(), AuthPassword: types.StringNull(),
+		}
+		obj, diags := types.ObjectValueFrom(ctx, incidentsOutgoingWebhookIntegrationCustomWebhookTemplateAttributesAttrTypes(), model)
+		if diags.HasError() {
+			t.Fatal(diags)
+		}
+		body := expandIncidentsOutgoingWebhookIntegrationCustomWebhookTemplateAttributes(ctx, obj)
+		got, ok := body["body_template"].(string)
+		if !ok || got != template {
+			t.Fatalf("body_template wasn't sent as written: %#v", body["body_template"])
+		}
+		encoded, err := json.Marshal(body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var wire map[string]interface{}
+		if err := json.Unmarshal(encoded, &wire); err != nil || wire["body_template"] != template {
+			t.Fatalf("the request body doesn't carry the template unchanged: %s", encoded)
+		}
+	}
+}
+
+func TestNestedSettingsAndWriteOnlySecretsSurviveRefresh(t *testing.T) {
+	ctx := context.Background()
+	settings := map[string]interface{}{"unit": "ms", "decimal_places": json.Number("2"), "custom_unit": false,
+		"y_axis_annotations": []interface{}{map[string]interface{}{"value": json.Number("2.5"), "label": "Slow", "color": "#e0687d"}}}
 	chart := flattenExplorationChart(ctx, types.ObjectNull(explorationChartAttrTypes()),
 		map[string]interface{}{"chart_type": "line_chart", "settings": settings, "name": "computed-name"})
 	body := expandExplorationChart(ctx, chart)
-	if !reflect.DeepEqual(body["settings"], settings) {
-		t.Fatalf("native nested values were changed: %#v", body)
+	if !sameJSON(compactOrFail(t, body["settings"]), compactOrFail(t, settings)) {
+		t.Fatalf("nested settings were changed: %#v", body)
 	}
 	if _, sent := body["name"]; sent {
 		t.Fatal("readonly nested output leaked into write body")
@@ -256,10 +287,6 @@ func TestClientAgainstLiteralErrorsApplicationFixture(t *testing.T) {
 		}
 		if r.URL.Query().Get("team_id") != "t123" {
 			http.Error(w, "missing literal team selector", http.StatusBadRequest)
-			return
-		}
-		if r.Header.Get("Better-Stack-Version") != "" {
-			http.Error(w, "the path API takes no version header", http.StatusBadRequest)
 			return
 		}
 		var body map[string]interface{}
@@ -325,5 +352,108 @@ func TestConfiguredUnknownsUsePlanWithoutReplacingOmittedNulls(t *testing.T) {
 	}
 	if !configured["exploration_group_id"].IsNull() || !configured["exploration_group_id"].Type().Is(tftypes.String) {
 		t.Fatalf("omitted null was replaced: %#v", configured["exploration_group_id"])
+	}
+}
+
+// A when: condition on fields inside an object sibling: absent (or a null object) applies, a set
+// field doesn't, and an unknown one leaves the plan alone until a known mismatch decides.
+func TestWhenReadsAFieldInsideAnObjectSibling(t *testing.T) {
+	obj := tftypes.Object{AttributeTypes: map[string]tftypes.Type{"policy_id": tftypes.String, "policy_name": tftypes.String}}
+	root := func(target tftypes.Value) tftypes.Value {
+		return tftypes.NewValue(tftypes.Object{AttributeTypes: map[string]tftypes.Type{"escalation_target": obj}}, map[string]tftypes.Value{"escalation_target": target})
+	}
+	target := func(id, name tftypes.Value) tftypes.Value {
+		return tftypes.NewValue(obj, map[string]tftypes.Value{"policy_id": id, "policy_name": name})
+	}
+	str := func(s string) tftypes.Value { return tftypes.NewValue(tftypes.String, s) }
+	null := tftypes.NewValue(tftypes.String, nil)
+	unknown := tftypes.NewValue(tftypes.String, tftypes.UnknownValue)
+	conds := []siblingCond{{Path: "escalation_target.policy_id", Absent: true}, {Path: "escalation_target.policy_name", Absent: true}}
+	for _, c := range []struct {
+		name         string
+		raw          tftypes.Value
+		known, match bool
+	}{
+		{"a team", root(target(null, null)), true, true},
+		{"no target", root(tftypes.NewValue(obj, nil)), true, true},
+		{"a policy", root(target(str("7"), str("Critical"))), true, false},
+		{"a policy by name", root(target(unknown, str("Critical"))), true, false},
+		{"a target not yet known", root(tftypes.NewValue(obj, tftypes.UnknownValue)), false, false},
+		{"a policy id not yet known", root(target(unknown, null)), false, false},
+	} {
+		if known, match := siblingMatches(c.raw, conds); known != c.known || match != c.match {
+			t.Errorf("%s: known=%v match=%v, want %v %v", c.name, known, match, c.known, c.match)
+		}
+	}
+	unknownTarget := root(tftypes.NewValue(obj, tftypes.UnknownValue))
+	noTarget := root(tftypes.NewValue(obj, nil))
+	team, policy := root(target(null, null)), root(target(str("7"), str("Critical")))
+	for _, c := range []struct {
+		name                string
+		plan, config, state tftypes.Value
+		known, match        bool
+	}{
+		{"a target configured as a team, planned unknown", root(target(unknown, unknown)), team, team, true, true},
+		{"a target switched back to a team, the plan still holding the policy", policy, team, policy, true, true},
+		{"an alert created without a target", unknownTarget, noTarget, tftypes.NewValue(noTarget.Type(), nil), true, true},
+		{"an unconfigured target kept from a team state, planned unknown", unknownTarget, noTarget, team, true, true},
+		{"an unconfigured target kept from a policy state", unknownTarget, noTarget, policy, true, false},
+	} {
+		if known, match := siblingMatchesPlan(c.plan, c.config, c.state, conds); known != c.known || match != c.match {
+			t.Errorf("%s: known=%v match=%v, want %v %v", c.name, known, match, c.known, c.match)
+		}
+	}
+	if !keptOut(team, types.BoolNull(), noTarget, conds) || keptOut(team, types.BoolValue(false), noTarget, conds) || keptOut(team, types.BoolNull(), team, conds) {
+		t.Errorf("keptOut: a flag the API left out stays out only while the target isn't configured")
+	}
+	if got := appliesWhenText(path.Root("call"), conds); !strings.Contains(got, "escalation_target.policy_id is null and escalation_target.policy_name is null") {
+		t.Errorf("text = %q", got)
+	}
+}
+
+// An imported webhook's write-only template is read from the template the API returns, and a value
+// state already holds stays as it is.
+func TestWriteOnlyTemplateIsReadOnlyWhenStateHasNone(t *testing.T) {
+	ctx := context.Background()
+	attrs := map[string]interface{}{"custom_webhook_template": map[string]interface{}{"id": "7", "http_method": "post", "body_template": "{}"}}
+	var imported IncidentsOutgoingWebhookIntegrationModel
+	imported.CustomWebhookTemplateAttributes = types.ObjectNull(incidentsOutgoingWebhookIntegrationCustomWebhookTemplateAttributesAttrTypes())
+	imported.CustomWebhookTemplate = types.ObjectNull(incidentsOutgoingWebhookIntegrationCustomWebhookTemplateAttrTypes())
+	populateIncidentsOutgoingWebhookIntegration(ctx, &imported, attrs)
+	if imported.CustomWebhookTemplateAttributes.IsNull() {
+		t.Fatal("an import left the write-only template empty")
+	}
+	if got := imported.CustomWebhookTemplateAttributes.Attributes()["http_method"]; got.String() != `"post"` {
+		t.Fatalf("http_method = %s", got)
+	}
+	configured := imported
+	configured.CustomWebhookTemplateAttributes = flattenIncidentsOutgoingWebhookIntegrationCustomWebhookTemplateAttributes(ctx,
+		types.ObjectNull(incidentsOutgoingWebhookIntegrationCustomWebhookTemplateAttributesAttrTypes()), map[string]interface{}{"http_method": "put"})
+	populateIncidentsOutgoingWebhookIntegration(ctx, &configured, attrs)
+	if got := configured.CustomWebhookTemplateAttributes.Attributes()["http_method"]; got.String() != `"put"` {
+		t.Fatalf("a configured value was replaced: %s", got)
+	}
+}
+
+// A catalog item_id takes a team only as t123, and any id for another kind of item.
+func TestPatternWhenRefusesABareTeamNumber(t *testing.T) {
+	ctx := context.Background()
+	objType := tftypes.Object{AttributeTypes: map[string]tftypes.Type{"type": tftypes.String, "item_id": tftypes.String}}
+	rootType := tftypes.Object{AttributeTypes: map[string]tftypes.Type{"value": objType}}
+	sch := schema.Schema{Attributes: map[string]schema.Attribute{"value": schema.SingleNestedAttribute{Optional: true, Attributes: map[string]schema.Attribute{
+		"type": schema.StringAttribute{Optional: true}, "item_id": schema.StringAttribute{Optional: true}}}}}
+	v := patternWhenString{Sibling: "type", Patterns: map[string]string{"Team": "^t[1-9][0-9]*$"}}
+	for _, c := range []struct {
+		kind, id string
+		ok       bool
+	}{{"Team", "t552385", true}, {"Team", "552385", false}, {"Policy", "131543", true}, {"Schedule", "77", true}} {
+		raw := tftypes.NewValue(rootType, map[string]tftypes.Value{"value": tftypes.NewValue(objType, map[string]tftypes.Value{
+			"type": tftypes.NewValue(tftypes.String, c.kind), "item_id": tftypes.NewValue(tftypes.String, c.id)})})
+		req := validator.StringRequest{Path: path.Root("value").AtName("item_id"), ConfigValue: types.StringValue(c.id), Config: tfsdk.Config{Raw: raw, Schema: sch}}
+		resp := &validator.StringResponse{}
+		v.ValidateString(ctx, req, resp)
+		if resp.Diagnostics.HasError() == c.ok {
+			t.Errorf("%s %s: errors %v, want ok=%v", c.kind, c.id, resp.Diagnostics, c.ok)
+		}
 	}
 }

@@ -12,9 +12,8 @@ and verify the backend still has the expected lineage/serial, then install the c
 with Terraform's supported state-push/locking procedure (never force). Require a normal
 no-op plan before any ordinary apply. A saved current file cannot prove backend freshness.
 
-Only supported transfers: legacy AWS/GCP source facets, one inline collector database,
-or one outgoing webhook's existing basic-auth password, all into already-moved/imported
-targets.
+Only supported transfers: one inline collector database, or one outgoing webhook's
+existing basic-auth password, both into already-moved/imported targets.
 The selected obsolete legacy address must already be absent from current state.
 No general mapping language, arbitrary field selection, remote reassertion or raw secrets
 in command arguments is supported. Repeat against the preceding candidate for each child.
@@ -39,15 +38,11 @@ INDEX = r'\[(?:0|[1-9][0-9]*|"(?:[^"\\\x00-\x1f]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4}
 MODULE = rf"(?:module\.{IDENTIFIER}(?:{INDEX})?\.)*"
 PROVIDER = re.compile(rf'{MODULE}provider\["([^"\\]+)"\](?:\.{IDENTIFIER})?\Z')
 MODULE_ADDRESS = re.compile(rf'(?:module\.{IDENTIFIER}(?:{INDEX})?)(?:\.module\.{IDENTIFIER}(?:{INDEX})?)*\Z')
-AWS = {"aws_account_id": "aws_account_id", "aws_role_arn": "aws_role_arn", "aws_external_id": "aws_external_id", "auto_subscribe_log_groups": "aws_auto_subscribe_log_groups"}
-GCP = {"gcp_account_id": "gcp_account_id", "gcp_project_id": "gcp_project_id", "gcp_project_number": "gcp_project_number"}
 DATABASE = {"host": "host", "port": "port", "username": "username", "password": "password", "ssl_mode": "ssl_mode", "tls": "tls"}
 # source type -> reviewed provider, target type, equivalent old managed owner type.
 HANDOFFS = {
-    "logtail_source_aws_account": ("betterstackhq/logtail", "betterstack_source", "logtail_source"),
-    "logtail_source_gcp_project": ("betterstackhq/logtail", "betterstack_source", "logtail_source"),
     "logtail_collector": ("betterstackhq/logtail", "betterstack_collector_target", "logtail_collector_target"),
-    "betteruptime_outgoing_webhook": ("betterstackhq/better-uptime", "betterstack_outgoing_webhook_integration", "betteruptime_outgoing_webhook"),
+    "betteruptime_outgoing_webhook": ("betterstackhq/better-uptime", "betterstack_incidents_outgoing_webhook_integration", "betteruptime_outgoing_webhook"),
 }
 
 
@@ -182,37 +177,6 @@ def text(attributes, key, required=False):
     return value
 
 
-def facet_values(attributes, kind):
-    mapping = AWS if kind == "logtail_source_aws_account" else GCP
-    if set(attributes) - set(mapping) - {"id", "source_id"}:
-        raise TransferError("The legacy facet contains an unreviewed attribute.")
-    if identity(attributes.get("id")) != identity(attributes.get("source_id")):
-        raise TransferError("Legacy facet identity does not match its source parent.")
-    values = {}
-    for old, new in mapping.items():
-        value = attributes.get(old)
-        if old == "auto_subscribe_log_groups":
-            if value is not None and type(value) is not bool:
-                raise TransferError("The legacy subscription default must be a boolean.")
-        else:
-            value = text(attributes, old)
-            if value == "":
-                value = None  # Published SDK optional credential fields use empty strings for absence.
-        if value is not None:
-            values[new] = value
-    if kind == "logtail_source_aws_account":
-        pair = (values.get("aws_role_arn"), values.get("aws_external_id"))
-        if bool(pair[0]) != bool(pair[1]) or not (values.get("aws_account_id") or all(pair)):
-            raise TransferError("AWS account identity or the complete role/external-ID credentials are missing.")
-    else:
-        pair = (values.get("gcp_project_id"), values.get("gcp_project_number"))
-        if bool(pair[0]) != bool(pair[1]) or not (values.get("gcp_account_id") or all(pair)):
-            raise TransferError("GCP account identity or the complete project credentials are missing.")
-        if pair[1]:
-            identity(pair[1])
-    return values
-
-
 def database_values(backup, current, target, child_id):
     parent_id = identity(backup.get("id"))
     if identity(target.get("collector_id")) != parent_id:
@@ -298,7 +262,7 @@ def prepare(backup, current, source_address, target_address, expected_serial, ch
             raise TransferError("Inline database handoff requires an exact --child-id.")
         values = database_values(source, candidate, target, child_id)
         sensitive = {"password"}
-    elif kind == "betteruptime_outgoing_webhook":
+    else:
         if child_id is not None:
             raise TransferError("This handoff does not accept --child-id.")
         if identity(target.get("id")) != identity(source.get("id")):
@@ -309,20 +273,13 @@ def prepare(backup, current, source_address, target_address, expected_serial, ch
         password = templates[0].get("auth_password")
         if type(password) is not str:
             raise TransferError("The original webhook password is missing or invalid; recover the original state before transfer.")
-        destination = target.get("custom_webhook_template")
+        # The template the imported webhook reads back as custom_webhook_template is written through
+        # custom_webhook_template_attributes, and that input is where the provider keeps auth_password.
+        destination = target.get("custom_webhook_template_attributes")
         if not isinstance(destination, dict):
             raise TransferError("The imported webhook has no existing custom template.")
         values, sensitive = {"auth_password": password}, {"auth_password"}
-        sensitive_prefix = [{"type": "get_attr", "value": "custom_webhook_template"}]
-    else:
-        if child_id is not None:
-            raise TransferError("Source-facet handoff does not accept --child-id.")
-        if identity(target.get("id")) != identity(source.get("source_id")):
-            raise TransferError("Target source identity does not match the original facet parent.")
-        if target.get("platform") != ("aws" if kind == "logtail_source_aws_account" else "gcp"):
-            raise TransferError("Target source platform does not match the legacy facet.")
-        values = facet_values(source, kind)
-        sensitive = {"aws_role_arn", "aws_external_id"}
+        sensitive_prefix = [{"type": "get_attr", "value": "custom_webhook_template_attributes"}]
     for field, value in values.items():
         if field not in destination:
             raise TransferError("The target state lacks a required handoff field; verify the target provider version.")

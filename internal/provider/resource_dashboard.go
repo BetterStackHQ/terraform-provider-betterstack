@@ -8,13 +8,16 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/dynamicplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 )
 
 var _ resource.Resource = &DashboardResource{}
@@ -31,24 +34,375 @@ func NewDashboardResource() resource.Resource {
 }
 
 type DashboardModel struct {
-	Id                   types.String  `tfsdk:"id"`
-	Charts               types.List    `tfsdk:"charts"`
-	CreatedAt            types.String  `tfsdk:"created_at"`
-	DashboardGroupId     types.String  `tfsdk:"dashboard_group_id"`
-	DateRangeFrom        types.String  `tfsdk:"date_range_from"`
-	DateRangeTo          types.String  `tfsdk:"date_range_to"`
-	HasOverlaps          types.Bool    `tfsdk:"has_overlaps"`
-	Name                 types.String  `tfsdk:"name"`
-	RefreshInterval      types.Int64   `tfsdk:"refresh_interval"`
-	ResourceGroupName    types.String  `tfsdk:"resource_group_name"`
-	Sections             types.List    `tfsdk:"sections"`
-	SourceEligibilitySql types.String  `tfsdk:"source_eligibility_sql"`
-	SourceId             types.String  `tfsdk:"source_id"`
-	TeamId               types.String  `tfsdk:"team_id"`
-	TeamName             types.String  `tfsdk:"team_name"`
-	TemplateId           types.String  `tfsdk:"template_id"`
-	UpdatedAt            types.String  `tfsdk:"updated_at"`
-	Variables            types.Dynamic `tfsdk:"variables"`
+	Id                   types.String `tfsdk:"id"`
+	Charts               types.List   `tfsdk:"charts"`
+	CreatedAt            types.String `tfsdk:"created_at"`
+	DashboardGroupId     types.String `tfsdk:"dashboard_group_id"`
+	DateRangeFrom        types.String `tfsdk:"date_range_from"`
+	DateRangeTo          types.String `tfsdk:"date_range_to"`
+	HasOverlaps          types.Bool   `tfsdk:"has_overlaps"`
+	Name                 types.String `tfsdk:"name"`
+	Product              types.String `tfsdk:"product"`
+	RefreshInterval      types.Int64  `tfsdk:"refresh_interval"`
+	ResourceGroupName    types.String `tfsdk:"resource_group_name"`
+	Sections             types.List   `tfsdk:"sections"`
+	SourceEligibilitySql types.String `tfsdk:"source_eligibility_sql"`
+	SourceId             types.String `tfsdk:"source_id"`
+	TeamId               types.String `tfsdk:"team_id"`
+	TeamName             types.String `tfsdk:"team_name"`
+	TemplateId           types.String `tfsdk:"template_id"`
+	UpdatedAt            types.String `tfsdk:"updated_at"`
+	Url                  types.String `tfsdk:"url"`
+	Variables            types.List   `tfsdk:"variables"`
+}
+
+type DashboardVariablesModel struct {
+	Name                types.String `tfsdk:"name"`
+	VariableType        types.String `tfsdk:"variable_type"`
+	Values              types.List   `tfsdk:"values"`
+	DefaultValues       types.List   `tfsdk:"default_values"`
+	SqlDefinition       types.String `tfsdk:"sql_definition"`
+	StructuredValue     types.Object `tfsdk:"structured_value"`
+	AllowMultipleValues types.Bool   `tfsdk:"allow_multiple_values"`
+	SourceIds           types.List   `tfsdk:"source_ids"`
+	Filters             types.List   `tfsdk:"filters"`
+	SelectedLabel       types.String `tfsdk:"selected_label"`
+}
+
+func dashboardVariablesAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"name":                  types.StringType,
+		"variable_type":         types.StringType,
+		"values":                types.ListType{ElemType: types.StringType},
+		"default_values":        types.ListType{ElemType: types.StringType},
+		"sql_definition":        types.StringType,
+		"structured_value":      types.ObjectType{AttrTypes: dashboardVariablesStructuredValueAttrTypes()},
+		"allow_multiple_values": types.BoolType,
+		"source_ids":            types.ListType{ElemType: types.StringType},
+		"filters":               types.ListType{ElemType: types.ObjectType{AttrTypes: dashboardVariablesFiltersAttrTypes()}},
+		"selected_label":        types.StringType,
+	}
+}
+
+// expandDashboardVariables marshals a nested DashboardVariables object into its request map.
+func expandDashboardVariables(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardVariablesModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.VariableType.IsNull() && !m.VariableType.IsUnknown() {
+		out["variable_type"] = m.VariableType.ValueString()
+	}
+	if !m.Values.IsNull() && !m.Values.IsUnknown() {
+		var vals []string
+		m.Values.ElementsAs(ctx, &vals, false)
+		out["values"] = vals
+	}
+	if !m.DefaultValues.IsNull() && !m.DefaultValues.IsUnknown() {
+		var vals []string
+		m.DefaultValues.ElementsAs(ctx, &vals, false)
+		out["default_values"] = vals
+	}
+	if !m.SqlDefinition.IsNull() && !m.SqlDefinition.IsUnknown() {
+		out["sql_definition"] = m.SqlDefinition.ValueString()
+	}
+	if !m.StructuredValue.IsNull() && !m.StructuredValue.IsUnknown() {
+		out["structured_value"] = expandDashboardVariablesStructuredValue(ctx, m.StructuredValue)
+	}
+	if !m.AllowMultipleValues.IsNull() && !m.AllowMultipleValues.IsUnknown() {
+		out["allow_multiple_values"] = m.AllowMultipleValues.ValueBool()
+	}
+	if !m.SourceIds.IsNull() && !m.SourceIds.IsUnknown() {
+		var vals []string
+		m.SourceIds.ElementsAs(ctx, &vals, false)
+		out["source_ids"] = vals
+	}
+	if !m.Filters.IsNull() && !m.Filters.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Filters.Elements()))
+		for _, el := range m.Filters.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandDashboardVariablesFilters(ctx, obj))
+			}
+		}
+		out["filters"] = items
+	}
+	if !m.SelectedLabel.IsNull() && !m.SelectedLabel.IsUnknown() {
+		out["selected_label"] = m.SelectedLabel.ValueString()
+	}
+	return out
+}
+
+// flattenDashboardVariables refreshes a typed DashboardVariables object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardVariables(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardVariablesModel
+	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
+	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
+	m.Values = types.ListNull(types.StringType)
+	m.DefaultValues = types.ListNull(types.StringType)
+	m.StructuredValue = types.ObjectNull(dashboardVariablesStructuredValueAttrTypes())
+	m.SourceIds = types.ListNull(types.StringType)
+	m.Filters = types.ListNull(types.ObjectType{AttrTypes: dashboardVariablesFiltersAttrTypes()})
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["variable_type"]); ok {
+		m.VariableType = types.StringValue(v)
+	}
+	if raw, ok := raw["values"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.Values = lv
+	}
+	if raw, ok := raw["default_values"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.DefaultValues = lv
+	}
+	if v, ok := stringFromAPI(raw["sql_definition"]); ok {
+		m.SqlDefinition = types.StringValue(v)
+	}
+	if raw, ok := raw["structured_value"].(map[string]interface{}); ok {
+		m.StructuredValue = flattenDashboardVariablesStructuredValue(ctx, m.StructuredValue, raw)
+	}
+	if v, ok := boolFromAPI(raw["allow_multiple_values"]); ok {
+		m.AllowMultipleValues = types.BoolValue(v)
+	}
+	if raw, ok := raw["source_ids"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.SourceIds = lv
+	}
+	if raw, ok := raw["filters"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(dashboardVariablesFiltersAttrTypes())
+				items = append(items, flattenDashboardVariablesFilters(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: dashboardVariablesFiltersAttrTypes()}, items)
+		m.Filters = lv
+	}
+	if v, ok := stringFromAPI(raw["selected_label"]); ok {
+		m.SelectedLabel = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardVariablesAttrTypes(), m)
+	return obj
+}
+
+type DashboardVariablesStructuredValueModel struct {
+	SelectedLabel      types.String `tfsdk:"selected_label"`
+	CanonicalSourceIds types.List   `tfsdk:"canonical_source_ids"`
+	ServiceIds         types.List   `tfsdk:"service_ids"`
+	Filters            types.List   `tfsdk:"filters"`
+}
+
+func dashboardVariablesStructuredValueAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"selected_label":       types.StringType,
+		"canonical_source_ids": types.ListType{ElemType: types.StringType},
+		"service_ids":          types.ListType{ElemType: types.StringType},
+		"filters":              types.ListType{ElemType: types.ObjectType{AttrTypes: dashboardVariablesStructuredValueFiltersAttrTypes()}},
+	}
+}
+
+// expandDashboardVariablesStructuredValue marshals a nested DashboardVariablesStructuredValue object into its request map.
+func expandDashboardVariablesStructuredValue(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardVariablesStructuredValueModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.SelectedLabel.IsNull() && !m.SelectedLabel.IsUnknown() {
+		out["selected_label"] = m.SelectedLabel.ValueString()
+	}
+	if !m.CanonicalSourceIds.IsNull() && !m.CanonicalSourceIds.IsUnknown() {
+		var vals []string
+		m.CanonicalSourceIds.ElementsAs(ctx, &vals, false)
+		out["canonicalSourceIds"] = vals
+	}
+	if !m.ServiceIds.IsNull() && !m.ServiceIds.IsUnknown() {
+		var vals []string
+		m.ServiceIds.ElementsAs(ctx, &vals, false)
+		out["serviceIds"] = vals
+	}
+	if !m.Filters.IsNull() && !m.Filters.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Filters.Elements()))
+		for _, el := range m.Filters.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandDashboardVariablesStructuredValueFilters(ctx, obj))
+			}
+		}
+		out["filters"] = items
+	}
+	return out
+}
+
+// flattenDashboardVariablesStructuredValue refreshes a typed DashboardVariablesStructuredValue object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardVariablesStructuredValue(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardVariablesStructuredValueModel
+	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
+	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
+	m.CanonicalSourceIds = types.ListNull(types.StringType)
+	m.ServiceIds = types.ListNull(types.StringType)
+	m.Filters = types.ListNull(types.ObjectType{AttrTypes: dashboardVariablesStructuredValueFiltersAttrTypes()})
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["selected_label"]); ok {
+		m.SelectedLabel = types.StringValue(v)
+	}
+	if raw, ok := raw["canonicalSourceIds"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.CanonicalSourceIds = lv
+	}
+	if raw, ok := raw["serviceIds"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.ServiceIds = lv
+	}
+	if raw, ok := raw["filters"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(dashboardVariablesStructuredValueFiltersAttrTypes())
+				items = append(items, flattenDashboardVariablesStructuredValueFilters(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: dashboardVariablesStructuredValueFiltersAttrTypes()}, items)
+		m.Filters = lv
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardVariablesStructuredValueAttrTypes(), m)
+	return obj
+}
+
+type DashboardVariablesStructuredValueFiltersModel struct {
+	Label types.String `tfsdk:"label"`
+	Sql   types.String `tfsdk:"sql"`
+}
+
+func dashboardVariablesStructuredValueFiltersAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"label": types.StringType,
+		"sql":   types.StringType,
+	}
+}
+
+// expandDashboardVariablesStructuredValueFilters marshals a nested DashboardVariablesStructuredValueFilters object into its request map.
+func expandDashboardVariablesStructuredValueFilters(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardVariablesStructuredValueFiltersModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Label.IsNull() && !m.Label.IsUnknown() {
+		out["label"] = m.Label.ValueString()
+	}
+	if !m.Sql.IsNull() && !m.Sql.IsUnknown() {
+		out["sql"] = m.Sql.ValueString()
+	}
+	return out
+}
+
+// flattenDashboardVariablesStructuredValueFilters refreshes a typed DashboardVariablesStructuredValueFilters object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardVariablesStructuredValueFilters(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardVariablesStructuredValueFiltersModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["label"]); ok {
+		m.Label = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["sql"]); ok {
+		m.Sql = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardVariablesStructuredValueFiltersAttrTypes(), m)
+	return obj
+}
+
+type DashboardVariablesFiltersModel struct {
+	Label types.String `tfsdk:"label"`
+	Sql   types.String `tfsdk:"sql"`
+}
+
+func dashboardVariablesFiltersAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"label": types.StringType,
+		"sql":   types.StringType,
+	}
+}
+
+// expandDashboardVariablesFilters marshals a nested DashboardVariablesFilters object into its request map.
+func expandDashboardVariablesFilters(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m DashboardVariablesFiltersModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Label.IsNull() && !m.Label.IsUnknown() {
+		out["label"] = m.Label.ValueString()
+	}
+	if !m.Sql.IsNull() && !m.Sql.IsUnknown() {
+		out["sql"] = m.Sql.ValueString()
+	}
+	return out
+}
+
+// flattenDashboardVariablesFilters refreshes a typed DashboardVariablesFilters object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenDashboardVariablesFilters(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m DashboardVariablesFiltersModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["label"]); ok {
+		m.Label = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["sql"]); ok {
+		m.Sql = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, dashboardVariablesFiltersAttrTypes(), m)
+	return obj
 }
 
 type DashboardChartsModel struct {
@@ -82,7 +436,7 @@ func expandDashboardCharts(ctx context.Context, o types.Object) map[string]inter
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
 	if !m.Id.IsNull() && !m.Id.IsUnknown() {
-		out["id"] = idToAPI(m.Id.ValueString())
+		out["id"] = m.Id.ValueString()
 	}
 	if !m.ChartType.IsNull() && !m.ChartType.IsUnknown() {
 		out["chart_type"] = m.ChartType.ValueString()
@@ -162,7 +516,7 @@ func expandDashboardSections(ctx context.Context, o types.Object) map[string]int
 	o.As(ctx, &m, basetypes.ObjectAsOptions{})
 	out := map[string]interface{}{}
 	if !m.Id.IsNull() && !m.Id.IsUnknown() {
-		out["id"] = idToAPI(m.Id.ValueString())
+		out["id"] = m.Id.ValueString()
 	}
 	if !m.Name.IsNull() && !m.Name.IsUnknown() {
 		out["name"] = m.Name.ValueString()
@@ -186,8 +540,14 @@ func flattenDashboardSections(ctx context.Context, prior types.Object, raw map[s
 	if v, ok := stringFromAPI(raw["id"]); ok {
 		m.Id = types.StringValue(v)
 	}
-	if v, ok := stringFromAPI(raw["name"]); ok {
-		m.Name = types.StringValue(v)
+	if rawValue, exists := raw["name"]; exists {
+		if rawValue == nil {
+			m.Name = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["name"]); ok {
+				m.Name = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := int64FromAPI(raw["y"]); ok {
 		m.Y = types.Int64Value(v)
@@ -205,26 +565,29 @@ func (r *DashboardResource) Metadata(ctx context.Context, req resource.MetadataR
 
 func (r *DashboardResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A dashboard of charts visualizing logs, metrics, and traces.",
+		Description:         "A dashboard of charts visualizing logs, metrics, and traces.",
+		MarkdownDescription: "A dashboard of charts visualizing logs, metrics, and traces.",
 		Attributes: map[string]schema.Attribute{
 			"id":                     schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"charts":                 schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true}, "chart_type": schema.StringAttribute{Computed: true}, "name": schema.StringAttribute{Computed: true}, "x": schema.Int64Attribute{Computed: true}, "y": schema.Int64Attribute{Computed: true}, "w": schema.Int64Attribute{Computed: true}, "h": schema.Int64Attribute{Computed: true}}}, Description: "Charts on the dashboard. Returned when you get one dashboard."},
+			"charts":                 schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true, Description: "The chart's ID."}, "chart_type": schema.StringAttribute{Computed: true, Description: "The chart's type, line_chart, table_chart, bar_chart, number_chart, heatmap_chart, anomalies_chart, pie_chart, scatter_chart, gauge_chart, tail_chart, static_text_chart, map_chart, text_chart, funnel_chart, funnel_trend_chart or hierarchy_chart.", MarkdownDescription: "The chart's type, `line_chart`, `table_chart`, `bar_chart`, `number_chart`, `heatmap_chart`, `anomalies_chart`, `pie_chart`, `scatter_chart`, `gauge_chart`, `tail_chart`, `static_text_chart`, `map_chart`, `text_chart`, `funnel_chart`, `funnel_trend_chart` or `hierarchy_chart`."}, "name": schema.StringAttribute{Computed: true, Description: "The chart's name."}, "x": schema.Int64Attribute{Computed: true, Description: "The chart's horizontal position on the 12-column grid, from 0 at the left.", MarkdownDescription: "The chart's horizontal position on the 12-column grid, from `0` at the left."}, "y": schema.Int64Attribute{Computed: true, Description: "The chart's vertical position on the grid, from 0 at the top.", MarkdownDescription: "The chart's vertical position on the grid, from `0` at the top."}, "w": schema.Int64Attribute{Computed: true, Description: "The chart's width in grid columns, from 1 to 12.", MarkdownDescription: "The chart's width in grid columns, from `1` to `12`."}, "h": schema.Int64Attribute{Computed: true, Description: "The chart's height in grid rows."}}}, Description: "A summary of each chart on the dashboard, ordered top to bottom, then left to right. Returned when you get one dashboard. The dashboard chart endpoints return the full chart."},
 			"created_at":             schema.StringAttribute{Computed: true, Description: "When the dashboard was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"dashboard_group_id":     schema.StringAttribute{Optional: true, Description: "Group this dashboard belongs to. Send `null` to remove it from its group."},
+			"dashboard_group_id":     schema.StringAttribute{Optional: true, Description: "Group this dashboard belongs to. Remove the argument or set it to 0 to clear it from its group.", MarkdownDescription: "Group this dashboard belongs to. Remove the argument or set it to `0` to clear it from its group."},
 			"date_range_from":        schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("now-3h"), Description: "Default range start, for example now-3h."},
 			"date_range_to":          schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("now"), Description: "Default range end, for example now."},
 			"has_overlaps":           schema.BoolAttribute{Computed: true, Description: "Whether any charts overlap on the grid. Returned when you get one dashboard."},
 			"name":                   schema.StringAttribute{Required: true, Description: "Dashboard name."},
-			"refresh_interval":       schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(30), Description: "Auto-refresh interval in seconds."},
-			"resource_group_name":    schema.StringAttribute{Optional: true, Computed: true, Description: "Name of the dashboard group to put the new dashboard in. The team's group with that name is used, or created when there is none. Use it instead of `dashboard_group_id`, not with it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_dashboard"}}},
-			"sections":               schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true}, "name": schema.StringAttribute{Computed: true}, "y": schema.Int64Attribute{Computed: true}, "collapsed": schema.BoolAttribute{Computed: true}}}, Description: "Sections on the dashboard. Returned when you get one dashboard."},
-			"source_eligibility_sql": schema.StringAttribute{Optional: true, Description: "SQL that decides which sources this dashboard's charts can read. Returned when you get one dashboard."},
-			"source_id":              schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the source to set the new dashboard up for. With it, creating a dashboard accepts only `name`, `template_id`, and either `dashboard_group_id` or `resource_group_name`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_dashboard"}}},
-			"team_id":                schema.StringAttribute{Computed: true, Description: "Team that owns the dashboard, as its `t`-prefixed Better Stack team ID, such as `t123`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"team_name":              schema.StringAttribute{Computed: true, Description: "Name of the team that owns the dashboard."},
-			"template_id":            schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the dashboard template to create the dashboard from, as GET /api/v4/dashboards/templates lists it. The dashboard starts with the template's charts, sections and alerts. With it, creating a dashboard accepts only `name`, `source_id`, and either `dashboard_group_id` or `resource_group_name`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_dashboard"}}},
+			"product":                schema.StringAttribute{Optional: true, Computed: true, Description: "The product the dashboard belongs to. Defaults to telemetry, and it can't be changed after create.\n\n- telemetry: A dashboard over logs, metrics and traces.\n- rum: A Real User Monitoring dashboard.", MarkdownDescription: "The product the dashboard belongs to. Defaults to `telemetry`, and it can't be changed after create.\n\n- `telemetry`: A dashboard over logs, metrics and traces.\n- `rum`: A Real User Monitoring dashboard.", Validators: []validator.String{stringvalidator.OneOf("telemetry", "rum")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_dashboard"}}},
+			"refresh_interval":       schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(30), Description: "How often the dashboard refreshes its charts, in seconds. 0 turns automatic refresh off.", MarkdownDescription: "How often the dashboard refreshes its charts, in seconds. `0` turns automatic refresh off."},
+			"resource_group_name":    schema.StringAttribute{Optional: true, Computed: true, Description: "Name of the dashboard group to put the new dashboard in. The team's group with that name is used, or created when there is none. Use it instead of dashboard_group_id, not with it.", MarkdownDescription: "Name of the dashboard group to put the new dashboard in. The team's group with that name is used, or created when there is none. Use it instead of `dashboard_group_id`, not with it.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_dashboard"}}},
+			"sections":               schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true, Description: "The section's ID."}, "name": schema.StringAttribute{Computed: true, Description: "The section's name."}, "y": schema.Int64Attribute{Computed: true, Description: "The section's vertical position on the grid, from 0 at the top. A section spans the full width.", MarkdownDescription: "The section's vertical position on the grid, from `0` at the top. A section spans the full width."}, "collapsed": schema.BoolAttribute{Computed: true, Description: "Whether the section is collapsed."}}}, Description: "Sections on the dashboard. Returned when you get one dashboard."},
+			"source_eligibility_sql": schema.StringAttribute{Optional: true, Computed: true, Description: "SQL that decides which sources this dashboard's charts can read. Returned when you get one dashboard."},
+			"source_id":              schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the source or application to set the new dashboard up for, as List sources (https://betterstack.com/docs/logs/api/list-all-existing-sources/) or List applications (https://betterstack.com/docs/errors/api/applications/list/) lists it. For a rum dashboard, it's an application. With it, creating a dashboard accepts name, product, template_id, either dashboard_group_id or resource_group_name, and refresh_interval, date_range_from, date_range_to and source_eligibility_sql. It doesn't accept variables.", MarkdownDescription: "ID of the source or application to set the new dashboard up for, as [List sources](https://betterstack.com/docs/logs/api/list-all-existing-sources/) or [List applications](https://betterstack.com/docs/errors/api/applications/list/) lists it. For a `rum` dashboard, it's an application. With it, creating a dashboard accepts `name`, `product`, `template_id`, either `dashboard_group_id` or `resource_group_name`, and `refresh_interval`, `date_range_from`, `date_range_to` and `source_eligibility_sql`. It doesn't accept `variables`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_dashboard"}}},
+			"team_id":                schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns the dashboard, such as t123. Defaults to the provider's team_id. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", MarkdownDescription: "Team that owns the dashboard, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_dashboard"}}},
+			"team_name":              schema.StringAttribute{Computed: true, Description: "Name of the team that owns the dashboard.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"template_id":            schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the dashboard template to create the dashboard from, as List dashboard templates (https://betterstack.com/docs/logs/api/dashboards/templates/) lists it. The dashboard starts with the template's charts, sections, alerts, variables and settings. With it, creating a dashboard accepts name, product, source_id, either dashboard_group_id or resource_group_name, and refresh_interval, date_range_from, date_range_to and source_eligibility_sql, which replace the template's. It doesn't accept variables.", MarkdownDescription: "ID of the dashboard template to create the dashboard from, as [List dashboard templates](https://betterstack.com/docs/logs/api/dashboards/templates/) lists it. The dashboard starts with the template's charts, sections, alerts, variables and settings. With it, creating a dashboard accepts `name`, `product`, `source_id`, either `dashboard_group_id` or `resource_group_name`, and `refresh_interval`, `date_range_from`, `date_range_to` and `source_eligibility_sql`, which replace the template's. It doesn't accept `variables`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_dashboard"}}},
 			"updated_at":             schema.StringAttribute{Computed: true, Description: "When the dashboard was last updated."},
-			"variables":              schema.DynamicAttribute{Optional: true, Computed: true, Description: "Template variables, returned when you get one dashboard. An update replaces all variables: any you don't send is removed, except the built-in time, start_time, end_time and source variables, which always exist. The built-in variables keep their own type. `sql_definition` is accepted only on `select_with_sql` and `multi_select_with_sql` variables.", PlanModifiers: []planmodifier.Dynamic{dynamicplanmodifier.UseStateForUnknown()}},
+			"url":                    schema.StringAttribute{Computed: true, Description: "Link to this dashboard's page in the Better Stack web app."},
+			"variables":              schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name of the variable, used as {{name}} in queries.", MarkdownDescription: "The name of the variable, used as `{{name}}` in queries."}, "variable_type": schema.StringAttribute{Optional: true, Computed: true, Description: "The type of the variable, source, date, datetime, string, number, sql_expression, select_value, boolean, select_with_sql or select_predefined_sql.", MarkdownDescription: "The type of the variable, `source`, `date`, `datetime`, `string`, `number`, `sql_expression`, `select_value`, `boolean`, `select_with_sql` or `select_predefined_sql`."}, "values": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "The variable's current values as strings, or an empty list when it has none. For a source variable, the IDs of the selected sources.", MarkdownDescription: "The variable's current values as strings, or an empty list when it has none. For a `source` variable, the IDs of the selected sources."}, "default_values": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "The variable's default values as strings, or an empty list when it has none."}, "sql_definition": schema.StringAttribute{Optional: true, Computed: true, Description: "The SQL expression whose distinct values are the options of a select_with_sql variable, such as JSONExtractString(raw, 'service'). It runs against the variable's source over the selected range.", MarkdownDescription: "The SQL expression whose distinct values are the options of a `select_with_sql` variable, such as `JSONExtractString(raw, 'service')`. It runs against the variable's source over the selected range."}, "structured_value": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"selected_label": schema.StringAttribute{Optional: true, Computed: true, Description: "Label of the selected value."}, "canonical_source_ids": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Selected sources of a source variable. Source IDs in values set them.", MarkdownDescription: "Selected sources of a source variable. Source IDs in `values` set them."}, "service_ids": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Selected services of a source variable."}, "filters": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"label": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter's label, shown in the variable's menu."}, "sql": schema.StringAttribute{Optional: true, Computed: true, Description: "A complete query that returns one column with the filter's options."}}}, Description: "Saved filters, each a label and the SQL that lists its values."}}, Description: "The variable's other settings, such as the selected sources of a source variable in canonicalSourceIds and its services in serviceIds, or the saved filters of a select_predefined_sql variable. Left out when not set.", MarkdownDescription: "The variable's other settings, such as the selected sources of a `source` variable in `canonicalSourceIds` and its services in `serviceIds`, or the saved filters of a `select_predefined_sql` variable. Left out when not set."}, "allow_multiple_values": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether a select_value or select_with_sql variable accepts more than one value at a time.", MarkdownDescription: "Whether a `select_value` or `select_with_sql` variable accepts more than one value at a time."}, "source_ids": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "The IDs of the sources a source variable selects. They set the selection. Each must be a source the team can access.", MarkdownDescription: "The IDs of the sources a `source` variable selects. They set the selection. Each must be a source the team can access."}, "filters": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"label": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter's label, shown in the variable's menu."}, "sql": schema.StringAttribute{Optional: true, Computed: true, Description: "A complete query that returns one column with the filter's options."}}}, Description: "The saved filters of a select_predefined_sql variable. Each has a label and an sql query, a complete query that returns one column with the filter's options.", MarkdownDescription: "The saved filters of a `select_predefined_sql` variable. Each has a `label` and an `sql` query, a complete query that returns one column with the filter's options."}, "selected_label": schema.StringAttribute{Optional: true, Computed: true, Description: "The label of the selected filter of a select_predefined_sql variable. When not sent, the first filter is selected. A label that matches none of filters is refused.", MarkdownDescription: "The label of the selected filter of a `select_predefined_sql` variable. When not sent, the first filter is selected. A label that matches none of `filters` is refused."}}}, Description: "The dashboard's variables, which chart queries use by name, such as {{source}}. Returned when you get one dashboard. Creating a dashboard adds any of the built-in time, start_time, end_time and source variables the list leaves out. An update replaces all variables. Any the list leaves out is removed, except the built-in time, start_time, end_time and source variables, which always exist. The built-in variables keep their own type. A listed variable that already exists keeps the variable_type, default_values, sql_definition, structured_value and allow_multiple_values it leaves out, and null clears any of them except variable_type. Its values aren't kept, so list them again, except on a source variable, which keeps its sources while it leaves out both values and structured_value. Changing variable_type clears the old default_values, sql_definition and structured_value. See Query variables (https://betterstack.com/docs/logs/dashboards/variables/). sql_definition is accepted only on select_with_sql and multi_select_with_sql variables. When a variable is saved with empty values, a select_value gets the first of its default_values, a string, number, boolean or sql_expression gets all of them, and a select_with_sql whose sql_definition is new or changed gets the first option it returns. An ISO 8601 date in a date or datetime variable is saved in values as a Unix timestamp in microseconds. A new or changed sql_definition or filter sql runs against the selected source, and the change is refused when the query fails.", MarkdownDescription: "The dashboard's variables, which chart queries use by name, such as `{{source}}`. Returned when you get one dashboard. Creating a dashboard adds any of the built-in `time`, `start_time`, `end_time` and `source` variables the list leaves out. An update replaces all variables. Any the list leaves out is removed, except the built-in `time`, `start_time`, `end_time` and `source` variables, which always exist. The built-in variables keep their own type. A listed variable that already exists keeps the `variable_type`, `default_values`, `sql_definition`, `structured_value` and `allow_multiple_values` it leaves out, and `null` clears any of them except `variable_type`. Its `values` aren't kept, so list them again, except on a `source` variable, which keeps its sources while it leaves out both `values` and `structured_value`. Changing `variable_type` clears the old `default_values`, `sql_definition` and `structured_value`. See [Query variables](https://betterstack.com/docs/logs/dashboards/variables/). `sql_definition` is accepted only on `select_with_sql` and `multi_select_with_sql` variables. When a variable is saved with empty `values`, a `select_value` gets the first of its `default_values`, a `string`, `number`, `boolean` or `sql_expression` gets all of them, and a `select_with_sql` whose `sql_definition` is new or changed gets the first option it returns. An ISO 8601 date in a `date` or `datetime` variable is saved in `values` as a Unix timestamp in microseconds. A new or changed `sql_definition` or filter `sql` runs against the selected source, and the change is refused when the query fails.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -245,7 +608,7 @@ func (r *DashboardResource) body(ctx context.Context, m DashboardModel) map[stri
 		body["name"] = m.Name.ValueString()
 	}
 	if !m.DashboardGroupId.IsNull() && !m.DashboardGroupId.IsUnknown() {
-		body["dashboard_group_id"] = idToAPI(m.DashboardGroupId.ValueString())
+		body["dashboard_group_id"] = m.DashboardGroupId.ValueString()
 	}
 	if !m.RefreshInterval.IsNull() && !m.RefreshInterval.IsUnknown() {
 		body["refresh_interval"] = m.RefreshInterval.ValueInt64()
@@ -259,18 +622,23 @@ func (r *DashboardResource) body(ctx context.Context, m DashboardModel) map[stri
 	if !m.SourceEligibilitySql.IsNull() && !m.SourceEligibilitySql.IsUnknown() {
 		body["source_eligibility_sql"] = m.SourceEligibilitySql.ValueString()
 	}
-	if !m.Variables.IsNull() && !m.Variables.IsUnknown() && !m.Variables.IsUnderlyingValueNull() && !m.Variables.IsUnderlyingValueUnknown() {
-		if tv, err := m.Variables.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-			if av, err := tftypesToAPI(tv); err == nil {
-				body["variables"] = projectAPIWrite(av, apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"name": apiValueShape{}, "variable_type": apiValueShape{}, "values": apiValueShape{Element: &apiValueShape{}}, "default_values": apiValueShape{Element: &apiValueShape{}}, "sql_definition": apiValueShape{}, "structured_value": apiValueShape{}, "allow_multiple_values": apiValueShape{}}}})
+	if !m.Variables.IsNull() && !m.Variables.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Variables.Elements()))
+		for _, el := range m.Variables.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandDashboardVariables(ctx, obj))
 			}
 		}
+		body["variables"] = items
 	}
 	if !m.TemplateId.IsNull() && !m.TemplateId.IsUnknown() {
-		body["template_id"] = idToAPI(m.TemplateId.ValueString())
+		body["template_id"] = m.TemplateId.ValueString()
 	}
 	if !m.SourceId.IsNull() && !m.SourceId.IsUnknown() {
-		body["source_id"] = idToAPI(m.SourceId.ValueString())
+		body["source_id"] = m.SourceId.ValueString()
+	}
+	if !m.Product.IsNull() && !m.Product.IsUnknown() {
+		body["product"] = m.Product.ValueString()
 	}
 	if !m.ResourceGroupName.IsNull() && !m.ResourceGroupName.IsUnknown() {
 		body["resource_group_name"] = m.ResourceGroupName.ValueString()
@@ -285,7 +653,7 @@ func (r *DashboardResource) bodyForUpdate(ctx context.Context, m DashboardModel)
 		body["name"] = m.Name.ValueString()
 	}
 	if !m.DashboardGroupId.IsNull() && !m.DashboardGroupId.IsUnknown() {
-		body["dashboard_group_id"] = idToAPI(m.DashboardGroupId.ValueString())
+		body["dashboard_group_id"] = m.DashboardGroupId.ValueString()
 	}
 	if !m.RefreshInterval.IsNull() && !m.RefreshInterval.IsUnknown() {
 		body["refresh_interval"] = m.RefreshInterval.ValueInt64()
@@ -299,12 +667,14 @@ func (r *DashboardResource) bodyForUpdate(ctx context.Context, m DashboardModel)
 	if !m.SourceEligibilitySql.IsNull() && !m.SourceEligibilitySql.IsUnknown() {
 		body["source_eligibility_sql"] = m.SourceEligibilitySql.ValueString()
 	}
-	if !m.Variables.IsNull() && !m.Variables.IsUnknown() && !m.Variables.IsUnderlyingValueNull() && !m.Variables.IsUnderlyingValueUnknown() {
-		if tv, err := m.Variables.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-			if av, err := tftypesToAPI(tv); err == nil {
-				body["variables"] = projectAPIWrite(av, apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"name": apiValueShape{}, "variable_type": apiValueShape{}, "values": apiValueShape{Element: &apiValueShape{}}, "default_values": apiValueShape{Element: &apiValueShape{}}, "sql_definition": apiValueShape{}, "structured_value": apiValueShape{}, "allow_multiple_values": apiValueShape{}}}})
+	if !m.Variables.IsNull() && !m.Variables.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Variables.Elements()))
+		for _, el := range m.Variables.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandDashboardVariables(ctx, obj))
 			}
 		}
+		body["variables"] = items
 	}
 	return body
 }
@@ -314,9 +684,6 @@ func (r *DashboardResource) updateBody(ctx context.Context, config, plan, state 
 	body := r.bodyForUpdate(ctx, config)
 	if !state.DashboardGroupId.IsNull() && !state.DashboardGroupId.IsUnknown() && plan.DashboardGroupId.IsNull() {
 		body["dashboard_group_id"] = nil
-	}
-	if !state.SourceEligibilitySql.IsNull() && !state.SourceEligibilitySql.IsUnknown() && plan.SourceEligibilitySql.IsNull() {
-		body["source_eligibility_sql"] = nil
 	}
 	return body
 }
@@ -333,8 +700,16 @@ func (r *DashboardResource) Create(ctx context.Context, req resource.CreateReque
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
 	out, err := r.client.Create(ctx, dashboardBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating dashboard", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating dashboard", err, req.Plan.Raw.Type())
 		return
@@ -359,9 +734,22 @@ func (r *DashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, dashboardBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), dashboardBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading dashboard", err, req.State.Raw.Type())
 		return
@@ -379,12 +767,6 @@ func (r *DashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 func populateDashboard(ctx context.Context, m *DashboardModel, attrs map[string]interface{}) {
 	if attrs == nil {
 		return
-	}
-	if v, ok := stringFromAPI(attrs["team_id"]); ok {
-		m.TeamId = types.StringValue(v)
-	}
-	if v, ok := stringFromAPI(attrs["team_name"]); ok {
-		m.TeamName = types.StringValue(v)
 	}
 	if v, ok := stringFromAPI(attrs["name"]); ok {
 		m.Name = types.StringValue(v)
@@ -417,18 +799,31 @@ func populateDashboard(ctx context.Context, m *DashboardModel, attrs map[string]
 		}
 	}
 	if m.Variables.IsNull() || m.Variables.IsUnknown() {
-		if raw, ok := attrs["variables"]; ok && raw != nil {
-			var prior interface{}
-			if !m.Variables.IsNull() && !m.Variables.IsUnknown() && !m.Variables.IsUnderlyingValueNull() && !m.Variables.IsUnderlyingValueUnknown() {
-				if tv, err := m.Variables.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-					prior, _ = tftypesToAPI(tv)
+		if raw, ok := attrs["variables"].([]interface{}); ok {
+			priorKeys, priorComplete := []string{}, true
+			for _, element := range m.Variables.Elements() {
+				if object, ok := element.(types.Object); ok && !object.IsNull() && !object.IsUnknown() {
+					if value, ok := object.Attributes()["name"].(types.String); ok && !value.IsUnknown() {
+						if !value.IsNull() {
+							priorKeys = append(priorKeys, value.ValueString())
+						}
+					} else {
+						priorComplete = false
+					}
+				} else if ok && object.IsUnknown() {
+					priorComplete = false
 				}
 			}
-			raw = mergeAPIRead(raw, prior, apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"name": apiValueShape{}, "variable_type": apiValueShape{}, "values": apiValueShape{Element: &apiValueShape{}}, "default_values": apiValueShape{Element: &apiValueShape{}}, "sql_definition": apiValueShape{}, "structured_value": apiValueShape{}, "allow_multiple_values": apiValueShape{}}}})
-			raw = configuredAPIRead(raw, prior, apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"name": apiValueShape{}, "variable_type": apiValueShape{}, "values": apiValueShape{Element: &apiValueShape{}}, "default_values": apiValueShape{Element: &apiValueShape{}}, "sql_definition": apiValueShape{}, "structured_value": apiValueShape{}, "allow_multiple_values": apiValueShape{}}}})
-			if dv, err := types.DynamicType.ValueFromTerraform(ctx, dynamicFromAPI(raw)); err == nil {
-				m.Variables = dv.(types.Dynamic)
+			raw = keyedAPIRead(raw, "name", priorKeys, priorComplete, []string{"time", "start_time", "end_time", "source"})
+			items := make([]types.Object, 0, len(raw))
+			for _, e := range raw {
+				if mp, ok := e.(map[string]interface{}); ok {
+					prior := types.ObjectNull(dashboardVariablesAttrTypes())
+					items = append(items, flattenDashboardVariables(ctx, prior, mp))
+				}
 			}
+			lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: dashboardVariablesAttrTypes()}, items)
+			m.Variables = lv
 		}
 	}
 	if raw, ok := attrs["charts"].([]interface{}); ok {
@@ -490,11 +885,23 @@ func populateDashboard(ctx context.Context, m *DashboardModel, attrs map[string]
 	if v, ok := boolFromAPI(attrs["has_overlaps"]); ok {
 		m.HasOverlaps = types.BoolValue(v)
 	}
+	if v, ok := stringFromAPI(attrs["product"]); ok {
+		m.Product = types.StringValue(v)
+	}
 	if v, ok := stringFromAPI(attrs["created_at"]); ok {
 		m.CreatedAt = datetimeValue(m.CreatedAt, v)
 	}
 	if v, ok := stringFromAPI(attrs["updated_at"]); ok {
 		m.UpdatedAt = datetimeValue(m.UpdatedAt, v)
+	}
+	if v, ok := stringFromAPI(attrs["url"]); ok {
+		m.Url = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(attrs["team_name"]); ok {
+		m.TeamName = types.StringValue(v)
 	}
 }
 
@@ -523,6 +930,7 @@ func (r *DashboardResource) mergeResponse(ctx context.Context, m DashboardModel,
 }
 
 func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	defer rememberConfigured(ctx, req.Config, resp.Private, dashboardKeptOnRemoval, &resp.Diagnostics)
 	var plan DashboardModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -544,6 +952,7 @@ func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateReque
 	if !plan.RefreshInterval.Equal(state.RefreshInterval) {
 		request.RefreshInterval = plan.RefreshInterval
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, err := r.client.Update(ctx, dashboardBinding, vars, r.updateBody(ctx, request, plan, state))
@@ -564,6 +973,7 @@ func (r *DashboardResource) Delete(ctx context.Context, req resource.DeleteReque
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	if err := r.client.Delete(ctx, dashboardBinding, vars); err != nil {
@@ -572,14 +982,19 @@ func (r *DashboardResource) Delete(ctx context.Context, req resource.DeleteReque
 }
 
 // Attributes whose removal from the configuration keeps the server's value (no default, no null).
-var dashboardKeptOnRemoval = []string{"variables"}
+var dashboardKeptOnRemoval = []string{"source_eligibility_sql", "variables"}
 
 func (r *DashboardResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseUnnamedTeam(ctx, req, resp, r.client, "dashboard")
 	warnKeptOnRemoval(ctx, "betterstack_dashboard", req, resp, dashboardKeptOnRemoval)
 }
 
 func (r *DashboardResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("refresh_interval"), 30)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("date_range_from"), "now-3h")...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("date_range_to"), "now")...)
 }
 
 var _ resource.ResourceWithMoveState = &DashboardResource{}
@@ -588,6 +1003,6 @@ var _ resource.ResourceWithMoveState = &DashboardResource{}
 // logtail_dashboard (registry.terraform.io/BetterStackHQ/logtail).
 func (r *DashboardResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{\"variable\":\"variables\"},\"constants\":{},\"transforms\":[{\"op\":\"sentinel_null\",\"path\":\"dashboard_group_id\",\"value\":0},{\"op\":\"sentinel_omit\",\"path\":\"variables[].sql_definition\",\"value\":\"\"},{\"op\":\"sentinel_omit\",\"path\":\"variables[].default_values\",\"value\":[]},{\"op\":\"string_id\",\"path\":\"dashboard_group_id\"}],\"ignored_fields\":[\"team_id\",\"team_name\",\"data\"],\"instructions\":[\"Keep every attribute: the legacy provider wrote the same /api/v2/dashboards fields this /api/v3 resource takes. Rename variable blocks to the variables object list, and a dashboard_group_id of 0 to null. Move team_name to the provider's team_id (or a provider alias for that team); team_id now reads back as the t-prefixed id. Import uses the existing id.\",\"A dashboard the legacy provider created from data (the import API) keeps its id, charts, queries, alerts, sections and variables: drop data from the configuration, since this resource takes no exported document and must not call import again. Its charts and sections stay unmanaged unless imported as their own resources, and no child may be imported twice.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_dashboard\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"computed\":true,\"description\":\"The time when this dashboard was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"description\":\"The ID of the dashboard group this dashboard belongs to. Use 0 to remove from group.\",\"diff_suppress_func\":\"provider.init.func6\",\"name\":\"dashboard_group_id\",\"optional\":true,\"type\":\"int\"},{\"description\":\"The dashboard configuration data as a JSON string. When set, the dashboard is created via the import API and any change forces re-creation. Cannot be combined with individual fields like refresh_interval, date_range_from, chart and variable blocks, etc.\",\"force_new\":true,\"name\":\"data\",\"optional\":true,\"type\":\"string\",\"note\":\"unmarshalled to interface{} before send; switches create to /import\",\"json\":\"data\"},{\"computed\":true,\"description\":\"The start of the date range (e.g., 'now-3h', 'now-24h').\",\"name\":\"date_range_from\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The end of the date range (e.g., 'now').\",\"name\":\"date_range_to\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this dashboard.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"The name of the dashboard.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The auto-refresh interval in seconds.\",\"name\":\"refresh_interval\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"SQL expression to filter eligible sources.\",\"name\":\"source_eligibility_sql\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The team ID of the dashboard.\",\"name\":\"team_id\",\"type\":\"int\",\"note\":\"plain *int here, NOT StringOrInt - inconsistent with source/collector\"},{\"description\":\"The team name to associate with the dashboard when using a global API token. You can't update this value later.\",\"diff_suppress_func\":\"provider.init.func5\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\",\"note\":\"diff-suppressed after create; cleared on update\"},{\"computed\":true,\"description\":\"The time when this dashboard was last updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"description\":\"Variables for this dashboard. Default variables (time, start_time, end_time, source) are auto-created.\",\"name\":\"variable\",\"optional\":true,\"type\":\"list(object)\",\"note\":\"TF name `variable` maps to JSON `variables`\",\"json\":\"variables\"},{\"computed\":true,\"description\":\"For 'string', 'number', and 'boolean' variables: fallback value used when `values` is empty. For 'select_value' variables: the predefined options shown in the picker. Unused for other types.\",\"name\":\"variable.default_values\",\"optional\":true,\"type\":\"list(string)\"},{\"description\":\"The name of the variable (used as {{name}} in queries).\",\"name\":\"variable.name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"SQL definition for 'select_with_sql' or 'multi_select_with_sql' type variables.\",\"name\":\"variable.sql_definition\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The selected values. For 'source' variables these are the source IDs the variable resolves to (e.g. `logtail_source.web.id`) - this is the field that selects the source. For other types it is the current picker selection or input.\",\"name\":\"variable.values\",\"optional\":true,\"type\":\"list(string)\"},{\"description\":\"The type of variable: 'source', 'string', 'number', 'date', 'datetime', 'boolean', 'sql_expression', 'select_value', 'select_with_sql', or 'multi_select_with_sql'.\",\"name\":\"variable.variable_type\",\"required\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func42\"}],\"response_projections\":[]}"),
+		legacyStateMover("{\"renames\":{\"variable\":\"variables\"},\"constants\":{},\"transforms\":[{\"op\":\"sentinel_null\",\"path\":\"dashboard_group_id\",\"value\":0},{\"op\":\"string_id\",\"path\":\"dashboard_group_id\"},{\"op\":\"sentinel_omit\",\"path\":\"variables[].sql_definition\",\"value\":\"\"},{\"op\":\"sentinel_omit\",\"path\":\"variables[].default_values\",\"value\":[]}],\"ignored_fields\":[\"team_id\",\"team_name\",\"data\"],\"instructions\":[\"Keep every attribute. Rename variable blocks to the variables object list, and a dashboard_group_id of 0 to null. Move team_name to the provider's team_id, or to the resource's own team_id for an object in another team; team_id now reads back as the t-prefixed id. Import uses the existing id.\",\"A dashboard the legacy provider created from data (an imported dashboard) keeps its id, charts, queries, alerts, sections and variables: drop data from the configuration, since this resource takes no exported document and must not import it again. Its charts and sections stay unmanaged unless imported as their own resources, and no child may be imported twice.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_dashboard\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"defaults\":{\"refresh_interval\":30,\"date_range_from\":\"now-3h\",\"date_range_to\":\"now\"},\"source_attributes\":[{\"computed\":true,\"description\":\"The time when this dashboard was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"description\":\"The ID of the dashboard group this dashboard belongs to. Use 0 to remove from group.\",\"diff_suppress_func\":\"provider.init.func6\",\"name\":\"dashboard_group_id\",\"optional\":true,\"type\":\"int\"},{\"description\":\"The dashboard configuration data as a JSON string. When set, the dashboard is created via the import API and any change forces re-creation. Cannot be combined with individual fields like refresh_interval, date_range_from, chart and variable blocks, etc.\",\"force_new\":true,\"name\":\"data\",\"optional\":true,\"type\":\"string\",\"note\":\"unmarshalled to interface{} before send; switches create to /import\",\"json\":\"data\"},{\"computed\":true,\"description\":\"The start of the date range (e.g., 'now-3h', 'now-24h').\",\"name\":\"date_range_from\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The end of the date range (e.g., 'now').\",\"name\":\"date_range_to\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this dashboard.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"The name of the dashboard.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The auto-refresh interval in seconds.\",\"name\":\"refresh_interval\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"SQL expression to filter eligible sources.\",\"name\":\"source_eligibility_sql\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The team ID of the dashboard.\",\"name\":\"team_id\",\"type\":\"int\",\"note\":\"plain *int here, NOT StringOrInt - inconsistent with source/collector\"},{\"description\":\"The team name to associate with the dashboard when using a global API token. You can't update this value later.\",\"diff_suppress_func\":\"provider.init.func5\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\",\"note\":\"diff-suppressed after create; cleared on update\"},{\"computed\":true,\"description\":\"The time when this dashboard was last updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"description\":\"Variables for this dashboard. Default variables (time, start_time, end_time, source) are auto-created.\",\"name\":\"variable\",\"optional\":true,\"type\":\"list(object)\",\"note\":\"TF name `variable` maps to JSON `variables`\",\"json\":\"variables\"},{\"computed\":true,\"description\":\"For 'string', 'number', and 'boolean' variables: fallback value used when `values` is empty. For 'select_value' variables: the predefined options shown in the picker. Unused for other types.\",\"name\":\"variable.default_values\",\"optional\":true,\"type\":\"list(string)\"},{\"description\":\"The name of the variable (used as {{name}} in queries).\",\"name\":\"variable.name\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"SQL definition for 'select_with_sql' or 'multi_select_with_sql' type variables.\",\"name\":\"variable.sql_definition\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The selected values. For 'source' variables these are the source IDs the variable resolves to (e.g. `logtail_source.web.id`) - this is the field that selects the source. For other types it is the current picker selection or input.\",\"name\":\"variable.values\",\"optional\":true,\"type\":\"list(string)\"},{\"description\":\"The type of variable: 'source', 'string', 'number', 'date', 'datetime', 'boolean', 'sql_expression', 'select_value', 'select_with_sql', or 'multi_select_with_sql'.\",\"name\":\"variable.variable_type\",\"required\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func42\"}],\"response_projections\":[]}"),
 	}
 }

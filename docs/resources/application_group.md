@@ -13,9 +13,20 @@ A group that organizes related error-tracking applications together.
 
 ## Example Usage
 
+### Create an application group
+
 ```terraform
 resource "betterstack_application_group" "example" {
-  name = "production-apps"
+  name = "Production apps"
+}
+```
+
+### Set the display order
+
+```terraform
+resource "betterstack_application_group" "set_the_display_order" {
+  name       = "Mobile apps"
+  sort_index = 2
 }
 ```
 
@@ -27,26 +38,30 @@ resource "betterstack_application_group" "example" {
 
 ### Optional
 
-Optional attributes are also computed: left unset, they take the server-side default.
-
-- `sort_index` (Number) Display order among the team's application groups. `null` when never set. Removing this argument after configuring it sends JSON null on update; bridged SDKs use the same removal semantics.
+- `sort_index` (Number) Display order among the team's application groups. Lower values come first.
+- `team_id` (String) Team that owns the group, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.
 
 ### Read-Only
 
-- `id` (String) The id of this application_group.
-- `team_name` (String) Name of the team that owns the group.
+- `id` (String) The ID of this application group.
 - `created_at` (String (RFC 3339)) When the group was created.
 - `updated_at` (String (RFC 3339)) When the group was last updated.
-
-## Endpoints
-
-- `GET /api/v1/application-groups`
-- `GET /api/v1/application-groups/:id`
-- `POST /api/v1/application-groups`
-- `PATCH /api/v1/application-groups/:id`
-- `DELETE /api/v1/application-groups/:id`
+- `team_name` (String) Name of the team that owns the group.
 
 ## Import
+
+Import an existing application group by its ID. Get the ID from the [`betterstack_application_group` data source](../data-sources/application_group.md), which finds it by `name`.
+
+With Terraform 1.5 or later, use an `import` block:
+
+```terraform
+import {
+  to = betterstack_application_group.example
+  id = "12345"
+}
+```
+
+Or run `terraform import`:
 
 ```shell
 terraform import betterstack_application_group.example 12345

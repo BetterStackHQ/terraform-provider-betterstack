@@ -5,9 +5,11 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -28,60 +30,63 @@ func (d *MonitorDataSource) Metadata(ctx context.Context, req datasource.Metadat
 
 func (d *MonitorDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "An uptime monitor that periodically checks a URL, host, or service and alerts on failures.",
+		Description:         "An uptime monitor that periodically checks a URL, host, or service and alerts on failures.",
+		MarkdownDescription: "An uptime monitor that periodically checks a URL, host, or service and alerts on failures.",
 		Attributes: map[string]schema.Attribute{
-			"id":                               schema.StringAttribute{Optional: true, Computed: true, Description: "Look up by id, or by url / pronounceable_name."},
-			"auth_password":                    schema.StringAttribute{Computed: true, Description: "HTTP basic-auth password.", Sensitive: true},
-			"auth_username":                    schema.StringAttribute{Computed: true, Description: "HTTP basic-auth username.", Sensitive: true},
-			"call":                             schema.BoolAttribute{Computed: true, Description: "Alert by phone call."},
-			"check_frequency":                  schema.Int64Attribute{Computed: true, Description: "How often to check, in seconds. The monitor can check less often than this. effective_check_frequency shows how often it actually checks."},
-			"checks_version":                   schema.StringAttribute{Computed: true, Description: "Version of the checks engine. Always `v2`."},
-			"confirmation_period":              schema.Int64Attribute{Computed: true, Description: "How long to keep confirming a failure before alerting, in seconds."},
+			"id":                               schema.StringAttribute{Optional: true, Computed: true, Description: "Look up by id, or by url / pronounceable_name / status / paused."},
+			"auth_password":                    schema.StringAttribute{Computed: true, Description: "HTTP basic-auth password. It isn't returned after it's saved.", Sensitive: true},
+			"auth_username":                    schema.StringAttribute{Computed: true, Description: "HTTP basic-auth username. null when none is set.", MarkdownDescription: "HTTP basic-auth username. `null` when none is set.", Sensitive: true},
+			"call":                             schema.BoolAttribute{Computed: true, Description: "Whether to call the on-call person. Ignored while an escalation policy is set."},
+			"check_frequency":                  schema.Int64Attribute{Computed: true, Description: "How often to check, in seconds. It must be at least the request_timeout. A new or changed value below the plan's shortest interval is refused with a 422. A value already saved keeps saving. Its accepted values depend on monitor_type.\n\n- playwright: It accepts 60, 180, 300, 600, 900, 1800, 3600, 21600, 43200 or 86400.\n- Every other type: It accepts 30, 45, 60, 120, 180, 300, 600, 900 or 1800.", MarkdownDescription: "How often to check, in seconds. It must be at least the `request_timeout`. A new or changed value below the plan's shortest interval is refused with a 422. A value already saved keeps saving. Its accepted values depend on `monitor_type`.\n\n- `playwright`: It accepts `60`, `180`, `300`, `600`, `900`, `1800`, `3600`, `21600`, `43200` or `86400`.\n- Every other type: It accepts `30`, `45`, `60`, `120`, `180`, `300`, `600`, `900` or `1800`."},
+			"checks_version":                   schema.StringAttribute{Computed: true, Description: "Version of the checks engine. Always v2.", MarkdownDescription: "Version of the checks engine. Always `v2`."},
+			"confirmation_period":              schema.Int64Attribute{Computed: true, Description: "How long to wait after a failure before starting an incident, in seconds, from 0 to 86400.", MarkdownDescription: "How long to wait after a failure before starting an incident, in seconds, from `0` to `86400`."},
 			"created_at":                       schema.StringAttribute{Computed: true, Description: "When the monitor was created."},
-			"critical_alert":                   schema.BoolAttribute{Computed: true, Description: "Alert by a critical push notification that bypasses silent mode."},
-			"domain_expiration":                schema.Int64Attribute{Computed: true, Description: "Days before the domain expires to start alerting. `-1` turns it off."},
-			"effective_check_frequency":        schema.Int64Attribute{Computed: true, Description: "How often the monitor actually checks, in seconds. This is check_frequency, unless checks are slowed down, or raised to the request timeout or to the plan's minimum after a downgrade."},
-			"effective_check_frequency_reason": schema.StringAttribute{Computed: true, Description: "Why effective_check_frequency differs from check_frequency. `null` when they match."},
-			"email":                            schema.BoolAttribute{Computed: true, Description: "Alert by e-mail."},
-			"environment_variables":            schema.DynamicAttribute{Computed: true, Description: "Environment variables for the Playwright run. An object you send replaces all of them.", Sensitive: true},
-			"escalation_policy_id":             schema.StringAttribute{Computed: true, Description: "ID of the escalation policy used for alerts. Returned as a string. You can send it as a number or a string."},
-			"expected_status_codes":            schema.ListAttribute{Computed: true, ElementType: types.Int64Type, Description: "Status codes that count as up, for expected_status_code monitors."},
-			"expiration_policy_id":             schema.StringAttribute{Computed: true, Description: "ID of the escalation policy for SSL certificate and domain expiration alerts."},
-			"follow_redirects":                 schema.BoolAttribute{Computed: true, Description: "Follow HTTP redirects."},
-			"http_method":                      schema.StringAttribute{Computed: true, Description: "HTTP method for HTTP checks."},
-			"ip_version":                       schema.StringAttribute{Computed: true, Description: "IP version to check over."},
+			"critical_alert":                   schema.BoolAttribute{Computed: true, Description: "Whether to send a critical push notification that ignores the mute switch and Do Not Disturb mode. Ignored while an escalation policy is set."},
+			"deletion_protection":              schema.BoolAttribute{Computed: true, Description: "Always null: deletion protection is a setting of the managed resource."},
+			"domain_expiration":                schema.Int64Attribute{Computed: true, Description: "How many days before the domain expires we alert you. null turns the check off and is the default. Monitors of the same domain share this setting, subdomains included. For example, monitors of example.com and www.example.com share it. A value set on one monitor is copied to all of them, so set the same value on each.", MarkdownDescription: "How many days before the domain expires we alert you. `null` turns the check off and is the default. Monitors of the same domain share this setting, subdomains included. For example, monitors of `example.com` and `www.example.com` share it. A value set on one monitor is copied to all of them, so set the same value on each."},
+			"effective_check_frequency":        schema.Int64Attribute{Computed: true, Description: "How often the monitor actually checks, in seconds. effective_check_frequency_reason says why it differs from check_frequency.", MarkdownDescription: "How often the monitor actually checks, in seconds. `effective_check_frequency_reason` says why it differs from `check_frequency`."},
+			"effective_check_frequency_reason": schema.StringAttribute{Computed: true, Description: "Why effective_check_frequency differs from check_frequency. null when they're the same.\n\n- slowed_down: We check less often after repeated 429 responses or timeouts.\n- plan_minimum: Your plan's shortest interval between checks is longer than check_frequency, which was saved before the plan changed.\n- request_timeout: The monitor's request_timeout is longer than check_frequency.", MarkdownDescription: "Why `effective_check_frequency` differs from `check_frequency`. `null` when they're the same.\n\n- `slowed_down`: We check less often after repeated `429` responses or timeouts.\n- `plan_minimum`: Your plan's shortest interval between checks is longer than `check_frequency`, which was saved before the plan changed.\n- `request_timeout`: The monitor's `request_timeout` is longer than `check_frequency`."},
+			"email":                            schema.BoolAttribute{Computed: true, Description: "Whether to send an e-mail to the on-call person. Ignored while an escalation policy is set."},
+			"environment_variables":            schema.MapAttribute{Computed: true, ElementType: types.StringType, Description: "Environment variables the playwright scenario can use, as name and value pairs like {\"PASSWORD\": \"passw0rd\"}.", MarkdownDescription: "Environment variables the `playwright` scenario can use, as name and value pairs like `{\"PASSWORD\": \"passw0rd\"}`.", Sensitive: true},
+			"escalation_policy_id":             schema.StringAttribute{Computed: true, Description: "ID of the escalation policy for alerts, or null to alert the current on-call person directly.", MarkdownDescription: "ID of the escalation policy for alerts, or `null` to alert the current on-call person directly."},
+			"expected_status_codes":            schema.ListAttribute{Computed: true, ElementType: types.Int64Type, Description: "HTTP status codes from 100 to 599 that count as up. A 3xx code needs follow_redirects and remember_cookies set to false.", MarkdownDescription: "HTTP status codes from `100` to `599` that count as up. A `3xx` code needs `follow_redirects` and `remember_cookies` set to `false`."},
+			"expiration_escalation_policy_id":  schema.StringAttribute{Computed: true, Description: "ID of the escalation policy for alerts about expiring SSL certificates and domains. Monitors of the same domain share this setting, subdomains included. For example, monitors of example.com and www.example.com share it. A value set on one monitor is copied to all of them, so set the same value on each.", MarkdownDescription: "ID of the escalation policy for alerts about expiring SSL certificates and domains. Monitors of the same domain share this setting, subdomains included. For example, monitors of `example.com` and `www.example.com` share it. A value set on one monitor is copied to all of them, so set the same value on each."},
+			"follow_redirects":                 schema.BoolAttribute{Computed: true, Description: "Whether we follow HTTP redirects."},
+			"http_method":                      schema.StringAttribute{Computed: true, Description: "The HTTP method of the request. It accepts get, head, post, put, patch or options. Responses return it in lowercase. head can't be used with keyword or keyword_absence monitors.", MarkdownDescription: "The HTTP method of the request. It accepts `get`, `head`, `post`, `put`, `patch` or `options`. Responses return it in lowercase. `head` can't be used with `keyword` or `keyword_absence` monitors."},
+			"ip_version":                       schema.StringAttribute{Computed: true, Description: "The IP version to check over. null checks over both IPv4 and IPv6.\n\n- ipv4: Checks over IPv4 only.\n- ipv6: Checks over IPv6 only.", MarkdownDescription: "The IP version to check over. `null` checks over both IPv4 and IPv6.\n\n- `ipv4`: Checks over IPv4 only.\n- `ipv6`: Checks over IPv6 only."},
 			"last_checked_at":                  schema.StringAttribute{Computed: true, Description: "When the monitor was last checked."},
-			"maintenance_days":                 schema.SetAttribute{Computed: true, ElementType: types.StringType, Description: "Days of the week the maintenance window applies to."},
-			"maintenance_from":                 schema.StringAttribute{Computed: true, Description: "Start time of the maintenance window, as `HH:MM:SS`."},
-			"maintenance_timezone":             schema.StringAttribute{Computed: true, Description: "Time zone of the maintenance window."},
-			"maintenance_to":                   schema.StringAttribute{Computed: true, Description: "End time of the maintenance window, as `HH:MM:SS`."},
-			"metadata":                         schema.MapNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"values": schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Computed: true, Description: "`String`, or the type of the referenced item."}, "value": schema.StringAttribute{Computed: true, Description: "The text of a String value."}, "item_id": schema.StringAttribute{Computed: true, Description: "ID of the referenced item: a number, or for a team its ID starting with `t`, such as `t123`."}, "name": schema.StringAttribute{Computed: true, Description: "Referenced item's name."}, "email": schema.StringAttribute{Computed: true, Description: "Referenced user's e-mail."}}}}}}, Description: "Custom metadata. Each key holds a list of values. A value is a string, written as `{type: \"String\", value}`, or a catalog reference, written as `{type, item_id, name, email}`. Team references are returned as team IDs such as `t123`."},
+			"maintenance_days":                 schema.SetAttribute{Computed: true, ElementType: types.StringType, Description: "Days of the week the maintenance window applies to, any of mon, tue, wed, thu, fri, sat and sun. An overnight window belongs to the day it starts.", MarkdownDescription: "Days of the week the maintenance window applies to, any of `mon`, `tue`, `wed`, `thu`, `fri`, `sat` and `sun`. An overnight window belongs to the day it starts."},
+			"maintenance_from":                 schema.StringAttribute{Computed: true, Description: "Start of the daily maintenance window, when we don't check, as HH:MM:SS, like 01:00:00. null when no window is set.", MarkdownDescription: "Start of the daily maintenance window, when we don't check, as `HH:MM:SS`, like `01:00:00`. `null` when no window is set."},
+			"maintenance_timezone":             schema.StringAttribute{Computed: true, Description: "The time zone of the maintenance window, as a Rails time zone name like Amsterdam or its IANA ID like Europe/Amsterdam. null when it isn't set, which works as UTC.", MarkdownDescription: "The time zone of the maintenance window, as a Rails time zone name like `Amsterdam` or its IANA ID like `Europe/Amsterdam`. `null` when it isn't set, which works as UTC."},
+			"maintenance_to":                   schema.StringAttribute{Computed: true, Description: "End of the daily maintenance window, as HH:MM:SS, like 03:00:00. Required with maintenance_from. null when no window is set.", MarkdownDescription: "End of the daily maintenance window, as `HH:MM:SS`, like `03:00:00`. Required with `maintenance_from`. `null` when no window is set."},
+			"metadata":                         schema.MapNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"values": schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Computed: true, Description: "String, or the type of the referenced item, which is one of User, Team, EscalationPolicy, OnCallSchedule, Monitor, SlackIntegration, LinearIntegration, JiraIntegration, MicrosoftTeamsIntegration, ZapierZap, OutgoingWebhook, PagerDutyIntegration or Source.", MarkdownDescription: "`String`, or the type of the referenced item, which is one of `User`, `Team`, `EscalationPolicy`, `OnCallSchedule`, `Monitor`, `SlackIntegration`, `LinearIntegration`, `JiraIntegration`, `MicrosoftTeamsIntegration`, `ZapierZap`, `OutgoingWebhook`, `PagerDutyIntegration` or `Source`."}, "value": schema.StringAttribute{Computed: true, Description: "The text of a String value.", MarkdownDescription: "The text of a `String` value."}, "item_id": schema.StringAttribute{Computed: true, Description: "ID of the referenced item. For a user it's u123 or their e-mail. For a team it's t123, and for any other item it's the item's own ID. Responses return users and teams in this form. Get a user's ID via List team members (https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via List teams (https://betterstack.com/docs/uptime/api/teams/list/).", MarkdownDescription: "ID of the referenced item. For a user it's `u123` or their e-mail. For a team it's `t123`, and for any other item it's the item's own ID. Responses return users and teams in this form. Get a user's ID via [List team members](https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via [List teams](https://betterstack.com/docs/uptime/api/teams/list/).", Validators: []validator.String{patternWhenString{Sibling: "type", Patterns: map[string]string{"User": "^(u[1-9][0-9]*|[^@/\\s]+@[^@/\\s]+)$", "Team": "^t[1-9][0-9]*$"}}}}, "name": schema.StringAttribute{Computed: true, Description: "Referenced item's name, or null when the item has no name or no longer exists. An item can also be found by its name instead of item_id.", MarkdownDescription: "Referenced item's name, or `null` when the item has no name or no longer exists. An item can also be found by its name instead of `item_id`."}, "email": schema.StringAttribute{Computed: true, Description: "Referenced user's e-mail, returned for a User. A user can also be found by e-mail."}}}}}}, Description: "Custom metadata. Each key holds a list of values. A value is a string, written as {type: \"String\", value}, or a catalog reference, written as {type, item_id, name, email}. User references are returned as u123 and team references as t123. Get a user's ID via List team members (https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via List teams (https://betterstack.com/docs/uptime/api/teams/list/). Values under one key must all be the same type and can't repeat.", MarkdownDescription: "Custom metadata. Each key holds a list of values. A value is a string, written as `{type: \"String\", value}`, or a catalog reference, written as `{type, item_id, name, email}`. User references are returned as `u123` and team references as `t123`. Get a user's ID via [List team members](https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via [List teams](https://betterstack.com/docs/uptime/api/teams/list/). Values under one key must all be the same type and can't repeat."},
 			"monitor_group_id":                 schema.StringAttribute{Computed: true, Description: "ID of the monitor group this monitor belongs to."},
-			"monitor_type":                     schema.StringAttribute{Computed: true, Description: "What kind of check to run."},
-			"paused":                           schema.BoolAttribute{Computed: true, Description: "Whether checks are paused."},
+			"monitor_type":                     schema.StringAttribute{Computed: true, Description: "What the monitor checks.\n\n- status: Checks that the URL returns a 2XX status code.\n- expected_status_code: Checks that the URL returns one of expected_status_codes.\n- keyword: Checks that the page contains required_keyword.\n- keyword_absence: Checks that the page doesn't contain required_keyword.\n- ping: Pings the host in url.\n- tcp: Checks that a TCP port on the host accepts connections.\n- udp: Sends request_body to a UDP port on the host and checks that the answer contains required_keyword.\n- smtp: Checks for an SMTP server on the host at port.\n- pop: Checks for a POP3 server on the host at port.\n- imap: Checks for an IMAP server on the host at port.\n- dns: Checks that the DNS server on the host answers a query for the domain in request_body.\n- playwright: Runs the scenario in playwright_script.", MarkdownDescription: "What the monitor checks.\n\n- `status`: Checks that the URL returns a 2XX status code.\n- `expected_status_code`: Checks that the URL returns one of `expected_status_codes`.\n- `keyword`: Checks that the page contains `required_keyword`.\n- `keyword_absence`: Checks that the page doesn't contain `required_keyword`.\n- `ping`: Pings the host in `url`.\n- `tcp`: Checks that a TCP `port` on the host accepts connections.\n- `udp`: Sends `request_body` to a UDP `port` on the host and checks that the answer contains `required_keyword`.\n- `smtp`: Checks for an SMTP server on the host at `port`.\n- `pop`: Checks for a POP3 server on the host at `port`.\n- `imap`: Checks for an IMAP server on the host at `port`.\n- `dns`: Checks that the DNS server on the host answers a query for the domain in `request_body`.\n- `playwright`: Runs the scenario in `playwright_script`."},
+			"paused":                           schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether the monitor is paused. A paused monitor opens no incidents and sends no alerts."},
 			"paused_at":                        schema.StringAttribute{Computed: true, Description: "When the monitor was paused."},
-			"playwright_script":                schema.StringAttribute{Computed: true, Description: "Playwright script to run, for Playwright monitors."},
-			"port":                             schema.StringAttribute{Computed: true, Description: "Port to check, for `tcp`, `udp`, `smtp`, `pop` and `imap` monitors."},
-			"pronounceable_name":               schema.StringAttribute{Optional: true, Computed: true, Description: "Human-friendly name used in alerts."},
-			"proxy_host":                       schema.StringAttribute{Computed: true, Description: "Proxy host to route the check through."},
-			"proxy_port":                       schema.Int64Attribute{Computed: true, Description: "Proxy port to route the check through."},
-			"push":                             schema.BoolAttribute{Computed: true, Description: "Alert by push notification."},
+			"playwright_script":                schema.StringAttribute{Computed: true, Description: "The JavaScript source of the scenario, for playwright monitors.", MarkdownDescription: "The JavaScript source of the scenario, for `playwright` monitors."},
+			"port":                             schema.StringAttribute{Computed: true, Description: "The port to check. tcp and udp accept one port. smtp accepts 25, 465 or 587, pop accepts 110 or 995, and imap accepts 143 or 993, with several separated by commas like 25,465,587.", MarkdownDescription: "The port to check. `tcp` and `udp` accept one port. `smtp` accepts `25`, `465` or `587`, `pop` accepts `110` or `995`, and `imap` accepts `143` or `993`, with several separated by commas like `25,465,587`."},
+			"pronounceable_name":               schema.StringAttribute{Optional: true, Computed: true, Description: "The name of the monitor, which we use when we call you."},
+			"proxy_host":                       schema.StringAttribute{Computed: true, Description: "The host of the proxy server we send the check through, without a protocol. It can include credentials, like user:pass@proxy.example.com. Only for status, expected_status_code, keyword and keyword_absence monitors.", MarkdownDescription: "The host of the proxy server we send the check through, without a protocol. It can include credentials, like `user:pass@proxy.example.com`. Only for `status`, `expected_status_code`, `keyword` and `keyword_absence` monitors."},
+			"proxy_port":                       schema.Int64Attribute{Computed: true, Description: "The port of the proxy server, from 1 to 65535. Requires proxy_host.", MarkdownDescription: "The port of the proxy server, from `1` to `65535`. Requires `proxy_host`."},
+			"push":                             schema.BoolAttribute{Computed: true, Description: "Whether to send a push notification to the on-call person. Ignored while an escalation policy is set."},
 			"recovery_period":                  schema.Int64Attribute{Computed: true, Description: "How long checks must keep passing before the incident resolves, in seconds."},
-			"regions":                          schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "Regions to check from: us, eu, as or au. If none are set, the monitor type's default regions are returned."},
-			"remember_cookies":                 schema.BoolAttribute{Computed: true, Description: "Persist cookies across redirects."},
-			"request_body":                     schema.StringAttribute{Computed: true, Description: "Request body sent with HTTP checks."},
-			"request_headers":                  schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Computed: true}, "value": schema.StringAttribute{Computed: true}}}, Description: "Custom request headers, as a list of `{name, value}` objects. A list you send replaces all headers."},
-			"request_timeout":                  schema.Int64Attribute{Computed: true, Description: "Check timeout. In seconds for HTTP and Playwright checks, and in milliseconds for `ping`, `tcp`, `udp`, `smtp`, `pop`, `imap` and `dns` monitors. A value of 0.5 is saved as 500."},
-			"required_keyword":                 schema.StringAttribute{Computed: true, Description: "Keyword that must be present, or absent for keyword_absence monitors."},
-			"scenario_name":                    schema.StringAttribute{Computed: true, Description: "Playwright scenario name. Playwright monitors send it instead of url."},
-			"sms":                              schema.BoolAttribute{Computed: true, Description: "Alert by SMS."},
-			"ssl_expiration":                   schema.Int64Attribute{Computed: true, Description: "Days before the SSL certificate expires to start alerting. `-1` turns it off."},
-			"status":                           schema.StringAttribute{Computed: true, Description: "Current monitor status."},
+			"regions":                          schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "Regions to check from, as any combination of us, eu, as and au. When none are set, we check from all regions. Responses then list all of them.", MarkdownDescription: "Regions to check from, as any combination of `us`, `eu`, `as` and `au`. When none are set, we check from all regions. Responses then list all of them."},
+			"remember_cookies":                 schema.BoolAttribute{Computed: true, Description: "Whether we keep cookies when redirecting."},
+			"request_body":                     schema.StringAttribute{Computed: true, Description: "The body of the request. A dns monitor requires it. Set it to the domain to query. A udp monitor sends it as its content.", MarkdownDescription: "The body of the request. A `dns` monitor requires it. Set it to the domain to query. A `udp` monitor sends it as its content."},
+			"request_headers":                  schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true, Description: "The header's ID."}, "name": schema.StringAttribute{Computed: true, Description: "The header name, like Content-Type.", MarkdownDescription: "The header name, like `Content-Type`."}, "value": schema.StringAttribute{Computed: true, Description: "The header value, like application/json.", MarkdownDescription: "The header value, like `application/json`.", Sensitive: true}}}, Description: "Custom request headers, as a list of {name, value} objects. A list replaces all headers, and an empty list removes them all.", MarkdownDescription: "Custom request headers, as a list of `{name, value}` objects. A list replaces all headers, and an empty list removes them all."},
+			"request_timeout":                  schema.Int64Attribute{Computed: true, Description: "How long a check waits before it times out. Its unit and accepted values depend on monitor_type.\n\n- status, expected_status_code, keyword and keyword_absence: In seconds. It accepts 2, 3, 5, 10, 15, 30, 45, 60, 90, 120 or 180 and defaults to 30.\n- ping, tcp, udp, smtp, pop, imap and dns: In milliseconds. It accepts 500, 1000, 2000, 3000 or 5000 and defaults to 5000.\n- playwright: In seconds. It accepts 15, 30, 45, 60, 120, 180, 240, 300, 360, 480, 600 or 900 and defaults to 30.", MarkdownDescription: "How long a check waits before it times out. Its unit and accepted values depend on `monitor_type`.\n\n- `status`, `expected_status_code`, `keyword` and `keyword_absence`: In seconds. It accepts `2`, `3`, `5`, `10`, `15`, `30`, `45`, `60`, `90`, `120` or `180` and defaults to `30`.\n- `ping`, `tcp`, `udp`, `smtp`, `pop`, `imap` and `dns`: In milliseconds. It accepts `500`, `1000`, `2000`, `3000` or `5000` and defaults to `5000`.\n- `playwright`: In seconds. It accepts `15`, `30`, `45`, `60`, `120`, `180`, `240`, `300`, `360`, `480`, `600` or `900` and defaults to `30`."},
+			"required_keyword":                 schema.StringAttribute{Computed: true, Description: "The keyword to look for."},
+			"scenario_name":                    schema.StringAttribute{Computed: true, Description: "The name of a playwright monitor's scenario. Required for playwright monitors, and returned only for them.", MarkdownDescription: "The name of a `playwright` monitor's scenario. Required for `playwright` monitors, and returned only for them."},
+			"sms":                              schema.BoolAttribute{Computed: true, Description: "Whether to send an SMS to the on-call person. Ignored while an escalation policy is set."},
+			"ssl_expiration":                   schema.Int64Attribute{Computed: true, Description: "How many days before the SSL certificate expires we alert you. null turns the check off and is the default. Monitors of exactly the same domain share this setting, not its subdomains. For example, monitors of example.com/a and example.com/b share it, while www.example.com has its own. A value set on one monitor is copied to all of them, so set the same value on each.", MarkdownDescription: "How many days before the SSL certificate expires we alert you. `null` turns the check off and is the default. Monitors of exactly the same domain share this setting, not its subdomains. For example, monitors of `example.com/a` and `example.com/b` share it, while `www.example.com` has its own. A value set on one monitor is copied to all of them, so set the same value on each."},
+			"status":                           schema.StringAttribute{Optional: true, Computed: true, Description: "The monitor's current status.\n\n- up: Checks pass.\n- down: Checks fail.\n- validating: The service seems back up, but the recovery_period hasn't passed yet.\n- paused: The monitor is paused.\n- pending: The monitor waits for its first check.\n- maintenance: The monitor is in a maintenance window.", MarkdownDescription: "The monitor's current status.\n\n- `up`: Checks pass.\n- `down`: Checks fail.\n- `validating`: The service seems back up, but the `recovery_period` hasn't passed yet.\n- `paused`: The monitor is paused.\n- `pending`: The monitor waits for its first check.\n- `maintenance`: The monitor is in a maintenance window."},
+			"team_id":                          schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns this monitor, such as t123. Defaults to the provider's team_id. Set it to look the object up in another team.", MarkdownDescription: "Team that owns this monitor, such as `t123`. Defaults to the provider's `team_id`. Set it to look the object up in another team.", Validators: []validator.String{teamIDValidator()}},
 			"team_name":                        schema.StringAttribute{Computed: true, Description: "Name of the team that owns this monitor."},
-			"team_wait":                        schema.Int64Attribute{Computed: true, Description: "Seconds before escalating to the whole team."},
+			"team_wait":                        schema.Int64Attribute{Computed: true, Description: "Seconds to wait before escalating to the whole team. 0 alerts the whole team right away, and null never escalates to the team. Ignored while an escalation policy is set.", MarkdownDescription: "Seconds to wait before escalating to the whole team. `0` alerts the whole team right away, and `null` never escalates to the team. Ignored while an escalation policy is set."},
 			"updated_at":                       schema.StringAttribute{Computed: true, Description: "When the monitor was last updated."},
-			"url":                              schema.StringAttribute{Optional: true, Computed: true, Description: "URL or host the monitor checks. Required for every type except Playwright, which uses scenario_name."},
-			"verify_ssl":                       schema.BoolAttribute{Computed: true, Description: "Fail the check on an invalid TLS certificate."},
+			"url":                              schema.StringAttribute{Optional: true, Computed: true, Description: "The URL of your website, or the host to check for ping, tcp, udp, smtp, pop, imap and dns monitors, without a protocol. It's null on playwright monitors.", MarkdownDescription: "The URL of your website, or the host to check for `ping`, `tcp`, `udp`, `smtp`, `pop`, `imap` and `dns` monitors, without a protocol. It's `null` on `playwright` monitors."},
+			"verify_ssl":                       schema.BoolAttribute{Computed: true, Description: "Whether a check fails on an invalid SSL certificate."},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -100,6 +105,7 @@ func (d *MonitorDataSource) Read(ctx context.Context, req datasource.ReadRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, data.TeamId.ValueString())
 	var out map[string]interface{}
 	if !data.Id.IsNull() && !data.Id.IsUnknown() && data.Id.ValueString() != "" {
 		vars := map[string]string{}
@@ -140,6 +146,32 @@ func (d *MonitorDataSource) Read(ctx context.Context, req datasource.ReadRequest
 				return
 			}
 		}
+		if !data.Status.IsNull() && !data.Status.IsUnknown() && data.Status.ValueString() != "" {
+			matched := false
+			for _, field := range []string{"status"} {
+				if stringifyScalar(out[field]) == data.Status.ValueString() {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				resp.Diagnostics.AddError("monitor lookup conflicts with id", "The selected object does not match configured status.")
+				return
+			}
+		}
+		if !data.Paused.IsNull() && !data.Paused.IsUnknown() && strconv.FormatBool(data.Paused.ValueBool()) != "" {
+			matched := false
+			for _, field := range []string{"paused"} {
+				if stringifyScalar(out[field]) == strconv.FormatBool(data.Paused.ValueBool()) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				resp.Diagnostics.AddError("monitor lookup conflicts with id", "The selected object does not match configured paused.")
+				return
+			}
+		}
 	} else {
 		// Lookup by filter: narrow server-side with the filters the list endpoint declares, then
 		// require an exact, unambiguous client-side match.
@@ -149,6 +181,8 @@ func (d *MonitorDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		alternatives := map[string][]string{
 			"url":                {"url"},
 			"pronounceable_name": {"pronounceable_name"},
+			"status":             {"status"},
+			"paused":             {"paused"},
 		}
 		if !data.Url.IsNull() && !data.Url.IsUnknown() && data.Url.ValueString() != "" {
 			q.Set("url", data.Url.ValueString())
@@ -158,8 +192,16 @@ func (d *MonitorDataSource) Read(ctx context.Context, req datasource.ReadRequest
 			q.Set("pronounceable_name", data.PronounceableName.ValueString())
 			want["pronounceable_name"] = data.PronounceableName.ValueString()
 		}
+		if !data.Status.IsNull() && !data.Status.IsUnknown() && data.Status.ValueString() != "" {
+			q.Set("status", data.Status.ValueString())
+			want["status"] = data.Status.ValueString()
+		}
+		if !data.Paused.IsNull() && !data.Paused.IsUnknown() && strconv.FormatBool(data.Paused.ValueBool()) != "" {
+			q.Set("paused", strconv.FormatBool(data.Paused.ValueBool()))
+			want["paused"] = strconv.FormatBool(data.Paused.ValueBool())
+		}
 		if len(want) == 0 {
-			resp.Diagnostics.AddError("missing monitor lookup", "Set id or one of: url, pronounceable_name.")
+			resp.Diagnostics.AddError("missing monitor lookup", "Set id or one of: url, pronounceable_name, status, paused.")
 			return
 		}
 		records, err := d.client.List(ctx, monitorBinding, vars, q)

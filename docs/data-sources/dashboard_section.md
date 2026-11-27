@@ -31,16 +31,12 @@ Set `id`, or filter attributes matching exactly one record.
 - `id` (String) Look up by id.
 - `name` (String) Section name.
 
+### Optional
+
+- `team_id` (String) Team that owns the section's dashboard, such as `t123`. Defaults to the provider's `team_id`. Set it to look the object up in another team.
+
 ### Read-Only
 
-- `y` (Number) Vertical position on the dashboard grid. Defaults to just below the last section or chart. If an update moves the section onto a chart, the layout is tidied up in the background.
+- `y` (Number) Vertical position on the dashboard grid, from `0` at the top. If an update moves the section onto a chart, the layout is tidied up in the background.
 - `collapsed` (Boolean) Whether the section starts collapsed.
 - `explanation` (String) Explanation of what the section groups, set by the AI tools.
-
-## Endpoints
-
-- `GET /api/v2/dashboards/:dashboard_id/sections`
-- `GET /api/v2/dashboards/:dashboard_id/sections/:id`
-- `POST /api/v2/dashboards/:dashboard_id/sections`
-- `PATCH /api/v2/dashboards/:dashboard_id/sections/:id`
-- `DELETE /api/v2/dashboards/:dashboard_id/sections/:id`

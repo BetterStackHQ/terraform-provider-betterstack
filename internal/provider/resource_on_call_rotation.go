@@ -40,6 +40,7 @@ type OnCallRotationModel struct {
 	RotationInterval  types.String `tfsdk:"rotation_interval"`
 	RotationLength    types.Int64  `tfsdk:"rotation_length"`
 	StartRotationsAt  types.String `tfsdk:"start_rotations_at"`
+	TeamId            types.String `tfsdk:"team_id"`
 	Timezone          types.String `tfsdk:"timezone"`
 	Users             types.List   `tfsdk:"users"`
 	WorkingHours      types.Set    `tfsdk:"working_hours"`
@@ -105,20 +106,22 @@ func (r *OnCallRotationResource) Metadata(ctx context.Context, req resource.Meta
 
 func (r *OnCallRotationResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "An on-call rotation: the recurring shift configuration for an on-call schedule.",
+		Description:         "An on-call schedule's rotation, the users who are on call in turn and how long each shift lasts.",
+		MarkdownDescription: "An on-call schedule's rotation, the users who are on call in turn and how long each shift lasts.",
 		Attributes: map[string]schema.Attribute{
 			// The declared lifecycle addresses an existing object, so identity is configured.
 			"id":                  schema.StringAttribute{Required: true, Description: "Id of the object this resource belongs to; it is also this resource's id.", PlanModifiers: []planmodifier.String{replaceWarningString{stringplanmodifier.RequiresReplace(), "betterstack_on_call_rotation"}}},
-			"apply_from":          schema.StringAttribute{Optional: true, Computed: true, Description: "When this change takes effect, as Apply changes from in the web app. Shifts before it are kept. Leave it out to apply the change now.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"apply_from_timezone": schema.StringAttribute{Optional: true, Computed: true, Description: "Time zone that apply_from is read in when it has no UTC offset. The web app shows apply_from in this time zone. Defaults to UTC.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"effective_timezone":  schema.StringAttribute{Computed: true, Description: "Time zone the working hours actually use."},
-			"end_rotations_at":    schema.StringAttribute{Optional: true, Computed: true, Description: "When the rotation schedule ends. Must be after start_rotations_at. If you leave it out, the rotation keeps running, as one set up in the web app: its shifts are generated two years ahead and kept extended.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"rotation_interval":   schema.StringAttribute{Required: true, Description: "Unit for the rotation length.", Validators: []validator.String{stringvalidator.OneOf("hour", "day", "week")}},
-			"rotation_length":     schema.Int64Attribute{Required: true, Description: "Number of intervals each shift lasts."},
+			"apply_from":          schema.StringAttribute{Optional: true, Computed: true, Description: "When this change applies, as Apply changes from in the web app. Shifts before it are kept. Leave it out to apply the change now.", MarkdownDescription: "When this change applies, as **Apply changes from** in the web app. Shifts before it are kept. Leave it out to apply the change now.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"apply_from_timezone": schema.StringAttribute{Optional: true, Computed: true, Description: "Time zone that apply_from is read in when it has no UTC offset. Defaults to UTC.", MarkdownDescription: "Time zone that `apply_from` is read in when it has no UTC offset. Defaults to UTC.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"effective_timezone":  schema.StringAttribute{Computed: true, Description: "Time zone that working_hours actually use. It's timezone when set, else the schedule's default time zone, else UTC.", MarkdownDescription: "Time zone that `working_hours` actually use. It's `timezone` when set, else the schedule's default time zone, else `UTC`."},
+			"end_rotations_at":    schema.StringAttribute{Optional: true, Computed: true, Description: "When the rotation schedule ends. Must be after start_rotations_at. Leave it out to keep the rotation running.", MarkdownDescription: "When the rotation schedule ends. Must be after `start_rotations_at`. Leave it out to keep the rotation running."},
+			"rotation_interval":   schema.StringAttribute{Required: true, Description: "Unit for rotation_length.", MarkdownDescription: "Unit for `rotation_length`.", Validators: []validator.String{stringvalidator.OneOf("hour", "day", "week")}},
+			"rotation_length":     schema.Int64Attribute{Required: true, Description: "Number of intervals each shift lasts, a whole number of at least 1.", MarkdownDescription: "Number of intervals each shift lasts, a whole number of at least `1`."},
 			"start_rotations_at":  schema.StringAttribute{Required: true, Description: "When the rotation schedule starts."},
-			"timezone":            schema.StringAttribute{Optional: true, Computed: true, Description: "Time zone for working hours and for handovers across daylight saving changes. If you leave it out, the previous rotation's time zone is kept. A new rotation with working hours defaults to UTC.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"team_id":             schema.StringAttribute{Optional: true, Computed: true, Description: "Team of the rotation's on-call schedule, such as t123. Defaults to the provider's team_id. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", MarkdownDescription: "Team of the rotation's on-call schedule, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_on_call_rotation"}}},
+			"timezone":            schema.StringAttribute{Optional: true, Computed: true, Description: "Time zone for working_hours and for handovers across daylight saving changes. A new rotation with working_hours defaults to UTC. Leave it out to keep the previous time zone.", MarkdownDescription: "Time zone for `working_hours` and for handovers across daylight saving changes. A new rotation with `working_hours` defaults to UTC. Leave it out to keep the previous time zone."},
 			"users":               schema.ListAttribute{Required: true, ElementType: types.StringType, Description: "E-mail addresses of users in the rotation, in shift order. Each must be a responder in the schedule's team."},
-			"working_hours":       schema.SetNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"day": schema.StringAttribute{Optional: true, Computed: true, Validators: []validator.String{stringvalidator.OneOf("sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday")}}, "start_time": schema.StringAttribute{Optional: true, Computed: true}, "end_time": schema.StringAttribute{Optional: true, Computed: true}}}, Description: "Working hours, as up to 50 windows in local time. They are returned as `HH:MM`, sorted by day. A window that ends at or before its start runs overnight, and one with the same start and end covers the whole day. Leave it out or send `[]` for none.", PlanModifiers: []planmodifier.Set{setplanmodifier.UseStateForUnknown()}},
+			"working_hours":       schema.SetNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"day": schema.StringAttribute{Required: true, Description: "The day of the week the window is on.", Validators: []validator.String{stringvalidator.OneOf("sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday")}}, "start_time": schema.StringAttribute{Required: true, Description: "When the window starts, as HH:MM in 24-hour time.", MarkdownDescription: "When the window starts, as `HH:MM` in 24-hour time."}, "end_time": schema.StringAttribute{Required: true, Description: "When the window ends, as HH:MM in 24-hour time.", MarkdownDescription: "When the window ends, as `HH:MM` in 24-hour time."}}}, Description: "The windows in which the rotation pages anyone, as up to 50 windows in local time. They are returned as HH:MM, sorted by day. A window that ends at or before its start runs overnight, and one with the same start and end covers the whole day. Without it, or with an empty list, the rotation pages around the clock.", MarkdownDescription: "The windows in which the rotation pages anyone, as up to 50 windows in local time. They are returned as `HH:MM`, sorted by day. A window that ends at or before its start runs overnight, and one with the same start and end covers the whole day. Without it, or with an empty list, the rotation pages around the clock.", PlanModifiers: []planmodifier.Set{setplanmodifier.UseStateForUnknown()}},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -182,9 +185,17 @@ func (r *OnCallRotationResource) Create(ctx context.Context, req resource.Create
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, err := r.client.Create(ctx, onCallRotationBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating on_call_rotation", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating on_call_rotation", err, req.Plan.Raw.Type())
 		return
@@ -205,9 +216,22 @@ func (r *OnCallRotationResource) Read(ctx context.Context, req resource.ReadRequ
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, onCallRotationBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), onCallRotationBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading on_call_rotation", err, req.State.Raw.Type())
 		return
@@ -271,6 +295,9 @@ func populateOnCallRotation(ctx context.Context, m *OnCallRotationModel, attrs m
 		lv, _ := types.SetValueFrom(ctx, types.ObjectType{AttrTypes: onCallRotationWorkingHoursAttrTypes()}, items)
 		m.WorkingHours = lv
 	}
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
 }
 
 func (r *OnCallRotationResource) mergeResponse(ctx context.Context, m OnCallRotationModel, attrs map[string]interface{}) {
@@ -291,6 +318,7 @@ func (r *OnCallRotationResource) mergeResponse(ctx context.Context, m OnCallRota
 }
 
 func (r *OnCallRotationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	defer rememberConfigured(ctx, req.Config, resp.Private, onCallRotationKeptOnRemoval, &resp.Diagnostics)
 	var plan OnCallRotationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -301,6 +329,7 @@ func (r *OnCallRotationResource) Update(ctx context.Context, req resource.Update
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, err := r.client.Update(ctx, onCallRotationBinding, vars, r.body(ctx, request))
@@ -321,6 +350,7 @@ func (r *OnCallRotationResource) Delete(ctx context.Context, req resource.Delete
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	if err := r.client.Delete(ctx, onCallRotationBinding, vars); err != nil {
@@ -332,9 +362,11 @@ func (r *OnCallRotationResource) Delete(ctx context.Context, req resource.Delete
 var onCallRotationKeptOnRemoval = []string{"apply_from", "apply_from_timezone", "end_rotations_at", "timezone", "working_hours"}
 
 func (r *OnCallRotationResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseUnnamedTeam(ctx, req, resp, r.client, "on call rotation")
 	warnKeptOnRemoval(ctx, "betterstack_on_call_rotation", req, resp, onCallRotationKeptOnRemoval)
 }
 
 func (r *OnCallRotationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

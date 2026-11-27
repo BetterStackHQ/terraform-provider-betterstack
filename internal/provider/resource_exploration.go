@@ -8,7 +8,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/dynamicplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -33,25 +37,28 @@ func NewExplorationResource() resource.Resource {
 }
 
 type ExplorationModel struct {
-	Id                 types.String  `tfsdk:"id"`
-	Chart              types.Object  `tfsdk:"chart"`
-	CreatedAt          types.String  `tfsdk:"created_at"`
-	DateRangeFrom      types.String  `tfsdk:"date_range_from"`
-	DateRangeTo        types.String  `tfsdk:"date_range_to"`
-	ExplorationGroupId types.String  `tfsdk:"exploration_group_id"`
-	Name               types.String  `tfsdk:"name"`
-	Queries            types.Dynamic `tfsdk:"queries"`
-	QueriesResult      types.Dynamic `tfsdk:"queries_result"`
-	TeamName           types.String  `tfsdk:"team_name"`
-	UpdatedAt          types.String  `tfsdk:"updated_at"`
-	Variables          types.Dynamic `tfsdk:"variables"`
+	Id                 types.String `tfsdk:"id"`
+	Chart              types.Object `tfsdk:"chart"`
+	CreatedAt          types.String `tfsdk:"created_at"`
+	DateRangeFrom      types.String `tfsdk:"date_range_from"`
+	DateRangeTo        types.String `tfsdk:"date_range_to"`
+	ExplorationGroupId types.String `tfsdk:"exploration_group_id"`
+	Name               types.String `tfsdk:"name"`
+	Product            types.String `tfsdk:"product"`
+	Queries            types.List   `tfsdk:"queries"`
+	SourceId           types.String `tfsdk:"source_id"`
+	SourceType         types.String `tfsdk:"source_type"`
+	TeamId             types.String `tfsdk:"team_id"`
+	TeamName           types.String `tfsdk:"team_name"`
+	UpdatedAt          types.String `tfsdk:"updated_at"`
+	Variables          types.List   `tfsdk:"variables"`
 }
 
 type ExplorationChartModel struct {
-	ChartType   types.String  `tfsdk:"chart_type"`
-	Name        types.String  `tfsdk:"name"`
-	Description types.String  `tfsdk:"description"`
-	Settings    types.Dynamic `tfsdk:"settings"`
+	ChartType   types.String `tfsdk:"chart_type"`
+	Name        types.String `tfsdk:"name"`
+	Description types.String `tfsdk:"description"`
+	Settings    types.Object `tfsdk:"settings"`
 }
 
 func explorationChartAttrTypes() map[string]attr.Type {
@@ -59,7 +66,7 @@ func explorationChartAttrTypes() map[string]attr.Type {
 		"chart_type":  types.StringType,
 		"name":        types.StringType,
 		"description": types.StringType,
-		"settings":    types.DynamicType,
+		"settings":    types.ObjectType{AttrTypes: explorationChartSettingsAttrTypes()},
 	}
 }
 
@@ -77,12 +84,8 @@ func expandExplorationChart(ctx context.Context, o types.Object) map[string]inte
 	if !m.Description.IsNull() && !m.Description.IsUnknown() {
 		out["description"] = m.Description.ValueString()
 	}
-	if !m.Settings.IsNull() && !m.Settings.IsUnknown() && !m.Settings.IsUnderlyingValueNull() && !m.Settings.IsUnderlyingValueUnknown() {
-		if tv, err := m.Settings.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-			if av, err := tftypesToAPI(tv); err == nil {
-				out["settings"] = projectAPIWrite(av, apiValueShape{})
-			}
-		}
+	if !m.Settings.IsNull() && !m.Settings.IsUnknown() {
+		out["settings"] = expandExplorationChartSettings(ctx, m.Settings)
 	}
 	return out
 }
@@ -93,7 +96,7 @@ func flattenExplorationChart(ctx context.Context, prior types.Object, raw map[st
 	var m ExplorationChartModel
 	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
 	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
-	m.Settings = types.DynamicNull()
+	m.Settings = types.ObjectNull(explorationChartSettingsAttrTypes())
 	if !prior.IsNull() && !prior.IsUnknown() {
 		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
 	}
@@ -103,22 +106,3077 @@ func flattenExplorationChart(ctx context.Context, prior types.Object, raw map[st
 	if v, ok := stringFromAPI(raw["name"]); ok {
 		m.Name = types.StringValue(v)
 	}
-	if v, ok := stringFromAPI(raw["description"]); ok {
-		m.Description = types.StringValue(v)
-	}
-	if raw, ok := raw["settings"]; ok && raw != nil {
-		var prior interface{}
-		if !m.Settings.IsNull() && !m.Settings.IsUnknown() && !m.Settings.IsUnderlyingValueNull() && !m.Settings.IsUnderlyingValueUnknown() {
-			if tv, err := m.Settings.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-				prior, _ = tftypesToAPI(tv)
+	if rawValue, exists := raw["description"]; exists {
+		if rawValue == nil {
+			m.Description = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["description"]); ok {
+				m.Description = types.StringValue(v)
 			}
 		}
-		raw = mergeAPIRead(raw, prior, apiValueShape{})
-		if dv, err := types.DynamicType.ValueFromTerraform(ctx, dynamicFromAPI(raw)); err == nil {
-			m.Settings = dv.(types.Dynamic)
-		}
+	}
+	if raw, ok := raw["settings"].(map[string]interface{}); ok {
+		m.Settings = flattenExplorationChartSettings(ctx, types.ObjectNull(explorationChartSettingsAttrTypes()), raw)
 	}
 	obj, _ := types.ObjectValueFrom(ctx, explorationChartAttrTypes(), m)
+	return obj
+}
+
+type ExplorationChartSettingsModel struct {
+	Unit                       types.String  `tfsdk:"unit"`
+	CustomUnit                 types.Bool    `tfsdk:"custom_unit"`
+	DecimalPlaces              types.Int64   `tfsdk:"decimal_places"`
+	TimeColumn                 types.String  `tfsdk:"time_column"`
+	XAxisType                  types.String  `tfsdk:"x_axis_type"`
+	YAxisType                  types.String  `tfsdk:"y_axis_type"`
+	SeriesColumn               types.String  `tfsdk:"series_column"`
+	ValueColumns               types.List    `tfsdk:"value_columns"`
+	PointSizeColumn            types.String  `tfsdk:"point_size_column"`
+	LocationColumn             types.String  `tfsdk:"location_column"`
+	LocationLabel              types.String  `tfsdk:"location_label"`
+	LabelColumn                types.String  `tfsdk:"label_column"`
+	GroupByColumns             types.List    `tfsdk:"group_by_columns"`
+	Palette                    types.String  `tfsdk:"palette"`
+	MinValue                   types.Float64 `tfsdk:"min_value"`
+	MaxValue                   types.Float64 `tfsdk:"max_value"`
+	LinkTemplate               types.String  `tfsdk:"link_template"`
+	YAxisMin                   types.Float64 `tfsdk:"y_axis_min"`
+	YAxisMax                   types.Float64 `tfsdk:"y_axis_max"`
+	YAxisAutoRange             types.String  `tfsdk:"y_axis_auto_range"`
+	YAxisScale                 types.String  `tfsdk:"y_axis_scale"`
+	Min                        types.Float64 `tfsdk:"min"`
+	Max                        types.Float64 `tfsdk:"max"`
+	TreatMissingValues         types.String  `tfsdk:"treat_missing_values"`
+	Stacking                   types.String  `tfsdk:"stacking"`
+	Orientation                types.String  `tfsdk:"orientation"`
+	Legend                     types.String  `tfsdk:"legend"`
+	SeriesColors               types.Map     `tfsdk:"series_colors"`
+	SeriesOrder                types.List    `tfsdk:"series_order"`
+	ShowPreviousPeriod         types.Bool    `tfsdk:"show_previous_period"`
+	ColorMode                  types.String  `tfsdk:"color_mode"`
+	ColorUpperThreshold        types.Float64 `tfsdk:"color_upper_threshold"`
+	ColorLowerThreshold        types.Float64 `tfsdk:"color_lower_threshold"`
+	ColorGreenWords            types.String  `tfsdk:"color_green_words"`
+	ColorYellowWords           types.String  `tfsdk:"color_yellow_words"`
+	ColorRedWords              types.String  `tfsdk:"color_red_words"`
+	ColumnUnits                types.Map     `tfsdk:"column_units"`
+	PercentageHighlightColumns types.List    `tfsdk:"percentage_highlight_columns"`
+	SeriesUnit                 types.String  `tfsdk:"series_unit"`
+	SeriesCustomUnit           types.Bool    `tfsdk:"series_custom_unit"`
+	HeatmapColorMode           types.String  `tfsdk:"heatmap_color_mode"`
+	ValueCategories            types.Map     `tfsdk:"value_categories"`
+	ColumnWidths               types.Map     `tfsdk:"column_widths"`
+	TableWidth                 types.Int64   `tfsdk:"table_width"`
+	GuessedSeriesColors        types.Map     `tfsdk:"guessed_series_colors"`
+	Label                      types.String  `tfsdk:"label"`
+	Text                       types.String  `tfsdk:"text"`
+	RowTemplates               types.Map     `tfsdk:"row_templates"`
+	Sampling                   types.Int64   `tfsdk:"sampling"`
+	Fresh                      types.Bool    `tfsdk:"fresh"`
+	FunnelUnitName             types.String  `tfsdk:"funnel_unit_name"`
+	FilteredSeries             types.List    `tfsdk:"filtered_series"`
+	FilteredReleases           types.List    `tfsdk:"filtered_releases"`
+	ForceSourceSeries          types.Bool    `tfsdk:"force_source_series"`
+	TreatZeroValues            types.String  `tfsdk:"treat_zero_values"`
+	Projection                 types.String  `tfsdk:"projection"`
+	PublishedFormat            types.String  `tfsdk:"published_format"`
+	PublishedCacheFor          types.Int64   `tfsdk:"published_cache_for"`
+	YAxisAnnotations           types.List    `tfsdk:"y_axis_annotations"`
+	XAxisAnnotations           types.List    `tfsdk:"x_axis_annotations"`
+}
+
+func explorationChartSettingsAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"unit":                         types.StringType,
+		"custom_unit":                  types.BoolType,
+		"decimal_places":               types.Int64Type,
+		"time_column":                  types.StringType,
+		"x_axis_type":                  types.StringType,
+		"y_axis_type":                  types.StringType,
+		"series_column":                types.StringType,
+		"value_columns":                types.ListType{ElemType: types.StringType},
+		"point_size_column":            types.StringType,
+		"location_column":              types.StringType,
+		"location_label":               types.StringType,
+		"label_column":                 types.StringType,
+		"group_by_columns":             types.ListType{ElemType: types.StringType},
+		"palette":                      types.StringType,
+		"min_value":                    types.Float64Type,
+		"max_value":                    types.Float64Type,
+		"link_template":                types.StringType,
+		"y_axis_min":                   types.Float64Type,
+		"y_axis_max":                   types.Float64Type,
+		"y_axis_auto_range":            types.StringType,
+		"y_axis_scale":                 types.StringType,
+		"min":                          types.Float64Type,
+		"max":                          types.Float64Type,
+		"treat_missing_values":         types.StringType,
+		"stacking":                     types.StringType,
+		"orientation":                  types.StringType,
+		"legend":                       types.StringType,
+		"series_colors":                types.MapType{ElemType: types.StringType},
+		"series_order":                 types.ListType{ElemType: types.StringType},
+		"show_previous_period":         types.BoolType,
+		"color_mode":                   types.StringType,
+		"color_upper_threshold":        types.Float64Type,
+		"color_lower_threshold":        types.Float64Type,
+		"color_green_words":            types.StringType,
+		"color_yellow_words":           types.StringType,
+		"color_red_words":              types.StringType,
+		"column_units":                 types.MapType{ElemType: types.ObjectType{AttrTypes: explorationChartSettingsColumnUnitsAttrTypes()}},
+		"percentage_highlight_columns": types.ListType{ElemType: types.StringType},
+		"series_unit":                  types.StringType,
+		"series_custom_unit":           types.BoolType,
+		"heatmap_color_mode":           types.StringType,
+		"value_categories":             types.MapType{ElemType: types.ObjectType{AttrTypes: explorationChartSettingsValueCategoriesAttrTypes()}},
+		"column_widths":                types.MapType{ElemType: types.Float64Type},
+		"table_width":                  types.Int64Type,
+		"guessed_series_colors":        types.MapType{ElemType: types.StringType},
+		"label":                        types.StringType,
+		"text":                         types.StringType,
+		"row_templates":                types.MapType{ElemType: types.StringType},
+		"sampling":                     types.Int64Type,
+		"fresh":                        types.BoolType,
+		"funnel_unit_name":             types.StringType,
+		"filtered_series":              types.ListType{ElemType: types.StringType},
+		"filtered_releases":            types.ListType{ElemType: types.StringType},
+		"force_source_series":          types.BoolType,
+		"treat_zero_values":            types.StringType,
+		"projection":                   types.StringType,
+		"published_format":             types.StringType,
+		"published_cache_for":          types.Int64Type,
+		"y_axis_annotations":           types.ListType{ElemType: types.ObjectType{AttrTypes: explorationChartSettingsYAxisAnnotationsAttrTypes()}},
+		"x_axis_annotations":           types.ListType{ElemType: types.ObjectType{AttrTypes: explorationChartSettingsXAxisAnnotationsAttrTypes()}},
+	}
+}
+
+// expandExplorationChartSettings marshals a nested ExplorationChartSettings object into its request map.
+func expandExplorationChartSettings(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationChartSettingsModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Unit.IsNull() && !m.Unit.IsUnknown() {
+		out["unit"] = m.Unit.ValueString()
+	}
+	if !m.CustomUnit.IsNull() && !m.CustomUnit.IsUnknown() {
+		out["custom_unit"] = m.CustomUnit.ValueBool()
+	}
+	if !m.DecimalPlaces.IsNull() && !m.DecimalPlaces.IsUnknown() {
+		out["decimal_places"] = m.DecimalPlaces.ValueInt64()
+	}
+	if !m.TimeColumn.IsNull() && !m.TimeColumn.IsUnknown() {
+		out["time_column"] = m.TimeColumn.ValueString()
+	}
+	if !m.XAxisType.IsNull() && !m.XAxisType.IsUnknown() {
+		out["x_axis_type"] = m.XAxisType.ValueString()
+	}
+	if !m.YAxisType.IsNull() && !m.YAxisType.IsUnknown() {
+		out["y_axis_type"] = m.YAxisType.ValueString()
+	}
+	if !m.SeriesColumn.IsNull() && !m.SeriesColumn.IsUnknown() {
+		out["series_column"] = m.SeriesColumn.ValueString()
+	}
+	if !m.ValueColumns.IsNull() && !m.ValueColumns.IsUnknown() {
+		var vals []string
+		m.ValueColumns.ElementsAs(ctx, &vals, false)
+		out["value_columns"] = vals
+	}
+	if !m.PointSizeColumn.IsNull() && !m.PointSizeColumn.IsUnknown() {
+		out["point_size_column"] = m.PointSizeColumn.ValueString()
+	}
+	if !m.LocationColumn.IsNull() && !m.LocationColumn.IsUnknown() {
+		out["location_column"] = m.LocationColumn.ValueString()
+	}
+	if !m.LocationLabel.IsNull() && !m.LocationLabel.IsUnknown() {
+		out["location_label"] = m.LocationLabel.ValueString()
+	}
+	if !m.LabelColumn.IsNull() && !m.LabelColumn.IsUnknown() {
+		out["label_column"] = m.LabelColumn.ValueString()
+	}
+	if !m.GroupByColumns.IsNull() && !m.GroupByColumns.IsUnknown() {
+		var vals []string
+		m.GroupByColumns.ElementsAs(ctx, &vals, false)
+		out["group_by_columns"] = vals
+	}
+	if !m.Palette.IsNull() && !m.Palette.IsUnknown() {
+		out["palette"] = m.Palette.ValueString()
+	}
+	if !m.MinValue.IsNull() && !m.MinValue.IsUnknown() {
+		out["min_value"] = m.MinValue.ValueFloat64()
+	}
+	if !m.MaxValue.IsNull() && !m.MaxValue.IsUnknown() {
+		out["max_value"] = m.MaxValue.ValueFloat64()
+	}
+	if !m.LinkTemplate.IsNull() && !m.LinkTemplate.IsUnknown() {
+		out["link_template"] = m.LinkTemplate.ValueString()
+	}
+	if !m.YAxisMin.IsNull() && !m.YAxisMin.IsUnknown() {
+		out["y_axis_min"] = m.YAxisMin.ValueFloat64()
+	}
+	if !m.YAxisMax.IsNull() && !m.YAxisMax.IsUnknown() {
+		out["y_axis_max"] = m.YAxisMax.ValueFloat64()
+	}
+	if !m.YAxisAutoRange.IsNull() && !m.YAxisAutoRange.IsUnknown() {
+		out["y_axis_auto_range"] = m.YAxisAutoRange.ValueString()
+	}
+	if !m.YAxisScale.IsNull() && !m.YAxisScale.IsUnknown() {
+		out["y_axis_scale"] = m.YAxisScale.ValueString()
+	}
+	if !m.Min.IsNull() && !m.Min.IsUnknown() {
+		out["min"] = m.Min.ValueFloat64()
+	}
+	if !m.Max.IsNull() && !m.Max.IsUnknown() {
+		out["max"] = m.Max.ValueFloat64()
+	}
+	if !m.TreatMissingValues.IsNull() && !m.TreatMissingValues.IsUnknown() {
+		out["treat_missing_values"] = m.TreatMissingValues.ValueString()
+	}
+	if !m.Stacking.IsNull() && !m.Stacking.IsUnknown() {
+		out["stacking"] = m.Stacking.ValueString()
+	}
+	if !m.Orientation.IsNull() && !m.Orientation.IsUnknown() {
+		out["orientation"] = m.Orientation.ValueString()
+	}
+	if !m.Legend.IsNull() && !m.Legend.IsUnknown() {
+		out["legend"] = m.Legend.ValueString()
+	}
+	if !m.SeriesColors.IsNull() && !m.SeriesColors.IsUnknown() {
+		vals := map[string]string{}
+		m.SeriesColors.ElementsAs(ctx, &vals, false)
+		out["series_colors"] = vals
+	}
+	if !m.SeriesOrder.IsNull() && !m.SeriesOrder.IsUnknown() {
+		var vals []string
+		m.SeriesOrder.ElementsAs(ctx, &vals, false)
+		out["series_order"] = vals
+	}
+	if !m.ShowPreviousPeriod.IsNull() && !m.ShowPreviousPeriod.IsUnknown() {
+		out["show_previous_period"] = m.ShowPreviousPeriod.ValueBool()
+	}
+	if !m.ColorMode.IsNull() && !m.ColorMode.IsUnknown() {
+		out["color_mode"] = m.ColorMode.ValueString()
+	}
+	if !m.ColorUpperThreshold.IsNull() && !m.ColorUpperThreshold.IsUnknown() {
+		out["color_upper_threshold"] = m.ColorUpperThreshold.ValueFloat64()
+	}
+	if !m.ColorLowerThreshold.IsNull() && !m.ColorLowerThreshold.IsUnknown() {
+		out["color_lower_threshold"] = m.ColorLowerThreshold.ValueFloat64()
+	}
+	if !m.ColorGreenWords.IsNull() && !m.ColorGreenWords.IsUnknown() {
+		out["color_green_words"] = m.ColorGreenWords.ValueString()
+	}
+	if !m.ColorYellowWords.IsNull() && !m.ColorYellowWords.IsUnknown() {
+		out["color_yellow_words"] = m.ColorYellowWords.ValueString()
+	}
+	if !m.ColorRedWords.IsNull() && !m.ColorRedWords.IsUnknown() {
+		out["color_red_words"] = m.ColorRedWords.ValueString()
+	}
+	if !m.ColumnUnits.IsNull() && !m.ColumnUnits.IsUnknown() {
+		items := make(map[string]interface{}, len(m.ColumnUnits.Elements()))
+		for k, el := range m.ColumnUnits.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items[k] = expandExplorationChartSettingsColumnUnits(ctx, obj)
+			}
+		}
+		out["column_units"] = items
+	}
+	if !m.PercentageHighlightColumns.IsNull() && !m.PercentageHighlightColumns.IsUnknown() {
+		var vals []string
+		m.PercentageHighlightColumns.ElementsAs(ctx, &vals, false)
+		out["percentage_highlight_columns"] = vals
+	}
+	if !m.SeriesUnit.IsNull() && !m.SeriesUnit.IsUnknown() {
+		out["series_unit"] = m.SeriesUnit.ValueString()
+	}
+	if !m.SeriesCustomUnit.IsNull() && !m.SeriesCustomUnit.IsUnknown() {
+		out["series_custom_unit"] = m.SeriesCustomUnit.ValueBool()
+	}
+	if !m.HeatmapColorMode.IsNull() && !m.HeatmapColorMode.IsUnknown() {
+		out["heatmap_color_mode"] = m.HeatmapColorMode.ValueString()
+	}
+	if !m.ValueCategories.IsNull() && !m.ValueCategories.IsUnknown() {
+		items := make(map[string]interface{}, len(m.ValueCategories.Elements()))
+		for k, el := range m.ValueCategories.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items[k] = expandExplorationChartSettingsValueCategories(ctx, obj)
+			}
+		}
+		out["value_categories"] = items
+	}
+	if !m.ColumnWidths.IsNull() && !m.ColumnWidths.IsUnknown() {
+		vals := map[string]float64{}
+		m.ColumnWidths.ElementsAs(ctx, &vals, false)
+		out["column_widths"] = vals
+	}
+	if !m.TableWidth.IsNull() && !m.TableWidth.IsUnknown() {
+		out["table_width"] = m.TableWidth.ValueInt64()
+	}
+	if !m.GuessedSeriesColors.IsNull() && !m.GuessedSeriesColors.IsUnknown() {
+		vals := map[string]string{}
+		m.GuessedSeriesColors.ElementsAs(ctx, &vals, false)
+		out["guessed_series_colors"] = vals
+	}
+	if !m.Label.IsNull() && !m.Label.IsUnknown() {
+		out["label"] = m.Label.ValueString()
+	}
+	if !m.Text.IsNull() && !m.Text.IsUnknown() {
+		out["text"] = m.Text.ValueString()
+	}
+	if !m.RowTemplates.IsNull() && !m.RowTemplates.IsUnknown() {
+		vals := map[string]string{}
+		m.RowTemplates.ElementsAs(ctx, &vals, false)
+		out["rowTemplates"] = vals
+	}
+	if !m.Sampling.IsNull() && !m.Sampling.IsUnknown() {
+		out["sampling"] = m.Sampling.ValueInt64()
+	}
+	if !m.Fresh.IsNull() && !m.Fresh.IsUnknown() {
+		out["fresh"] = m.Fresh.ValueBool()
+	}
+	if !m.FunnelUnitName.IsNull() && !m.FunnelUnitName.IsUnknown() {
+		out["funnel_unit_name"] = m.FunnelUnitName.ValueString()
+	}
+	if !m.FilteredSeries.IsNull() && !m.FilteredSeries.IsUnknown() {
+		var vals []string
+		m.FilteredSeries.ElementsAs(ctx, &vals, false)
+		out["filtered_series"] = vals
+	}
+	if !m.FilteredReleases.IsNull() && !m.FilteredReleases.IsUnknown() {
+		var vals []string
+		m.FilteredReleases.ElementsAs(ctx, &vals, false)
+		out["filtered_releases"] = vals
+	}
+	if !m.ForceSourceSeries.IsNull() && !m.ForceSourceSeries.IsUnknown() {
+		out["force_source_series"] = m.ForceSourceSeries.ValueBool()
+	}
+	if !m.TreatZeroValues.IsNull() && !m.TreatZeroValues.IsUnknown() {
+		out["treat_zero_values"] = m.TreatZeroValues.ValueString()
+	}
+	if !m.Projection.IsNull() && !m.Projection.IsUnknown() {
+		out["projection"] = m.Projection.ValueString()
+	}
+	if !m.PublishedFormat.IsNull() && !m.PublishedFormat.IsUnknown() {
+		out["published_format"] = m.PublishedFormat.ValueString()
+	}
+	if !m.PublishedCacheFor.IsNull() && !m.PublishedCacheFor.IsUnknown() {
+		out["published_cache_for"] = m.PublishedCacheFor.ValueInt64()
+	}
+	if !m.YAxisAnnotations.IsNull() && !m.YAxisAnnotations.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.YAxisAnnotations.Elements()))
+		for _, el := range m.YAxisAnnotations.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandExplorationChartSettingsYAxisAnnotations(ctx, obj))
+			}
+		}
+		out["y_axis_annotations"] = items
+	}
+	if !m.XAxisAnnotations.IsNull() && !m.XAxisAnnotations.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.XAxisAnnotations.Elements()))
+		for _, el := range m.XAxisAnnotations.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandExplorationChartSettingsXAxisAnnotations(ctx, obj))
+			}
+		}
+		out["x_axis_annotations"] = items
+	}
+	return out
+}
+
+// flattenExplorationChartSettings refreshes a typed ExplorationChartSettings object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationChartSettings(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationChartSettingsModel
+	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
+	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
+	m.ValueColumns = types.ListNull(types.StringType)
+	m.GroupByColumns = types.ListNull(types.StringType)
+	m.SeriesColors = types.MapNull(types.StringType)
+	m.SeriesOrder = types.ListNull(types.StringType)
+	m.ColumnUnits = types.MapNull(types.ObjectType{AttrTypes: explorationChartSettingsColumnUnitsAttrTypes()})
+	m.PercentageHighlightColumns = types.ListNull(types.StringType)
+	m.ValueCategories = types.MapNull(types.ObjectType{AttrTypes: explorationChartSettingsValueCategoriesAttrTypes()})
+	m.ColumnWidths = types.MapNull(types.Float64Type)
+	m.GuessedSeriesColors = types.MapNull(types.StringType)
+	m.RowTemplates = types.MapNull(types.StringType)
+	m.FilteredSeries = types.ListNull(types.StringType)
+	m.FilteredReleases = types.ListNull(types.StringType)
+	m.YAxisAnnotations = types.ListNull(types.ObjectType{AttrTypes: explorationChartSettingsYAxisAnnotationsAttrTypes()})
+	m.XAxisAnnotations = types.ListNull(types.ObjectType{AttrTypes: explorationChartSettingsXAxisAnnotationsAttrTypes()})
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["unit"]); ok {
+		m.Unit = types.StringValue(v)
+	}
+	if v, ok := boolFromAPI(raw["custom_unit"]); ok {
+		m.CustomUnit = types.BoolValue(v)
+	}
+	if v, ok := int64FromAPI(raw["decimal_places"]); ok {
+		m.DecimalPlaces = types.Int64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["time_column"]); ok {
+		m.TimeColumn = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["x_axis_type"]); ok {
+		m.XAxisType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["y_axis_type"]); ok {
+		m.YAxisType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["series_column"]); ok {
+		m.SeriesColumn = types.StringValue(v)
+	}
+	if raw, ok := raw["value_columns"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.ValueColumns = lv
+	}
+	if v, ok := stringFromAPI(raw["point_size_column"]); ok {
+		m.PointSizeColumn = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["location_column"]); ok {
+		m.LocationColumn = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["location_label"]); ok {
+		m.LocationLabel = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["label_column"]); ok {
+		m.LabelColumn = types.StringValue(v)
+	}
+	if raw, ok := raw["group_by_columns"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.GroupByColumns = lv
+	}
+	if v, ok := stringFromAPI(raw["palette"]); ok {
+		m.Palette = types.StringValue(v)
+	}
+	if v, ok := float64FromAPI(raw["min_value"]); ok {
+		m.MinValue = types.Float64Value(v)
+	}
+	if v, ok := float64FromAPI(raw["max_value"]); ok {
+		m.MaxValue = types.Float64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["link_template"]); ok {
+		m.LinkTemplate = types.StringValue(v)
+	}
+	if v, ok := float64FromAPI(raw["y_axis_min"]); ok {
+		m.YAxisMin = types.Float64Value(v)
+	}
+	if v, ok := float64FromAPI(raw["y_axis_max"]); ok {
+		m.YAxisMax = types.Float64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["y_axis_auto_range"]); ok {
+		m.YAxisAutoRange = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["y_axis_scale"]); ok {
+		m.YAxisScale = types.StringValue(v)
+	}
+	if v, ok := float64FromAPI(raw["min"]); ok {
+		m.Min = types.Float64Value(v)
+	}
+	if v, ok := float64FromAPI(raw["max"]); ok {
+		m.Max = types.Float64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["treat_missing_values"]); ok {
+		m.TreatMissingValues = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["stacking"]); ok {
+		m.Stacking = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["orientation"]); ok {
+		m.Orientation = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["legend"]); ok {
+		m.Legend = types.StringValue(v)
+	}
+	if raw, ok := raw["series_colors"].(map[string]interface{}); ok {
+		vals := make(map[string]string, len(raw))
+		for k, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals[k] = ev
+			}
+		}
+		mv, _ := types.MapValueFrom(ctx, types.StringType, vals)
+		m.SeriesColors = mv
+	}
+	if raw, ok := raw["series_order"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.SeriesOrder = lv
+	}
+	if v, ok := boolFromAPI(raw["show_previous_period"]); ok {
+		m.ShowPreviousPeriod = types.BoolValue(v)
+	}
+	if v, ok := stringFromAPI(raw["color_mode"]); ok {
+		m.ColorMode = types.StringValue(v)
+	}
+	if v, ok := float64FromAPI(raw["color_upper_threshold"]); ok {
+		m.ColorUpperThreshold = types.Float64Value(v)
+	}
+	if v, ok := float64FromAPI(raw["color_lower_threshold"]); ok {
+		m.ColorLowerThreshold = types.Float64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["color_green_words"]); ok {
+		m.ColorGreenWords = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["color_yellow_words"]); ok {
+		m.ColorYellowWords = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["color_red_words"]); ok {
+		m.ColorRedWords = types.StringValue(v)
+	}
+	if raw, ok := raw["column_units"].(map[string]interface{}); ok {
+		priorByKey := m.ColumnUnits.Elements()
+		items := make(map[string]attr.Value, len(raw))
+		for k, e := range raw {
+			mp, ok := e.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			prior := types.ObjectNull(explorationChartSettingsColumnUnitsAttrTypes())
+			if existing, ok := priorByKey[k].(types.Object); ok {
+				prior = existing
+			}
+			items[k] = flattenExplorationChartSettingsColumnUnits(ctx, prior, mp)
+		}
+		mv, _ := types.MapValue(types.ObjectType{AttrTypes: explorationChartSettingsColumnUnitsAttrTypes()}, items)
+		m.ColumnUnits = mv
+	}
+	if raw, ok := raw["percentage_highlight_columns"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.PercentageHighlightColumns = lv
+	}
+	if v, ok := stringFromAPI(raw["series_unit"]); ok {
+		m.SeriesUnit = types.StringValue(v)
+	}
+	if v, ok := boolFromAPI(raw["series_custom_unit"]); ok {
+		m.SeriesCustomUnit = types.BoolValue(v)
+	}
+	if v, ok := stringFromAPI(raw["heatmap_color_mode"]); ok {
+		m.HeatmapColorMode = types.StringValue(v)
+	}
+	if raw, ok := raw["value_categories"].(map[string]interface{}); ok {
+		priorByKey := m.ValueCategories.Elements()
+		items := make(map[string]attr.Value, len(raw))
+		for k, e := range raw {
+			mp, ok := e.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			prior := types.ObjectNull(explorationChartSettingsValueCategoriesAttrTypes())
+			if existing, ok := priorByKey[k].(types.Object); ok {
+				prior = existing
+			}
+			items[k] = flattenExplorationChartSettingsValueCategories(ctx, prior, mp)
+		}
+		mv, _ := types.MapValue(types.ObjectType{AttrTypes: explorationChartSettingsValueCategoriesAttrTypes()}, items)
+		m.ValueCategories = mv
+	}
+	if raw, ok := raw["column_widths"].(map[string]interface{}); ok {
+		vals := make(map[string]float64, len(raw))
+		for k, e := range raw {
+			if ev, ok := float64FromAPI(e); ok {
+				vals[k] = ev
+			}
+		}
+		mv, _ := types.MapValueFrom(ctx, types.Float64Type, vals)
+		m.ColumnWidths = mv
+	}
+	if v, ok := int64FromAPI(raw["table_width"]); ok {
+		m.TableWidth = types.Int64Value(v)
+	}
+	if raw, ok := raw["guessed_series_colors"].(map[string]interface{}); ok {
+		vals := make(map[string]string, len(raw))
+		for k, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals[k] = ev
+			}
+		}
+		mv, _ := types.MapValueFrom(ctx, types.StringType, vals)
+		m.GuessedSeriesColors = mv
+	}
+	if v, ok := stringFromAPI(raw["label"]); ok {
+		m.Label = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["text"]); ok {
+		m.Text = types.StringValue(v)
+	}
+	if raw, ok := raw["rowTemplates"].(map[string]interface{}); ok {
+		vals := make(map[string]string, len(raw))
+		for k, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals[k] = ev
+			}
+		}
+		mv, _ := types.MapValueFrom(ctx, types.StringType, vals)
+		m.RowTemplates = mv
+	}
+	if v, ok := int64FromAPI(raw["sampling"]); ok {
+		m.Sampling = types.Int64Value(v)
+	}
+	if v, ok := boolFromAPI(raw["fresh"]); ok {
+		m.Fresh = types.BoolValue(v)
+	}
+	if v, ok := stringFromAPI(raw["funnel_unit_name"]); ok {
+		m.FunnelUnitName = types.StringValue(v)
+	}
+	if raw, ok := raw["filtered_series"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.FilteredSeries = lv
+	}
+	if raw, ok := raw["filtered_releases"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.FilteredReleases = lv
+	}
+	if v, ok := boolFromAPI(raw["force_source_series"]); ok {
+		m.ForceSourceSeries = types.BoolValue(v)
+	}
+	if v, ok := stringFromAPI(raw["treat_zero_values"]); ok {
+		m.TreatZeroValues = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["projection"]); ok {
+		m.Projection = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["published_format"]); ok {
+		m.PublishedFormat = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(raw["published_cache_for"]); ok {
+		m.PublishedCacheFor = types.Int64Value(v)
+	}
+	if raw, ok := raw["y_axis_annotations"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(explorationChartSettingsYAxisAnnotationsAttrTypes())
+				items = append(items, flattenExplorationChartSettingsYAxisAnnotations(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: explorationChartSettingsYAxisAnnotationsAttrTypes()}, items)
+		m.YAxisAnnotations = lv
+	}
+	if raw, ok := raw["x_axis_annotations"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(explorationChartSettingsXAxisAnnotationsAttrTypes())
+				items = append(items, flattenExplorationChartSettingsXAxisAnnotations(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: explorationChartSettingsXAxisAnnotationsAttrTypes()}, items)
+		m.XAxisAnnotations = lv
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationChartSettingsAttrTypes(), m)
+	return obj
+}
+
+type ExplorationChartSettingsColumnUnitsModel struct {
+	Unit       types.String `tfsdk:"unit"`
+	CustomUnit types.Bool   `tfsdk:"custom_unit"`
+}
+
+func explorationChartSettingsColumnUnitsAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"unit":        types.StringType,
+		"custom_unit": types.BoolType,
+	}
+}
+
+// expandExplorationChartSettingsColumnUnits marshals a nested ExplorationChartSettingsColumnUnits object into its request map.
+func expandExplorationChartSettingsColumnUnits(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationChartSettingsColumnUnitsModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Unit.IsNull() && !m.Unit.IsUnknown() {
+		out["unit"] = m.Unit.ValueString()
+	}
+	if !m.CustomUnit.IsNull() && !m.CustomUnit.IsUnknown() {
+		out["custom_unit"] = m.CustomUnit.ValueBool()
+	}
+	return out
+}
+
+// flattenExplorationChartSettingsColumnUnits refreshes a typed ExplorationChartSettingsColumnUnits object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationChartSettingsColumnUnits(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationChartSettingsColumnUnitsModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["unit"]); ok {
+		m.Unit = types.StringValue(v)
+	}
+	if v, ok := boolFromAPI(raw["custom_unit"]); ok {
+		m.CustomUnit = types.BoolValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationChartSettingsColumnUnitsAttrTypes(), m)
+	return obj
+}
+
+type ExplorationChartSettingsValueCategoriesModel struct {
+	Label types.String `tfsdk:"label"`
+	Color types.String `tfsdk:"color"`
+}
+
+func explorationChartSettingsValueCategoriesAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"label": types.StringType,
+		"color": types.StringType,
+	}
+}
+
+// expandExplorationChartSettingsValueCategories marshals a nested ExplorationChartSettingsValueCategories object into its request map.
+func expandExplorationChartSettingsValueCategories(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationChartSettingsValueCategoriesModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Label.IsNull() && !m.Label.IsUnknown() {
+		out["label"] = m.Label.ValueString()
+	}
+	if !m.Color.IsNull() && !m.Color.IsUnknown() {
+		out["color"] = m.Color.ValueString()
+	}
+	return out
+}
+
+// flattenExplorationChartSettingsValueCategories refreshes a typed ExplorationChartSettingsValueCategories object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationChartSettingsValueCategories(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationChartSettingsValueCategoriesModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["label"]); ok {
+		m.Label = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["color"]); ok {
+		m.Color = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationChartSettingsValueCategoriesAttrTypes(), m)
+	return obj
+}
+
+type ExplorationChartSettingsYAxisAnnotationsModel struct {
+	Value types.Float64 `tfsdk:"value"`
+	Label types.String  `tfsdk:"label"`
+	Color types.String  `tfsdk:"color"`
+}
+
+func explorationChartSettingsYAxisAnnotationsAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"value": types.Float64Type,
+		"label": types.StringType,
+		"color": types.StringType,
+	}
+}
+
+// expandExplorationChartSettingsYAxisAnnotations marshals a nested ExplorationChartSettingsYAxisAnnotations object into its request map.
+func expandExplorationChartSettingsYAxisAnnotations(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationChartSettingsYAxisAnnotationsModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueFloat64()
+	}
+	if !m.Label.IsNull() && !m.Label.IsUnknown() {
+		out["label"] = m.Label.ValueString()
+	}
+	if !m.Color.IsNull() && !m.Color.IsUnknown() {
+		out["color"] = m.Color.ValueString()
+	}
+	return out
+}
+
+// flattenExplorationChartSettingsYAxisAnnotations refreshes a typed ExplorationChartSettingsYAxisAnnotations object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationChartSettingsYAxisAnnotations(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationChartSettingsYAxisAnnotationsModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := float64FromAPI(raw["value"]); ok {
+		m.Value = types.Float64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["label"]); ok {
+		m.Label = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["color"]); ok {
+		m.Color = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationChartSettingsYAxisAnnotationsAttrTypes(), m)
+	return obj
+}
+
+type ExplorationChartSettingsXAxisAnnotationsModel struct {
+	Value types.String `tfsdk:"value"`
+	Label types.String `tfsdk:"label"`
+	Color types.String `tfsdk:"color"`
+}
+
+func explorationChartSettingsXAxisAnnotationsAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"value": types.StringType,
+		"label": types.StringType,
+		"color": types.StringType,
+	}
+}
+
+// expandExplorationChartSettingsXAxisAnnotations marshals a nested ExplorationChartSettingsXAxisAnnotations object into its request map.
+func expandExplorationChartSettingsXAxisAnnotations(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationChartSettingsXAxisAnnotationsModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.Label.IsNull() && !m.Label.IsUnknown() {
+		out["label"] = m.Label.ValueString()
+	}
+	if !m.Color.IsNull() && !m.Color.IsUnknown() {
+		out["color"] = m.Color.ValueString()
+	}
+	return out
+}
+
+// flattenExplorationChartSettingsXAxisAnnotations refreshes a typed ExplorationChartSettingsXAxisAnnotations object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationChartSettingsXAxisAnnotations(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationChartSettingsXAxisAnnotationsModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["label"]); ok {
+		m.Label = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["color"]); ok {
+		m.Color = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationChartSettingsXAxisAnnotationsAttrTypes(), m)
+	return obj
+}
+
+type ExplorationQueriesModel struct {
+	Id             types.String `tfsdk:"id"`
+	QueryType      types.String `tfsdk:"query_type"`
+	Name           types.String `tfsdk:"name"`
+	SqlQuery       types.String `tfsdk:"sql_query"`
+	PqlQuery       types.String `tfsdk:"pql_query"`
+	WhereCondition types.String `tfsdk:"where_condition"`
+	StaticText     types.String `tfsdk:"static_text"`
+	SourceVariable types.String `tfsdk:"source_variable"`
+	XAxis          types.List   `tfsdk:"x_axis"`
+	YAxis          types.List   `tfsdk:"y_axis"`
+	PointSize      types.List   `tfsdk:"point_size"`
+	Coordinates    types.List   `tfsdk:"coordinates"`
+	Filters        types.List   `tfsdk:"filters"`
+	Where          types.List   `tfsdk:"where"`
+	GroupBy        types.List   `tfsdk:"group_by"`
+	Having         types.List   `tfsdk:"having"`
+	OrderBy        types.List   `tfsdk:"order_by"`
+	FunnelQuery    types.Object `tfsdk:"funnel_query"`
+}
+
+func explorationQueriesAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"id":              types.StringType,
+		"query_type":      types.StringType,
+		"name":            types.StringType,
+		"sql_query":       types.StringType,
+		"pql_query":       types.StringType,
+		"where_condition": types.StringType,
+		"static_text":     types.StringType,
+		"source_variable": types.StringType,
+		"x_axis":          types.ListType{ElemType: types.ObjectType{AttrTypes: explorationQueriesXAxisAttrTypes()}},
+		"y_axis":          types.ListType{ElemType: types.ObjectType{AttrTypes: explorationQueriesYAxisAttrTypes()}},
+		"point_size":      types.ListType{ElemType: types.ObjectType{AttrTypes: explorationQueriesPointSizeAttrTypes()}},
+		"coordinates":     types.ListType{ElemType: types.ObjectType{AttrTypes: explorationQueriesCoordinatesAttrTypes()}},
+		"filters":         types.ListType{ElemType: types.ObjectType{AttrTypes: explorationQueriesFiltersAttrTypes()}},
+		"where":           types.ListType{ElemType: types.ObjectType{AttrTypes: explorationQueriesWhereAttrTypes()}},
+		"group_by":        types.ListType{ElemType: types.ObjectType{AttrTypes: explorationQueriesGroupByAttrTypes()}},
+		"having":          types.ListType{ElemType: types.ObjectType{AttrTypes: explorationQueriesHavingAttrTypes()}},
+		"order_by":        types.ListType{ElemType: types.ObjectType{AttrTypes: explorationQueriesOrderByAttrTypes()}},
+		"funnel_query":    types.ObjectType{AttrTypes: explorationQueriesFunnelQueryAttrTypes()},
+	}
+}
+
+// expandExplorationQueries marshals a nested ExplorationQueries object into its request map.
+func expandExplorationQueries(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationQueriesModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.QueryType.IsNull() && !m.QueryType.IsUnknown() {
+		out["query_type"] = m.QueryType.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.SqlQuery.IsNull() && !m.SqlQuery.IsUnknown() {
+		out["sql_query"] = m.SqlQuery.ValueString()
+	}
+	if !m.PqlQuery.IsNull() && !m.PqlQuery.IsUnknown() {
+		out["pql_query"] = m.PqlQuery.ValueString()
+	}
+	if !m.WhereCondition.IsNull() && !m.WhereCondition.IsUnknown() {
+		out["where_condition"] = m.WhereCondition.ValueString()
+	}
+	if !m.StaticText.IsNull() && !m.StaticText.IsUnknown() {
+		out["static_text"] = m.StaticText.ValueString()
+	}
+	if !m.SourceVariable.IsNull() && !m.SourceVariable.IsUnknown() {
+		out["source_variable"] = m.SourceVariable.ValueString()
+	}
+	if !m.XAxis.IsNull() && !m.XAxis.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.XAxis.Elements()))
+		for _, el := range m.XAxis.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandExplorationQueriesXAxis(ctx, obj))
+			}
+		}
+		out["x_axis"] = items
+	}
+	if !m.YAxis.IsNull() && !m.YAxis.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.YAxis.Elements()))
+		for _, el := range m.YAxis.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandExplorationQueriesYAxis(ctx, obj))
+			}
+		}
+		out["y_axis"] = items
+	}
+	if !m.PointSize.IsNull() && !m.PointSize.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.PointSize.Elements()))
+		for _, el := range m.PointSize.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandExplorationQueriesPointSize(ctx, obj))
+			}
+		}
+		out["point_size"] = items
+	}
+	if !m.Coordinates.IsNull() && !m.Coordinates.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Coordinates.Elements()))
+		for _, el := range m.Coordinates.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandExplorationQueriesCoordinates(ctx, obj))
+			}
+		}
+		out["coordinates"] = items
+	}
+	if !m.Filters.IsNull() && !m.Filters.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Filters.Elements()))
+		for _, el := range m.Filters.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandExplorationQueriesFilters(ctx, obj))
+			}
+		}
+		out["filters"] = items
+	}
+	if !m.Where.IsNull() && !m.Where.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Where.Elements()))
+		for _, el := range m.Where.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandExplorationQueriesWhere(ctx, obj))
+			}
+		}
+		out["where"] = items
+	}
+	if !m.GroupBy.IsNull() && !m.GroupBy.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.GroupBy.Elements()))
+		for _, el := range m.GroupBy.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandExplorationQueriesGroupBy(ctx, obj))
+			}
+		}
+		out["group_by"] = items
+	}
+	if !m.Having.IsNull() && !m.Having.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Having.Elements()))
+		for _, el := range m.Having.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandExplorationQueriesHaving(ctx, obj))
+			}
+		}
+		out["having"] = items
+	}
+	if !m.OrderBy.IsNull() && !m.OrderBy.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.OrderBy.Elements()))
+		for _, el := range m.OrderBy.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandExplorationQueriesOrderBy(ctx, obj))
+			}
+		}
+		out["order_by"] = items
+	}
+	if !m.FunnelQuery.IsNull() && !m.FunnelQuery.IsUnknown() {
+		out["funnel_query"] = expandExplorationQueriesFunnelQuery(ctx, m.FunnelQuery)
+	}
+	return out
+}
+
+// flattenExplorationQueries refreshes a typed ExplorationQueries object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationQueries(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationQueriesModel
+	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
+	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
+	m.XAxis = types.ListNull(types.ObjectType{AttrTypes: explorationQueriesXAxisAttrTypes()})
+	m.YAxis = types.ListNull(types.ObjectType{AttrTypes: explorationQueriesYAxisAttrTypes()})
+	m.PointSize = types.ListNull(types.ObjectType{AttrTypes: explorationQueriesPointSizeAttrTypes()})
+	m.Coordinates = types.ListNull(types.ObjectType{AttrTypes: explorationQueriesCoordinatesAttrTypes()})
+	m.Filters = types.ListNull(types.ObjectType{AttrTypes: explorationQueriesFiltersAttrTypes()})
+	m.Where = types.ListNull(types.ObjectType{AttrTypes: explorationQueriesWhereAttrTypes()})
+	m.GroupBy = types.ListNull(types.ObjectType{AttrTypes: explorationQueriesGroupByAttrTypes()})
+	m.Having = types.ListNull(types.ObjectType{AttrTypes: explorationQueriesHavingAttrTypes()})
+	m.OrderBy = types.ListNull(types.ObjectType{AttrTypes: explorationQueriesOrderByAttrTypes()})
+	m.FunnelQuery = types.ObjectNull(explorationQueriesFunnelQueryAttrTypes())
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["id"]); ok {
+		m.Id = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["query_type"]); ok {
+		m.QueryType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["sql_query"]); ok {
+		m.SqlQuery = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["pql_query"]); ok {
+		m.PqlQuery = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["where_condition"]); ok {
+		m.WhereCondition = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["static_text"]); ok {
+		m.StaticText = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["source_variable"]); ok {
+		m.SourceVariable = types.StringValue(v)
+	}
+	if raw, ok := raw["x_axis"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(explorationQueriesXAxisAttrTypes())
+				items = append(items, flattenExplorationQueriesXAxis(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: explorationQueriesXAxisAttrTypes()}, items)
+		m.XAxis = lv
+	}
+	if raw, ok := raw["y_axis"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(explorationQueriesYAxisAttrTypes())
+				items = append(items, flattenExplorationQueriesYAxis(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: explorationQueriesYAxisAttrTypes()}, items)
+		m.YAxis = lv
+	}
+	if raw, ok := raw["point_size"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(explorationQueriesPointSizeAttrTypes())
+				items = append(items, flattenExplorationQueriesPointSize(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: explorationQueriesPointSizeAttrTypes()}, items)
+		m.PointSize = lv
+	}
+	if raw, ok := raw["coordinates"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(explorationQueriesCoordinatesAttrTypes())
+				items = append(items, flattenExplorationQueriesCoordinates(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: explorationQueriesCoordinatesAttrTypes()}, items)
+		m.Coordinates = lv
+	}
+	if raw, ok := raw["filters"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(explorationQueriesFiltersAttrTypes())
+				items = append(items, flattenExplorationQueriesFilters(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: explorationQueriesFiltersAttrTypes()}, items)
+		m.Filters = lv
+	}
+	if raw, ok := raw["where"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(explorationQueriesWhereAttrTypes())
+				items = append(items, flattenExplorationQueriesWhere(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: explorationQueriesWhereAttrTypes()}, items)
+		m.Where = lv
+	}
+	if raw, ok := raw["group_by"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(explorationQueriesGroupByAttrTypes())
+				items = append(items, flattenExplorationQueriesGroupBy(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: explorationQueriesGroupByAttrTypes()}, items)
+		m.GroupBy = lv
+	}
+	if raw, ok := raw["having"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(explorationQueriesHavingAttrTypes())
+				items = append(items, flattenExplorationQueriesHaving(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: explorationQueriesHavingAttrTypes()}, items)
+		m.Having = lv
+	}
+	if raw, ok := raw["order_by"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(explorationQueriesOrderByAttrTypes())
+				items = append(items, flattenExplorationQueriesOrderBy(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: explorationQueriesOrderByAttrTypes()}, items)
+		m.OrderBy = lv
+	}
+	if raw, ok := raw["funnel_query"].(map[string]interface{}); ok {
+		m.FunnelQuery = flattenExplorationQueriesFunnelQuery(ctx, m.FunnelQuery, raw)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationQueriesAttrTypes(), m)
+	return obj
+}
+
+type ExplorationQueriesXAxisModel struct {
+	ExploreBlockType types.String `tfsdk:"explore_block_type"`
+	Value            types.String `tfsdk:"value"`
+	Type             types.String `tfsdk:"type"`
+	Name             types.String `tfsdk:"name"`
+	Measure          types.String `tfsdk:"measure"`
+	ValueType        types.String `tfsdk:"value_type"`
+	Operator         types.String `tfsdk:"operator"`
+	OperatorSymbol   types.String `tfsdk:"operator_symbol"`
+	ConditionValue   types.String `tfsdk:"condition_value"`
+	SeriesName       types.String `tfsdk:"series_name"`
+	LogicalOperator  types.String `tfsdk:"logical_operator"`
+	Direction        types.String `tfsdk:"direction"`
+	IntervalSeconds  types.Int64  `tfsdk:"interval_seconds"`
+	Kind             types.String `tfsdk:"kind"`
+	Schema           types.String `tfsdk:"schema"`
+}
+
+func explorationQueriesXAxisAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"explore_block_type": types.StringType,
+		"value":              types.StringType,
+		"type":               types.StringType,
+		"name":               types.StringType,
+		"measure":            types.StringType,
+		"value_type":         types.StringType,
+		"operator":           types.StringType,
+		"operator_symbol":    types.StringType,
+		"condition_value":    types.StringType,
+		"series_name":        types.StringType,
+		"logical_operator":   types.StringType,
+		"direction":          types.StringType,
+		"interval_seconds":   types.Int64Type,
+		"kind":               types.StringType,
+		"schema":             types.StringType,
+	}
+}
+
+// expandExplorationQueriesXAxis marshals a nested ExplorationQueriesXAxis object into its request map.
+func expandExplorationQueriesXAxis(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationQueriesXAxisModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.ExploreBlockType.IsNull() && !m.ExploreBlockType.IsUnknown() {
+		out["explore_block_type"] = m.ExploreBlockType.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.Type.IsNull() && !m.Type.IsUnknown() {
+		out["type"] = m.Type.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Measure.IsNull() && !m.Measure.IsUnknown() {
+		out["measure"] = m.Measure.ValueString()
+	}
+	if !m.ValueType.IsNull() && !m.ValueType.IsUnknown() {
+		out["value_type"] = m.ValueType.ValueString()
+	}
+	if !m.Operator.IsNull() && !m.Operator.IsUnknown() {
+		out["operator"] = m.Operator.ValueString()
+	}
+	if !m.OperatorSymbol.IsNull() && !m.OperatorSymbol.IsUnknown() {
+		out["operator_symbol"] = m.OperatorSymbol.ValueString()
+	}
+	if !m.ConditionValue.IsNull() && !m.ConditionValue.IsUnknown() {
+		out["condition_value"] = m.ConditionValue.ValueString()
+	}
+	if !m.SeriesName.IsNull() && !m.SeriesName.IsUnknown() {
+		out["series_name"] = m.SeriesName.ValueString()
+	}
+	if !m.LogicalOperator.IsNull() && !m.LogicalOperator.IsUnknown() {
+		out["logical_operator"] = m.LogicalOperator.ValueString()
+	}
+	if !m.Direction.IsNull() && !m.Direction.IsUnknown() {
+		out["direction"] = m.Direction.ValueString()
+	}
+	if !m.IntervalSeconds.IsNull() && !m.IntervalSeconds.IsUnknown() {
+		out["interval_seconds"] = m.IntervalSeconds.ValueInt64()
+	}
+	if !m.Kind.IsNull() && !m.Kind.IsUnknown() {
+		out["kind"] = m.Kind.ValueString()
+	}
+	if !m.Schema.IsNull() && !m.Schema.IsUnknown() {
+		out["schema"] = m.Schema.ValueString()
+	}
+	return out
+}
+
+// flattenExplorationQueriesXAxis refreshes a typed ExplorationQueriesXAxis object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationQueriesXAxis(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationQueriesXAxisModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["explore_block_type"]); ok {
+		m.ExploreBlockType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["type"]); ok {
+		m.Type = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["measure"]); ok {
+		m.Measure = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value_type"]); ok {
+		m.ValueType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator"]); ok {
+		m.Operator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator_symbol"]); ok {
+		m.OperatorSymbol = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["condition_value"]); ok {
+		m.ConditionValue = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["series_name"]); ok {
+		m.SeriesName = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["logical_operator"]); ok {
+		m.LogicalOperator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["direction"]); ok {
+		m.Direction = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(raw["interval_seconds"]); ok {
+		m.IntervalSeconds = types.Int64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["kind"]); ok {
+		m.Kind = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["schema"]); ok {
+		m.Schema = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationQueriesXAxisAttrTypes(), m)
+	return obj
+}
+
+type ExplorationQueriesYAxisModel struct {
+	ExploreBlockType types.String `tfsdk:"explore_block_type"`
+	Value            types.String `tfsdk:"value"`
+	Type             types.String `tfsdk:"type"`
+	Name             types.String `tfsdk:"name"`
+	Measure          types.String `tfsdk:"measure"`
+	ValueType        types.String `tfsdk:"value_type"`
+	Operator         types.String `tfsdk:"operator"`
+	OperatorSymbol   types.String `tfsdk:"operator_symbol"`
+	ConditionValue   types.String `tfsdk:"condition_value"`
+	SeriesName       types.String `tfsdk:"series_name"`
+	LogicalOperator  types.String `tfsdk:"logical_operator"`
+	Direction        types.String `tfsdk:"direction"`
+	IntervalSeconds  types.Int64  `tfsdk:"interval_seconds"`
+	Kind             types.String `tfsdk:"kind"`
+	Schema           types.String `tfsdk:"schema"`
+}
+
+func explorationQueriesYAxisAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"explore_block_type": types.StringType,
+		"value":              types.StringType,
+		"type":               types.StringType,
+		"name":               types.StringType,
+		"measure":            types.StringType,
+		"value_type":         types.StringType,
+		"operator":           types.StringType,
+		"operator_symbol":    types.StringType,
+		"condition_value":    types.StringType,
+		"series_name":        types.StringType,
+		"logical_operator":   types.StringType,
+		"direction":          types.StringType,
+		"interval_seconds":   types.Int64Type,
+		"kind":               types.StringType,
+		"schema":             types.StringType,
+	}
+}
+
+// expandExplorationQueriesYAxis marshals a nested ExplorationQueriesYAxis object into its request map.
+func expandExplorationQueriesYAxis(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationQueriesYAxisModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.ExploreBlockType.IsNull() && !m.ExploreBlockType.IsUnknown() {
+		out["explore_block_type"] = m.ExploreBlockType.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.Type.IsNull() && !m.Type.IsUnknown() {
+		out["type"] = m.Type.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Measure.IsNull() && !m.Measure.IsUnknown() {
+		out["measure"] = m.Measure.ValueString()
+	}
+	if !m.ValueType.IsNull() && !m.ValueType.IsUnknown() {
+		out["value_type"] = m.ValueType.ValueString()
+	}
+	if !m.Operator.IsNull() && !m.Operator.IsUnknown() {
+		out["operator"] = m.Operator.ValueString()
+	}
+	if !m.OperatorSymbol.IsNull() && !m.OperatorSymbol.IsUnknown() {
+		out["operator_symbol"] = m.OperatorSymbol.ValueString()
+	}
+	if !m.ConditionValue.IsNull() && !m.ConditionValue.IsUnknown() {
+		out["condition_value"] = m.ConditionValue.ValueString()
+	}
+	if !m.SeriesName.IsNull() && !m.SeriesName.IsUnknown() {
+		out["series_name"] = m.SeriesName.ValueString()
+	}
+	if !m.LogicalOperator.IsNull() && !m.LogicalOperator.IsUnknown() {
+		out["logical_operator"] = m.LogicalOperator.ValueString()
+	}
+	if !m.Direction.IsNull() && !m.Direction.IsUnknown() {
+		out["direction"] = m.Direction.ValueString()
+	}
+	if !m.IntervalSeconds.IsNull() && !m.IntervalSeconds.IsUnknown() {
+		out["interval_seconds"] = m.IntervalSeconds.ValueInt64()
+	}
+	if !m.Kind.IsNull() && !m.Kind.IsUnknown() {
+		out["kind"] = m.Kind.ValueString()
+	}
+	if !m.Schema.IsNull() && !m.Schema.IsUnknown() {
+		out["schema"] = m.Schema.ValueString()
+	}
+	return out
+}
+
+// flattenExplorationQueriesYAxis refreshes a typed ExplorationQueriesYAxis object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationQueriesYAxis(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationQueriesYAxisModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["explore_block_type"]); ok {
+		m.ExploreBlockType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["type"]); ok {
+		m.Type = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["measure"]); ok {
+		m.Measure = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value_type"]); ok {
+		m.ValueType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator"]); ok {
+		m.Operator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator_symbol"]); ok {
+		m.OperatorSymbol = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["condition_value"]); ok {
+		m.ConditionValue = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["series_name"]); ok {
+		m.SeriesName = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["logical_operator"]); ok {
+		m.LogicalOperator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["direction"]); ok {
+		m.Direction = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(raw["interval_seconds"]); ok {
+		m.IntervalSeconds = types.Int64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["kind"]); ok {
+		m.Kind = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["schema"]); ok {
+		m.Schema = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationQueriesYAxisAttrTypes(), m)
+	return obj
+}
+
+type ExplorationQueriesPointSizeModel struct {
+	ExploreBlockType types.String `tfsdk:"explore_block_type"`
+	Value            types.String `tfsdk:"value"`
+	Type             types.String `tfsdk:"type"`
+	Name             types.String `tfsdk:"name"`
+	Measure          types.String `tfsdk:"measure"`
+	ValueType        types.String `tfsdk:"value_type"`
+	Operator         types.String `tfsdk:"operator"`
+	OperatorSymbol   types.String `tfsdk:"operator_symbol"`
+	ConditionValue   types.String `tfsdk:"condition_value"`
+	SeriesName       types.String `tfsdk:"series_name"`
+	LogicalOperator  types.String `tfsdk:"logical_operator"`
+	Direction        types.String `tfsdk:"direction"`
+	IntervalSeconds  types.Int64  `tfsdk:"interval_seconds"`
+	Kind             types.String `tfsdk:"kind"`
+	Schema           types.String `tfsdk:"schema"`
+}
+
+func explorationQueriesPointSizeAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"explore_block_type": types.StringType,
+		"value":              types.StringType,
+		"type":               types.StringType,
+		"name":               types.StringType,
+		"measure":            types.StringType,
+		"value_type":         types.StringType,
+		"operator":           types.StringType,
+		"operator_symbol":    types.StringType,
+		"condition_value":    types.StringType,
+		"series_name":        types.StringType,
+		"logical_operator":   types.StringType,
+		"direction":          types.StringType,
+		"interval_seconds":   types.Int64Type,
+		"kind":               types.StringType,
+		"schema":             types.StringType,
+	}
+}
+
+// expandExplorationQueriesPointSize marshals a nested ExplorationQueriesPointSize object into its request map.
+func expandExplorationQueriesPointSize(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationQueriesPointSizeModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.ExploreBlockType.IsNull() && !m.ExploreBlockType.IsUnknown() {
+		out["explore_block_type"] = m.ExploreBlockType.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.Type.IsNull() && !m.Type.IsUnknown() {
+		out["type"] = m.Type.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Measure.IsNull() && !m.Measure.IsUnknown() {
+		out["measure"] = m.Measure.ValueString()
+	}
+	if !m.ValueType.IsNull() && !m.ValueType.IsUnknown() {
+		out["value_type"] = m.ValueType.ValueString()
+	}
+	if !m.Operator.IsNull() && !m.Operator.IsUnknown() {
+		out["operator"] = m.Operator.ValueString()
+	}
+	if !m.OperatorSymbol.IsNull() && !m.OperatorSymbol.IsUnknown() {
+		out["operator_symbol"] = m.OperatorSymbol.ValueString()
+	}
+	if !m.ConditionValue.IsNull() && !m.ConditionValue.IsUnknown() {
+		out["condition_value"] = m.ConditionValue.ValueString()
+	}
+	if !m.SeriesName.IsNull() && !m.SeriesName.IsUnknown() {
+		out["series_name"] = m.SeriesName.ValueString()
+	}
+	if !m.LogicalOperator.IsNull() && !m.LogicalOperator.IsUnknown() {
+		out["logical_operator"] = m.LogicalOperator.ValueString()
+	}
+	if !m.Direction.IsNull() && !m.Direction.IsUnknown() {
+		out["direction"] = m.Direction.ValueString()
+	}
+	if !m.IntervalSeconds.IsNull() && !m.IntervalSeconds.IsUnknown() {
+		out["interval_seconds"] = m.IntervalSeconds.ValueInt64()
+	}
+	if !m.Kind.IsNull() && !m.Kind.IsUnknown() {
+		out["kind"] = m.Kind.ValueString()
+	}
+	if !m.Schema.IsNull() && !m.Schema.IsUnknown() {
+		out["schema"] = m.Schema.ValueString()
+	}
+	return out
+}
+
+// flattenExplorationQueriesPointSize refreshes a typed ExplorationQueriesPointSize object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationQueriesPointSize(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationQueriesPointSizeModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["explore_block_type"]); ok {
+		m.ExploreBlockType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["type"]); ok {
+		m.Type = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["measure"]); ok {
+		m.Measure = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value_type"]); ok {
+		m.ValueType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator"]); ok {
+		m.Operator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator_symbol"]); ok {
+		m.OperatorSymbol = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["condition_value"]); ok {
+		m.ConditionValue = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["series_name"]); ok {
+		m.SeriesName = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["logical_operator"]); ok {
+		m.LogicalOperator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["direction"]); ok {
+		m.Direction = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(raw["interval_seconds"]); ok {
+		m.IntervalSeconds = types.Int64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["kind"]); ok {
+		m.Kind = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["schema"]); ok {
+		m.Schema = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationQueriesPointSizeAttrTypes(), m)
+	return obj
+}
+
+type ExplorationQueriesCoordinatesModel struct {
+	ExploreBlockType types.String `tfsdk:"explore_block_type"`
+	Value            types.String `tfsdk:"value"`
+	Type             types.String `tfsdk:"type"`
+	Name             types.String `tfsdk:"name"`
+	Measure          types.String `tfsdk:"measure"`
+	ValueType        types.String `tfsdk:"value_type"`
+	Operator         types.String `tfsdk:"operator"`
+	OperatorSymbol   types.String `tfsdk:"operator_symbol"`
+	ConditionValue   types.String `tfsdk:"condition_value"`
+	SeriesName       types.String `tfsdk:"series_name"`
+	LogicalOperator  types.String `tfsdk:"logical_operator"`
+	Direction        types.String `tfsdk:"direction"`
+	IntervalSeconds  types.Int64  `tfsdk:"interval_seconds"`
+	Kind             types.String `tfsdk:"kind"`
+	Schema           types.String `tfsdk:"schema"`
+}
+
+func explorationQueriesCoordinatesAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"explore_block_type": types.StringType,
+		"value":              types.StringType,
+		"type":               types.StringType,
+		"name":               types.StringType,
+		"measure":            types.StringType,
+		"value_type":         types.StringType,
+		"operator":           types.StringType,
+		"operator_symbol":    types.StringType,
+		"condition_value":    types.StringType,
+		"series_name":        types.StringType,
+		"logical_operator":   types.StringType,
+		"direction":          types.StringType,
+		"interval_seconds":   types.Int64Type,
+		"kind":               types.StringType,
+		"schema":             types.StringType,
+	}
+}
+
+// expandExplorationQueriesCoordinates marshals a nested ExplorationQueriesCoordinates object into its request map.
+func expandExplorationQueriesCoordinates(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationQueriesCoordinatesModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.ExploreBlockType.IsNull() && !m.ExploreBlockType.IsUnknown() {
+		out["explore_block_type"] = m.ExploreBlockType.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.Type.IsNull() && !m.Type.IsUnknown() {
+		out["type"] = m.Type.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Measure.IsNull() && !m.Measure.IsUnknown() {
+		out["measure"] = m.Measure.ValueString()
+	}
+	if !m.ValueType.IsNull() && !m.ValueType.IsUnknown() {
+		out["value_type"] = m.ValueType.ValueString()
+	}
+	if !m.Operator.IsNull() && !m.Operator.IsUnknown() {
+		out["operator"] = m.Operator.ValueString()
+	}
+	if !m.OperatorSymbol.IsNull() && !m.OperatorSymbol.IsUnknown() {
+		out["operator_symbol"] = m.OperatorSymbol.ValueString()
+	}
+	if !m.ConditionValue.IsNull() && !m.ConditionValue.IsUnknown() {
+		out["condition_value"] = m.ConditionValue.ValueString()
+	}
+	if !m.SeriesName.IsNull() && !m.SeriesName.IsUnknown() {
+		out["series_name"] = m.SeriesName.ValueString()
+	}
+	if !m.LogicalOperator.IsNull() && !m.LogicalOperator.IsUnknown() {
+		out["logical_operator"] = m.LogicalOperator.ValueString()
+	}
+	if !m.Direction.IsNull() && !m.Direction.IsUnknown() {
+		out["direction"] = m.Direction.ValueString()
+	}
+	if !m.IntervalSeconds.IsNull() && !m.IntervalSeconds.IsUnknown() {
+		out["interval_seconds"] = m.IntervalSeconds.ValueInt64()
+	}
+	if !m.Kind.IsNull() && !m.Kind.IsUnknown() {
+		out["kind"] = m.Kind.ValueString()
+	}
+	if !m.Schema.IsNull() && !m.Schema.IsUnknown() {
+		out["schema"] = m.Schema.ValueString()
+	}
+	return out
+}
+
+// flattenExplorationQueriesCoordinates refreshes a typed ExplorationQueriesCoordinates object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationQueriesCoordinates(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationQueriesCoordinatesModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["explore_block_type"]); ok {
+		m.ExploreBlockType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["type"]); ok {
+		m.Type = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["measure"]); ok {
+		m.Measure = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value_type"]); ok {
+		m.ValueType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator"]); ok {
+		m.Operator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator_symbol"]); ok {
+		m.OperatorSymbol = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["condition_value"]); ok {
+		m.ConditionValue = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["series_name"]); ok {
+		m.SeriesName = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["logical_operator"]); ok {
+		m.LogicalOperator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["direction"]); ok {
+		m.Direction = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(raw["interval_seconds"]); ok {
+		m.IntervalSeconds = types.Int64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["kind"]); ok {
+		m.Kind = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["schema"]); ok {
+		m.Schema = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationQueriesCoordinatesAttrTypes(), m)
+	return obj
+}
+
+type ExplorationQueriesFiltersModel struct {
+	ExploreBlockType types.String `tfsdk:"explore_block_type"`
+	Value            types.String `tfsdk:"value"`
+	Type             types.String `tfsdk:"type"`
+	Name             types.String `tfsdk:"name"`
+	Measure          types.String `tfsdk:"measure"`
+	ValueType        types.String `tfsdk:"value_type"`
+	Operator         types.String `tfsdk:"operator"`
+	OperatorSymbol   types.String `tfsdk:"operator_symbol"`
+	ConditionValue   types.String `tfsdk:"condition_value"`
+	SeriesName       types.String `tfsdk:"series_name"`
+	LogicalOperator  types.String `tfsdk:"logical_operator"`
+	Direction        types.String `tfsdk:"direction"`
+	IntervalSeconds  types.Int64  `tfsdk:"interval_seconds"`
+	Kind             types.String `tfsdk:"kind"`
+	Schema           types.String `tfsdk:"schema"`
+}
+
+func explorationQueriesFiltersAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"explore_block_type": types.StringType,
+		"value":              types.StringType,
+		"type":               types.StringType,
+		"name":               types.StringType,
+		"measure":            types.StringType,
+		"value_type":         types.StringType,
+		"operator":           types.StringType,
+		"operator_symbol":    types.StringType,
+		"condition_value":    types.StringType,
+		"series_name":        types.StringType,
+		"logical_operator":   types.StringType,
+		"direction":          types.StringType,
+		"interval_seconds":   types.Int64Type,
+		"kind":               types.StringType,
+		"schema":             types.StringType,
+	}
+}
+
+// expandExplorationQueriesFilters marshals a nested ExplorationQueriesFilters object into its request map.
+func expandExplorationQueriesFilters(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationQueriesFiltersModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.ExploreBlockType.IsNull() && !m.ExploreBlockType.IsUnknown() {
+		out["explore_block_type"] = m.ExploreBlockType.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.Type.IsNull() && !m.Type.IsUnknown() {
+		out["type"] = m.Type.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Measure.IsNull() && !m.Measure.IsUnknown() {
+		out["measure"] = m.Measure.ValueString()
+	}
+	if !m.ValueType.IsNull() && !m.ValueType.IsUnknown() {
+		out["value_type"] = m.ValueType.ValueString()
+	}
+	if !m.Operator.IsNull() && !m.Operator.IsUnknown() {
+		out["operator"] = m.Operator.ValueString()
+	}
+	if !m.OperatorSymbol.IsNull() && !m.OperatorSymbol.IsUnknown() {
+		out["operator_symbol"] = m.OperatorSymbol.ValueString()
+	}
+	if !m.ConditionValue.IsNull() && !m.ConditionValue.IsUnknown() {
+		out["condition_value"] = m.ConditionValue.ValueString()
+	}
+	if !m.SeriesName.IsNull() && !m.SeriesName.IsUnknown() {
+		out["series_name"] = m.SeriesName.ValueString()
+	}
+	if !m.LogicalOperator.IsNull() && !m.LogicalOperator.IsUnknown() {
+		out["logical_operator"] = m.LogicalOperator.ValueString()
+	}
+	if !m.Direction.IsNull() && !m.Direction.IsUnknown() {
+		out["direction"] = m.Direction.ValueString()
+	}
+	if !m.IntervalSeconds.IsNull() && !m.IntervalSeconds.IsUnknown() {
+		out["interval_seconds"] = m.IntervalSeconds.ValueInt64()
+	}
+	if !m.Kind.IsNull() && !m.Kind.IsUnknown() {
+		out["kind"] = m.Kind.ValueString()
+	}
+	if !m.Schema.IsNull() && !m.Schema.IsUnknown() {
+		out["schema"] = m.Schema.ValueString()
+	}
+	return out
+}
+
+// flattenExplorationQueriesFilters refreshes a typed ExplorationQueriesFilters object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationQueriesFilters(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationQueriesFiltersModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["explore_block_type"]); ok {
+		m.ExploreBlockType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["type"]); ok {
+		m.Type = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["measure"]); ok {
+		m.Measure = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value_type"]); ok {
+		m.ValueType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator"]); ok {
+		m.Operator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator_symbol"]); ok {
+		m.OperatorSymbol = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["condition_value"]); ok {
+		m.ConditionValue = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["series_name"]); ok {
+		m.SeriesName = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["logical_operator"]); ok {
+		m.LogicalOperator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["direction"]); ok {
+		m.Direction = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(raw["interval_seconds"]); ok {
+		m.IntervalSeconds = types.Int64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["kind"]); ok {
+		m.Kind = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["schema"]); ok {
+		m.Schema = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationQueriesFiltersAttrTypes(), m)
+	return obj
+}
+
+type ExplorationQueriesWhereModel struct {
+	ExploreBlockType types.String `tfsdk:"explore_block_type"`
+	Value            types.String `tfsdk:"value"`
+	Type             types.String `tfsdk:"type"`
+	Name             types.String `tfsdk:"name"`
+	Measure          types.String `tfsdk:"measure"`
+	ValueType        types.String `tfsdk:"value_type"`
+	Operator         types.String `tfsdk:"operator"`
+	OperatorSymbol   types.String `tfsdk:"operator_symbol"`
+	ConditionValue   types.String `tfsdk:"condition_value"`
+	SeriesName       types.String `tfsdk:"series_name"`
+	LogicalOperator  types.String `tfsdk:"logical_operator"`
+	Direction        types.String `tfsdk:"direction"`
+	IntervalSeconds  types.Int64  `tfsdk:"interval_seconds"`
+	Kind             types.String `tfsdk:"kind"`
+	Schema           types.String `tfsdk:"schema"`
+}
+
+func explorationQueriesWhereAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"explore_block_type": types.StringType,
+		"value":              types.StringType,
+		"type":               types.StringType,
+		"name":               types.StringType,
+		"measure":            types.StringType,
+		"value_type":         types.StringType,
+		"operator":           types.StringType,
+		"operator_symbol":    types.StringType,
+		"condition_value":    types.StringType,
+		"series_name":        types.StringType,
+		"logical_operator":   types.StringType,
+		"direction":          types.StringType,
+		"interval_seconds":   types.Int64Type,
+		"kind":               types.StringType,
+		"schema":             types.StringType,
+	}
+}
+
+// expandExplorationQueriesWhere marshals a nested ExplorationQueriesWhere object into its request map.
+func expandExplorationQueriesWhere(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationQueriesWhereModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.ExploreBlockType.IsNull() && !m.ExploreBlockType.IsUnknown() {
+		out["explore_block_type"] = m.ExploreBlockType.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.Type.IsNull() && !m.Type.IsUnknown() {
+		out["type"] = m.Type.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Measure.IsNull() && !m.Measure.IsUnknown() {
+		out["measure"] = m.Measure.ValueString()
+	}
+	if !m.ValueType.IsNull() && !m.ValueType.IsUnknown() {
+		out["value_type"] = m.ValueType.ValueString()
+	}
+	if !m.Operator.IsNull() && !m.Operator.IsUnknown() {
+		out["operator"] = m.Operator.ValueString()
+	}
+	if !m.OperatorSymbol.IsNull() && !m.OperatorSymbol.IsUnknown() {
+		out["operator_symbol"] = m.OperatorSymbol.ValueString()
+	}
+	if !m.ConditionValue.IsNull() && !m.ConditionValue.IsUnknown() {
+		out["condition_value"] = m.ConditionValue.ValueString()
+	}
+	if !m.SeriesName.IsNull() && !m.SeriesName.IsUnknown() {
+		out["series_name"] = m.SeriesName.ValueString()
+	}
+	if !m.LogicalOperator.IsNull() && !m.LogicalOperator.IsUnknown() {
+		out["logical_operator"] = m.LogicalOperator.ValueString()
+	}
+	if !m.Direction.IsNull() && !m.Direction.IsUnknown() {
+		out["direction"] = m.Direction.ValueString()
+	}
+	if !m.IntervalSeconds.IsNull() && !m.IntervalSeconds.IsUnknown() {
+		out["interval_seconds"] = m.IntervalSeconds.ValueInt64()
+	}
+	if !m.Kind.IsNull() && !m.Kind.IsUnknown() {
+		out["kind"] = m.Kind.ValueString()
+	}
+	if !m.Schema.IsNull() && !m.Schema.IsUnknown() {
+		out["schema"] = m.Schema.ValueString()
+	}
+	return out
+}
+
+// flattenExplorationQueriesWhere refreshes a typed ExplorationQueriesWhere object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationQueriesWhere(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationQueriesWhereModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["explore_block_type"]); ok {
+		m.ExploreBlockType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["type"]); ok {
+		m.Type = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["measure"]); ok {
+		m.Measure = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value_type"]); ok {
+		m.ValueType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator"]); ok {
+		m.Operator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator_symbol"]); ok {
+		m.OperatorSymbol = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["condition_value"]); ok {
+		m.ConditionValue = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["series_name"]); ok {
+		m.SeriesName = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["logical_operator"]); ok {
+		m.LogicalOperator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["direction"]); ok {
+		m.Direction = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(raw["interval_seconds"]); ok {
+		m.IntervalSeconds = types.Int64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["kind"]); ok {
+		m.Kind = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["schema"]); ok {
+		m.Schema = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationQueriesWhereAttrTypes(), m)
+	return obj
+}
+
+type ExplorationQueriesGroupByModel struct {
+	ExploreBlockType types.String `tfsdk:"explore_block_type"`
+	Value            types.String `tfsdk:"value"`
+	Type             types.String `tfsdk:"type"`
+	Name             types.String `tfsdk:"name"`
+	Measure          types.String `tfsdk:"measure"`
+	ValueType        types.String `tfsdk:"value_type"`
+	Operator         types.String `tfsdk:"operator"`
+	OperatorSymbol   types.String `tfsdk:"operator_symbol"`
+	ConditionValue   types.String `tfsdk:"condition_value"`
+	SeriesName       types.String `tfsdk:"series_name"`
+	LogicalOperator  types.String `tfsdk:"logical_operator"`
+	Direction        types.String `tfsdk:"direction"`
+	IntervalSeconds  types.Int64  `tfsdk:"interval_seconds"`
+	Kind             types.String `tfsdk:"kind"`
+	Schema           types.String `tfsdk:"schema"`
+}
+
+func explorationQueriesGroupByAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"explore_block_type": types.StringType,
+		"value":              types.StringType,
+		"type":               types.StringType,
+		"name":               types.StringType,
+		"measure":            types.StringType,
+		"value_type":         types.StringType,
+		"operator":           types.StringType,
+		"operator_symbol":    types.StringType,
+		"condition_value":    types.StringType,
+		"series_name":        types.StringType,
+		"logical_operator":   types.StringType,
+		"direction":          types.StringType,
+		"interval_seconds":   types.Int64Type,
+		"kind":               types.StringType,
+		"schema":             types.StringType,
+	}
+}
+
+// expandExplorationQueriesGroupBy marshals a nested ExplorationQueriesGroupBy object into its request map.
+func expandExplorationQueriesGroupBy(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationQueriesGroupByModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.ExploreBlockType.IsNull() && !m.ExploreBlockType.IsUnknown() {
+		out["explore_block_type"] = m.ExploreBlockType.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.Type.IsNull() && !m.Type.IsUnknown() {
+		out["type"] = m.Type.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Measure.IsNull() && !m.Measure.IsUnknown() {
+		out["measure"] = m.Measure.ValueString()
+	}
+	if !m.ValueType.IsNull() && !m.ValueType.IsUnknown() {
+		out["value_type"] = m.ValueType.ValueString()
+	}
+	if !m.Operator.IsNull() && !m.Operator.IsUnknown() {
+		out["operator"] = m.Operator.ValueString()
+	}
+	if !m.OperatorSymbol.IsNull() && !m.OperatorSymbol.IsUnknown() {
+		out["operator_symbol"] = m.OperatorSymbol.ValueString()
+	}
+	if !m.ConditionValue.IsNull() && !m.ConditionValue.IsUnknown() {
+		out["condition_value"] = m.ConditionValue.ValueString()
+	}
+	if !m.SeriesName.IsNull() && !m.SeriesName.IsUnknown() {
+		out["series_name"] = m.SeriesName.ValueString()
+	}
+	if !m.LogicalOperator.IsNull() && !m.LogicalOperator.IsUnknown() {
+		out["logical_operator"] = m.LogicalOperator.ValueString()
+	}
+	if !m.Direction.IsNull() && !m.Direction.IsUnknown() {
+		out["direction"] = m.Direction.ValueString()
+	}
+	if !m.IntervalSeconds.IsNull() && !m.IntervalSeconds.IsUnknown() {
+		out["interval_seconds"] = m.IntervalSeconds.ValueInt64()
+	}
+	if !m.Kind.IsNull() && !m.Kind.IsUnknown() {
+		out["kind"] = m.Kind.ValueString()
+	}
+	if !m.Schema.IsNull() && !m.Schema.IsUnknown() {
+		out["schema"] = m.Schema.ValueString()
+	}
+	return out
+}
+
+// flattenExplorationQueriesGroupBy refreshes a typed ExplorationQueriesGroupBy object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationQueriesGroupBy(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationQueriesGroupByModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["explore_block_type"]); ok {
+		m.ExploreBlockType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["type"]); ok {
+		m.Type = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["measure"]); ok {
+		m.Measure = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value_type"]); ok {
+		m.ValueType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator"]); ok {
+		m.Operator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator_symbol"]); ok {
+		m.OperatorSymbol = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["condition_value"]); ok {
+		m.ConditionValue = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["series_name"]); ok {
+		m.SeriesName = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["logical_operator"]); ok {
+		m.LogicalOperator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["direction"]); ok {
+		m.Direction = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(raw["interval_seconds"]); ok {
+		m.IntervalSeconds = types.Int64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["kind"]); ok {
+		m.Kind = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["schema"]); ok {
+		m.Schema = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationQueriesGroupByAttrTypes(), m)
+	return obj
+}
+
+type ExplorationQueriesHavingModel struct {
+	ExploreBlockType types.String `tfsdk:"explore_block_type"`
+	Value            types.String `tfsdk:"value"`
+	Type             types.String `tfsdk:"type"`
+	Name             types.String `tfsdk:"name"`
+	Measure          types.String `tfsdk:"measure"`
+	ValueType        types.String `tfsdk:"value_type"`
+	Operator         types.String `tfsdk:"operator"`
+	OperatorSymbol   types.String `tfsdk:"operator_symbol"`
+	ConditionValue   types.String `tfsdk:"condition_value"`
+	SeriesName       types.String `tfsdk:"series_name"`
+	LogicalOperator  types.String `tfsdk:"logical_operator"`
+	Direction        types.String `tfsdk:"direction"`
+	IntervalSeconds  types.Int64  `tfsdk:"interval_seconds"`
+	Kind             types.String `tfsdk:"kind"`
+	Schema           types.String `tfsdk:"schema"`
+}
+
+func explorationQueriesHavingAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"explore_block_type": types.StringType,
+		"value":              types.StringType,
+		"type":               types.StringType,
+		"name":               types.StringType,
+		"measure":            types.StringType,
+		"value_type":         types.StringType,
+		"operator":           types.StringType,
+		"operator_symbol":    types.StringType,
+		"condition_value":    types.StringType,
+		"series_name":        types.StringType,
+		"logical_operator":   types.StringType,
+		"direction":          types.StringType,
+		"interval_seconds":   types.Int64Type,
+		"kind":               types.StringType,
+		"schema":             types.StringType,
+	}
+}
+
+// expandExplorationQueriesHaving marshals a nested ExplorationQueriesHaving object into its request map.
+func expandExplorationQueriesHaving(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationQueriesHavingModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.ExploreBlockType.IsNull() && !m.ExploreBlockType.IsUnknown() {
+		out["explore_block_type"] = m.ExploreBlockType.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.Type.IsNull() && !m.Type.IsUnknown() {
+		out["type"] = m.Type.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Measure.IsNull() && !m.Measure.IsUnknown() {
+		out["measure"] = m.Measure.ValueString()
+	}
+	if !m.ValueType.IsNull() && !m.ValueType.IsUnknown() {
+		out["value_type"] = m.ValueType.ValueString()
+	}
+	if !m.Operator.IsNull() && !m.Operator.IsUnknown() {
+		out["operator"] = m.Operator.ValueString()
+	}
+	if !m.OperatorSymbol.IsNull() && !m.OperatorSymbol.IsUnknown() {
+		out["operator_symbol"] = m.OperatorSymbol.ValueString()
+	}
+	if !m.ConditionValue.IsNull() && !m.ConditionValue.IsUnknown() {
+		out["condition_value"] = m.ConditionValue.ValueString()
+	}
+	if !m.SeriesName.IsNull() && !m.SeriesName.IsUnknown() {
+		out["series_name"] = m.SeriesName.ValueString()
+	}
+	if !m.LogicalOperator.IsNull() && !m.LogicalOperator.IsUnknown() {
+		out["logical_operator"] = m.LogicalOperator.ValueString()
+	}
+	if !m.Direction.IsNull() && !m.Direction.IsUnknown() {
+		out["direction"] = m.Direction.ValueString()
+	}
+	if !m.IntervalSeconds.IsNull() && !m.IntervalSeconds.IsUnknown() {
+		out["interval_seconds"] = m.IntervalSeconds.ValueInt64()
+	}
+	if !m.Kind.IsNull() && !m.Kind.IsUnknown() {
+		out["kind"] = m.Kind.ValueString()
+	}
+	if !m.Schema.IsNull() && !m.Schema.IsUnknown() {
+		out["schema"] = m.Schema.ValueString()
+	}
+	return out
+}
+
+// flattenExplorationQueriesHaving refreshes a typed ExplorationQueriesHaving object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationQueriesHaving(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationQueriesHavingModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["explore_block_type"]); ok {
+		m.ExploreBlockType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["type"]); ok {
+		m.Type = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["measure"]); ok {
+		m.Measure = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value_type"]); ok {
+		m.ValueType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator"]); ok {
+		m.Operator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator_symbol"]); ok {
+		m.OperatorSymbol = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["condition_value"]); ok {
+		m.ConditionValue = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["series_name"]); ok {
+		m.SeriesName = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["logical_operator"]); ok {
+		m.LogicalOperator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["direction"]); ok {
+		m.Direction = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(raw["interval_seconds"]); ok {
+		m.IntervalSeconds = types.Int64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["kind"]); ok {
+		m.Kind = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["schema"]); ok {
+		m.Schema = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationQueriesHavingAttrTypes(), m)
+	return obj
+}
+
+type ExplorationQueriesOrderByModel struct {
+	ExploreBlockType types.String `tfsdk:"explore_block_type"`
+	Value            types.String `tfsdk:"value"`
+	Type             types.String `tfsdk:"type"`
+	Name             types.String `tfsdk:"name"`
+	Measure          types.String `tfsdk:"measure"`
+	ValueType        types.String `tfsdk:"value_type"`
+	Operator         types.String `tfsdk:"operator"`
+	OperatorSymbol   types.String `tfsdk:"operator_symbol"`
+	ConditionValue   types.String `tfsdk:"condition_value"`
+	SeriesName       types.String `tfsdk:"series_name"`
+	LogicalOperator  types.String `tfsdk:"logical_operator"`
+	Direction        types.String `tfsdk:"direction"`
+	IntervalSeconds  types.Int64  `tfsdk:"interval_seconds"`
+	Kind             types.String `tfsdk:"kind"`
+	Schema           types.String `tfsdk:"schema"`
+}
+
+func explorationQueriesOrderByAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"explore_block_type": types.StringType,
+		"value":              types.StringType,
+		"type":               types.StringType,
+		"name":               types.StringType,
+		"measure":            types.StringType,
+		"value_type":         types.StringType,
+		"operator":           types.StringType,
+		"operator_symbol":    types.StringType,
+		"condition_value":    types.StringType,
+		"series_name":        types.StringType,
+		"logical_operator":   types.StringType,
+		"direction":          types.StringType,
+		"interval_seconds":   types.Int64Type,
+		"kind":               types.StringType,
+		"schema":             types.StringType,
+	}
+}
+
+// expandExplorationQueriesOrderBy marshals a nested ExplorationQueriesOrderBy object into its request map.
+func expandExplorationQueriesOrderBy(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationQueriesOrderByModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.ExploreBlockType.IsNull() && !m.ExploreBlockType.IsUnknown() {
+		out["explore_block_type"] = m.ExploreBlockType.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.Type.IsNull() && !m.Type.IsUnknown() {
+		out["type"] = m.Type.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Measure.IsNull() && !m.Measure.IsUnknown() {
+		out["measure"] = m.Measure.ValueString()
+	}
+	if !m.ValueType.IsNull() && !m.ValueType.IsUnknown() {
+		out["value_type"] = m.ValueType.ValueString()
+	}
+	if !m.Operator.IsNull() && !m.Operator.IsUnknown() {
+		out["operator"] = m.Operator.ValueString()
+	}
+	if !m.OperatorSymbol.IsNull() && !m.OperatorSymbol.IsUnknown() {
+		out["operator_symbol"] = m.OperatorSymbol.ValueString()
+	}
+	if !m.ConditionValue.IsNull() && !m.ConditionValue.IsUnknown() {
+		out["condition_value"] = m.ConditionValue.ValueString()
+	}
+	if !m.SeriesName.IsNull() && !m.SeriesName.IsUnknown() {
+		out["series_name"] = m.SeriesName.ValueString()
+	}
+	if !m.LogicalOperator.IsNull() && !m.LogicalOperator.IsUnknown() {
+		out["logical_operator"] = m.LogicalOperator.ValueString()
+	}
+	if !m.Direction.IsNull() && !m.Direction.IsUnknown() {
+		out["direction"] = m.Direction.ValueString()
+	}
+	if !m.IntervalSeconds.IsNull() && !m.IntervalSeconds.IsUnknown() {
+		out["interval_seconds"] = m.IntervalSeconds.ValueInt64()
+	}
+	if !m.Kind.IsNull() && !m.Kind.IsUnknown() {
+		out["kind"] = m.Kind.ValueString()
+	}
+	if !m.Schema.IsNull() && !m.Schema.IsUnknown() {
+		out["schema"] = m.Schema.ValueString()
+	}
+	return out
+}
+
+// flattenExplorationQueriesOrderBy refreshes a typed ExplorationQueriesOrderBy object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationQueriesOrderBy(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationQueriesOrderByModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["explore_block_type"]); ok {
+		m.ExploreBlockType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["type"]); ok {
+		m.Type = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["measure"]); ok {
+		m.Measure = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value_type"]); ok {
+		m.ValueType = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator"]); ok {
+		m.Operator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["operator_symbol"]); ok {
+		m.OperatorSymbol = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["condition_value"]); ok {
+		m.ConditionValue = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["series_name"]); ok {
+		m.SeriesName = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["logical_operator"]); ok {
+		m.LogicalOperator = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["direction"]); ok {
+		m.Direction = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(raw["interval_seconds"]); ok {
+		m.IntervalSeconds = types.Int64Value(v)
+	}
+	if v, ok := stringFromAPI(raw["kind"]); ok {
+		m.Kind = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["schema"]); ok {
+		m.Schema = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationQueriesOrderByAttrTypes(), m)
+	return obj
+}
+
+type ExplorationQueriesFunnelQueryModel struct {
+	Steps          types.List   `tfsdk:"steps"`
+	SessionField   types.String `tfsdk:"session_field"`
+	BreakdownField types.String `tfsdk:"breakdown_field"`
+	Breakdown      types.Object `tfsdk:"breakdown"`
+}
+
+func explorationQueriesFunnelQueryAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"steps":           types.ListType{ElemType: types.ObjectType{AttrTypes: explorationQueriesFunnelQueryStepsAttrTypes()}},
+		"session_field":   types.StringType,
+		"breakdown_field": types.StringType,
+		"breakdown":       types.ObjectType{AttrTypes: explorationQueriesFunnelQueryBreakdownAttrTypes()},
+	}
+}
+
+// expandExplorationQueriesFunnelQuery marshals a nested ExplorationQueriesFunnelQuery object into its request map.
+func expandExplorationQueriesFunnelQuery(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationQueriesFunnelQueryModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Steps.IsNull() && !m.Steps.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Steps.Elements()))
+		for _, el := range m.Steps.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandExplorationQueriesFunnelQuerySteps(ctx, obj))
+			}
+		}
+		out["steps"] = items
+	}
+	if !m.SessionField.IsNull() && !m.SessionField.IsUnknown() {
+		out["session_field"] = m.SessionField.ValueString()
+	}
+	if !m.BreakdownField.IsNull() && !m.BreakdownField.IsUnknown() {
+		out["breakdown_field"] = m.BreakdownField.ValueString()
+	}
+	return out
+}
+
+// flattenExplorationQueriesFunnelQuery refreshes a typed ExplorationQueriesFunnelQuery object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationQueriesFunnelQuery(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationQueriesFunnelQueryModel
+	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
+	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
+	m.Steps = types.ListNull(types.ObjectType{AttrTypes: explorationQueriesFunnelQueryStepsAttrTypes()})
+	m.Breakdown = types.ObjectNull(explorationQueriesFunnelQueryBreakdownAttrTypes())
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if raw, ok := raw["steps"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(explorationQueriesFunnelQueryStepsAttrTypes())
+				items = append(items, flattenExplorationQueriesFunnelQuerySteps(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: explorationQueriesFunnelQueryStepsAttrTypes()}, items)
+		m.Steps = lv
+	}
+	if v, ok := stringFromAPI(raw["session_field"]); ok {
+		m.SessionField = types.StringValue(v)
+	}
+	if raw, ok := raw["breakdown"].(map[string]interface{}); ok {
+		m.Breakdown = flattenExplorationQueriesFunnelQueryBreakdown(ctx, m.Breakdown, raw)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationQueriesFunnelQueryAttrTypes(), m)
+	return obj
+}
+
+type ExplorationQueriesFunnelQueryStepsModel struct {
+	Name       types.String `tfsdk:"name"`
+	Conditions types.String `tfsdk:"conditions"`
+}
+
+func explorationQueriesFunnelQueryStepsAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"name":       types.StringType,
+		"conditions": types.StringType,
+	}
+}
+
+// expandExplorationQueriesFunnelQuerySteps marshals a nested ExplorationQueriesFunnelQuerySteps object into its request map.
+func expandExplorationQueriesFunnelQuerySteps(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationQueriesFunnelQueryStepsModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Conditions.IsNull() && !m.Conditions.IsUnknown() {
+		out["conditions"] = m.Conditions.ValueString()
+	}
+	return out
+}
+
+// flattenExplorationQueriesFunnelQuerySteps refreshes a typed ExplorationQueriesFunnelQuerySteps object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationQueriesFunnelQuerySteps(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationQueriesFunnelQueryStepsModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["conditions"]); ok {
+		m.Conditions = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationQueriesFunnelQueryStepsAttrTypes(), m)
+	return obj
+}
+
+type ExplorationQueriesFunnelQueryBreakdownModel struct {
+	Value types.String `tfsdk:"value"`
+	Type  types.String `tfsdk:"type"`
+}
+
+func explorationQueriesFunnelQueryBreakdownAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"value": types.StringType,
+		"type":  types.StringType,
+	}
+}
+
+// expandExplorationQueriesFunnelQueryBreakdown marshals a nested ExplorationQueriesFunnelQueryBreakdown object into its request map.
+func expandExplorationQueriesFunnelQueryBreakdown(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationQueriesFunnelQueryBreakdownModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.Type.IsNull() && !m.Type.IsUnknown() {
+		out["type"] = m.Type.ValueString()
+	}
+	return out
+}
+
+// flattenExplorationQueriesFunnelQueryBreakdown refreshes a typed ExplorationQueriesFunnelQueryBreakdown object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationQueriesFunnelQueryBreakdown(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationQueriesFunnelQueryBreakdownModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["type"]); ok {
+		m.Type = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationQueriesFunnelQueryBreakdownAttrTypes(), m)
+	return obj
+}
+
+type ExplorationVariablesModel struct {
+	Name                types.String `tfsdk:"name"`
+	VariableType        types.String `tfsdk:"variable_type"`
+	Values              types.List   `tfsdk:"values"`
+	DefaultValues       types.List   `tfsdk:"default_values"`
+	SqlDefinition       types.String `tfsdk:"sql_definition"`
+	StructuredValue     types.Object `tfsdk:"structured_value"`
+	AllowMultipleValues types.Bool   `tfsdk:"allow_multiple_values"`
+	SourceIds           types.List   `tfsdk:"source_ids"`
+	Filters             types.List   `tfsdk:"filters"`
+	SelectedLabel       types.String `tfsdk:"selected_label"`
+}
+
+func explorationVariablesAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"name":                  types.StringType,
+		"variable_type":         types.StringType,
+		"values":                types.ListType{ElemType: types.StringType},
+		"default_values":        types.ListType{ElemType: types.StringType},
+		"sql_definition":        types.StringType,
+		"structured_value":      types.ObjectType{AttrTypes: explorationVariablesStructuredValueAttrTypes()},
+		"allow_multiple_values": types.BoolType,
+		"source_ids":            types.ListType{ElemType: types.StringType},
+		"filters":               types.ListType{ElemType: types.ObjectType{AttrTypes: explorationVariablesFiltersAttrTypes()}},
+		"selected_label":        types.StringType,
+	}
+}
+
+// expandExplorationVariables marshals a nested ExplorationVariables object into its request map.
+func expandExplorationVariables(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationVariablesModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.VariableType.IsNull() && !m.VariableType.IsUnknown() {
+		out["variable_type"] = m.VariableType.ValueString()
+	}
+	if !m.Values.IsNull() && !m.Values.IsUnknown() {
+		var vals []string
+		m.Values.ElementsAs(ctx, &vals, false)
+		out["values"] = vals
+	}
+	if !m.DefaultValues.IsNull() && !m.DefaultValues.IsUnknown() {
+		var vals []string
+		m.DefaultValues.ElementsAs(ctx, &vals, false)
+		out["default_values"] = vals
+	}
+	if !m.SqlDefinition.IsNull() && !m.SqlDefinition.IsUnknown() {
+		out["sql_definition"] = m.SqlDefinition.ValueString()
+	}
+	if !m.StructuredValue.IsNull() && !m.StructuredValue.IsUnknown() {
+		out["structured_value"] = expandExplorationVariablesStructuredValue(ctx, m.StructuredValue)
+	}
+	if !m.AllowMultipleValues.IsNull() && !m.AllowMultipleValues.IsUnknown() {
+		out["allow_multiple_values"] = m.AllowMultipleValues.ValueBool()
+	}
+	if !m.SourceIds.IsNull() && !m.SourceIds.IsUnknown() {
+		var vals []string
+		m.SourceIds.ElementsAs(ctx, &vals, false)
+		out["source_ids"] = vals
+	}
+	if !m.Filters.IsNull() && !m.Filters.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Filters.Elements()))
+		for _, el := range m.Filters.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandExplorationVariablesFilters(ctx, obj))
+			}
+		}
+		out["filters"] = items
+	}
+	if !m.SelectedLabel.IsNull() && !m.SelectedLabel.IsUnknown() {
+		out["selected_label"] = m.SelectedLabel.ValueString()
+	}
+	return out
+}
+
+// flattenExplorationVariables refreshes a typed ExplorationVariables object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationVariables(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationVariablesModel
+	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
+	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
+	m.Values = types.ListNull(types.StringType)
+	m.DefaultValues = types.ListNull(types.StringType)
+	m.StructuredValue = types.ObjectNull(explorationVariablesStructuredValueAttrTypes())
+	m.SourceIds = types.ListNull(types.StringType)
+	m.Filters = types.ListNull(types.ObjectType{AttrTypes: explorationVariablesFiltersAttrTypes()})
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["variable_type"]); ok {
+		m.VariableType = types.StringValue(v)
+	}
+	if raw, ok := raw["values"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.Values = lv
+	}
+	if raw, ok := raw["default_values"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.DefaultValues = lv
+	}
+	if v, ok := stringFromAPI(raw["sql_definition"]); ok {
+		m.SqlDefinition = types.StringValue(v)
+	}
+	if raw, ok := raw["structured_value"].(map[string]interface{}); ok {
+		m.StructuredValue = flattenExplorationVariablesStructuredValue(ctx, m.StructuredValue, raw)
+	}
+	if v, ok := boolFromAPI(raw["allow_multiple_values"]); ok {
+		m.AllowMultipleValues = types.BoolValue(v)
+	}
+	if raw, ok := raw["source_ids"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.SourceIds = lv
+	}
+	if raw, ok := raw["filters"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(explorationVariablesFiltersAttrTypes())
+				items = append(items, flattenExplorationVariablesFilters(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: explorationVariablesFiltersAttrTypes()}, items)
+		m.Filters = lv
+	}
+	if v, ok := stringFromAPI(raw["selected_label"]); ok {
+		m.SelectedLabel = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationVariablesAttrTypes(), m)
+	return obj
+}
+
+type ExplorationVariablesStructuredValueModel struct {
+	SelectedLabel      types.String `tfsdk:"selected_label"`
+	CanonicalSourceIds types.List   `tfsdk:"canonical_source_ids"`
+	ServiceIds         types.List   `tfsdk:"service_ids"`
+	Filters            types.List   `tfsdk:"filters"`
+}
+
+func explorationVariablesStructuredValueAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"selected_label":       types.StringType,
+		"canonical_source_ids": types.ListType{ElemType: types.StringType},
+		"service_ids":          types.ListType{ElemType: types.StringType},
+		"filters":              types.ListType{ElemType: types.ObjectType{AttrTypes: explorationVariablesStructuredValueFiltersAttrTypes()}},
+	}
+}
+
+// expandExplorationVariablesStructuredValue marshals a nested ExplorationVariablesStructuredValue object into its request map.
+func expandExplorationVariablesStructuredValue(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationVariablesStructuredValueModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.SelectedLabel.IsNull() && !m.SelectedLabel.IsUnknown() {
+		out["selected_label"] = m.SelectedLabel.ValueString()
+	}
+	if !m.CanonicalSourceIds.IsNull() && !m.CanonicalSourceIds.IsUnknown() {
+		var vals []string
+		m.CanonicalSourceIds.ElementsAs(ctx, &vals, false)
+		out["canonicalSourceIds"] = vals
+	}
+	if !m.ServiceIds.IsNull() && !m.ServiceIds.IsUnknown() {
+		var vals []string
+		m.ServiceIds.ElementsAs(ctx, &vals, false)
+		out["serviceIds"] = vals
+	}
+	if !m.Filters.IsNull() && !m.Filters.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Filters.Elements()))
+		for _, el := range m.Filters.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandExplorationVariablesStructuredValueFilters(ctx, obj))
+			}
+		}
+		out["filters"] = items
+	}
+	return out
+}
+
+// flattenExplorationVariablesStructuredValue refreshes a typed ExplorationVariablesStructuredValue object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationVariablesStructuredValue(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationVariablesStructuredValueModel
+	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
+	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
+	m.CanonicalSourceIds = types.ListNull(types.StringType)
+	m.ServiceIds = types.ListNull(types.StringType)
+	m.Filters = types.ListNull(types.ObjectType{AttrTypes: explorationVariablesStructuredValueFiltersAttrTypes()})
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["selected_label"]); ok {
+		m.SelectedLabel = types.StringValue(v)
+	}
+	if raw, ok := raw["canonicalSourceIds"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.CanonicalSourceIds = lv
+	}
+	if raw, ok := raw["serviceIds"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.ServiceIds = lv
+	}
+	if raw, ok := raw["filters"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(explorationVariablesStructuredValueFiltersAttrTypes())
+				items = append(items, flattenExplorationVariablesStructuredValueFilters(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: explorationVariablesStructuredValueFiltersAttrTypes()}, items)
+		m.Filters = lv
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationVariablesStructuredValueAttrTypes(), m)
+	return obj
+}
+
+type ExplorationVariablesStructuredValueFiltersModel struct {
+	Label types.String `tfsdk:"label"`
+	Sql   types.String `tfsdk:"sql"`
+}
+
+func explorationVariablesStructuredValueFiltersAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"label": types.StringType,
+		"sql":   types.StringType,
+	}
+}
+
+// expandExplorationVariablesStructuredValueFilters marshals a nested ExplorationVariablesStructuredValueFilters object into its request map.
+func expandExplorationVariablesStructuredValueFilters(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationVariablesStructuredValueFiltersModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Label.IsNull() && !m.Label.IsUnknown() {
+		out["label"] = m.Label.ValueString()
+	}
+	if !m.Sql.IsNull() && !m.Sql.IsUnknown() {
+		out["sql"] = m.Sql.ValueString()
+	}
+	return out
+}
+
+// flattenExplorationVariablesStructuredValueFilters refreshes a typed ExplorationVariablesStructuredValueFilters object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationVariablesStructuredValueFilters(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationVariablesStructuredValueFiltersModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["label"]); ok {
+		m.Label = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["sql"]); ok {
+		m.Sql = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationVariablesStructuredValueFiltersAttrTypes(), m)
+	return obj
+}
+
+type ExplorationVariablesFiltersModel struct {
+	Label types.String `tfsdk:"label"`
+	Sql   types.String `tfsdk:"sql"`
+}
+
+func explorationVariablesFiltersAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"label": types.StringType,
+		"sql":   types.StringType,
+	}
+}
+
+// expandExplorationVariablesFilters marshals a nested ExplorationVariablesFilters object into its request map.
+func expandExplorationVariablesFilters(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m ExplorationVariablesFiltersModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Label.IsNull() && !m.Label.IsUnknown() {
+		out["label"] = m.Label.ValueString()
+	}
+	if !m.Sql.IsNull() && !m.Sql.IsUnknown() {
+		out["sql"] = m.Sql.ValueString()
+	}
+	return out
+}
+
+// flattenExplorationVariablesFilters refreshes a typed ExplorationVariablesFilters object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenExplorationVariablesFilters(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m ExplorationVariablesFiltersModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["label"]); ok {
+		m.Label = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["sql"]); ok {
+		m.Sql = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, explorationVariablesFiltersAttrTypes(), m)
 	return obj
 }
 
@@ -128,20 +3186,24 @@ func (r *ExplorationResource) Metadata(ctx context.Context, req resource.Metadat
 
 func (r *ExplorationResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A saved exploration: a chart, its queries, and its variables over logs, metrics, or traces.",
+		Description:         "A saved exploration, which is a chart with its queries and variables over logs, metrics, or traces.",
+		MarkdownDescription: "A saved exploration, which is a chart with its queries and variables over logs, metrics, or traces.",
 		Attributes: map[string]schema.Attribute{
 			"id":                   schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"chart":                schema.SingleNestedAttribute{Required: true, Attributes: map[string]schema.Attribute{"chart_type": schema.StringAttribute{Optional: true, Computed: true, Description: "Chart type. Each type renders only certain query types, for example `tail_chart` only a `tail_query` and `static_text_chart` only a `static_text` query.", Validators: []validator.String{stringvalidator.OneOf("line_chart", "table_chart", "bar_chart", "number_chart", "heatmap_chart", "anomalies_chart", "pie_chart", "scatter_chart", "gauge_chart", "tail_chart", "static_text_chart", "map_chart", "text_chart", "funnel_chart", "funnel_trend_chart", "hierarchy_chart")}}, "name": schema.StringAttribute{Computed: true}, "description": schema.StringAttribute{Optional: true, Computed: true}, "settings": schema.DynamicAttribute{Optional: true, Computed: true}}, Description: "Chart settings. `chart_type` is required on create. The chart is always placed at `x: 0, y: 0, w: 12, h: 10`, and its name comes from the exploration's name. Returned without an `id`."},
+			"chart":                schema.SingleNestedAttribute{Required: true, Attributes: map[string]schema.Attribute{"chart_type": schema.StringAttribute{Optional: true, Computed: true, Description: "Chart type. A funnel chart can switch only to the funnel trend chart, its trend over time, and back.\n\n- line_chart: Accepts sql_expression and tail_query queries.\n- table_chart: Accepts sql_expression queries.\n- bar_chart: Accepts sql_expression and tail_query queries.\n- number_chart: Accepts sql_expression and tail_query queries.\n- heatmap_chart: Accepts sql_expression queries.\n- anomalies_chart: Accepts tail_query queries.\n- pie_chart: Accepts sql_expression queries.\n- scatter_chart: Accepts sql_expression queries.\n- gauge_chart: Accepts sql_expression and tail_query queries.\n- tail_chart: Accepts tail_query queries.\n- static_text_chart: Accepts a static_text query.\n- map_chart: Accepts sql_expression queries.\n- text_chart: Accepts sql_expression and tail_query queries.\n- funnel_chart: Accepts a funnel_query query.\n- funnel_trend_chart: Accepts a funnel_query query.\n- hierarchy_chart: Accepts sql_expression queries.", MarkdownDescription: "Chart type. A funnel chart can switch only to the funnel trend chart, its trend over time, and back.\n\n- `line_chart`: Accepts `sql_expression` and `tail_query` queries.\n- `table_chart`: Accepts `sql_expression` queries.\n- `bar_chart`: Accepts `sql_expression` and `tail_query` queries.\n- `number_chart`: Accepts `sql_expression` and `tail_query` queries.\n- `heatmap_chart`: Accepts `sql_expression` queries.\n- `anomalies_chart`: Accepts `tail_query` queries.\n- `pie_chart`: Accepts `sql_expression` queries.\n- `scatter_chart`: Accepts `sql_expression` queries.\n- `gauge_chart`: Accepts `sql_expression` and `tail_query` queries.\n- `tail_chart`: Accepts `tail_query` queries.\n- `static_text_chart`: Accepts a `static_text` query.\n- `map_chart`: Accepts `sql_expression` queries.\n- `text_chart`: Accepts `sql_expression` and `tail_query` queries.\n- `funnel_chart`: Accepts a `funnel_query` query.\n- `funnel_trend_chart`: Accepts a `funnel_query` query.\n- `hierarchy_chart`: Accepts `sql_expression` queries.", Validators: []validator.String{stringvalidator.OneOf("line_chart", "table_chart", "bar_chart", "number_chart", "heatmap_chart", "anomalies_chart", "pie_chart", "scatter_chart", "gauge_chart", "tail_chart", "static_text_chart", "map_chart", "text_chart", "funnel_chart", "funnel_trend_chart", "hierarchy_chart")}}, "name": schema.StringAttribute{Computed: true, Description: "The chart's name as stored. name returns a generated name in its place while it's the default.", MarkdownDescription: "The chart's name as stored. `name` returns a generated name in its place while it's the default."}, "description": schema.StringAttribute{Optional: true, Computed: true, Description: "The chart's description, or null when it has none.", MarkdownDescription: "The chart's description, or `null` when it has none."}, "settings": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"unit": schema.StringAttribute{Optional: true, Computed: true, Description: "Unit the values are shown in, such as percent, bytes or ms. Table charts use column_units instead.", MarkdownDescription: "Unit the values are shown in, such as `percent`, `bytes` or `ms`. Table charts use `column_units` instead.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "custom_unit": schema.BoolAttribute{Optional: true, Description: "Whether unit is your own suffix, shown after the value as written and never scaled.", MarkdownDescription: "Whether `unit` is your own suffix, shown after the value as written and never scaled."}, "decimal_places": schema.Int64Attribute{Optional: true, Computed: true, Description: "Number of decimal places shown.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}}, "time_column": schema.StringAttribute{Optional: true, Computed: true, Description: "Column on the X axis, time by default. For a category bar chart it's the grouping column.", MarkdownDescription: "Column on the X axis, `time` by default. For a category bar chart it's the grouping column.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "x_axis_type": schema.StringAttribute{Optional: true, Computed: true, Description: "How the X axis is read. Usually time, value or category.", MarkdownDescription: "How the X axis is read. Usually `time`, `value` or `category`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "y_axis_type": schema.StringAttribute{Optional: true, Computed: true, Description: "How the Y axis of a scatter chart is read. Usually value or category.", MarkdownDescription: "How the Y axis of a scatter chart is read. Usually `value` or `category`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "series_column": schema.StringAttribute{Optional: true, Computed: true, Description: "Column that splits the data into series. On a heatmap it's the Y axis column.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "value_columns": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Result columns that hold the values to chart.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}}, "point_size_column": schema.StringAttribute{Optional: true, Computed: true, Description: "Column that sets each point's size on a scatter chart.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "location_column": schema.StringAttribute{Optional: true, Computed: true, Description: "Column holding the location on a map chart.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "location_label": schema.StringAttribute{Optional: true, Description: "What a map chart's tooltip names, either the closest city or country or the value as sent. Usually automatic or original_value.", MarkdownDescription: "What a map chart's tooltip names, either the closest city or country or the value as sent. Usually `automatic` or `original_value`."}, "label_column": schema.StringAttribute{Optional: true, Description: "Column that names each hexagon on a hierarchy chart."}, "group_by_columns": schema.ListAttribute{Optional: true, ElementType: types.StringType, Description: "Up to two columns a hierarchy chart groups its hexagons by."}, "palette": schema.StringAttribute{Optional: true, Computed: true, Description: "Color scale of a hierarchy chart. Usually green_to_red or red_to_green.", MarkdownDescription: "Color scale of a hierarchy chart. Usually `green_to_red` or `red_to_green`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "min_value": schema.Float64Attribute{Optional: true, Computed: true, Description: "Lowest value of a hierarchy chart's color scale.", PlanModifiers: []planmodifier.Float64{float64planmodifier.UseStateForUnknown()}}, "max_value": schema.Float64Attribute{Optional: true, Computed: true, Description: "Highest value of a hierarchy chart's color scale.", PlanModifiers: []planmodifier.Float64{float64planmodifier.UseStateForUnknown()}}, "link_template": schema.StringAttribute{Optional: true, Description: "Link a hierarchy chart opens when you click a hexagon, with {{column}} placeholders.", MarkdownDescription: "Link a hierarchy chart opens when you click a hexagon, with `{{column}}` placeholders."}, "y_axis_min": schema.Float64Attribute{Optional: true, Description: "Lowest value on the Y axis."}, "y_axis_max": schema.Float64Attribute{Optional: true, Description: "Highest value on the Y axis."}, "y_axis_auto_range": schema.StringAttribute{Optional: true, Description: "How a line chart fits its Y axis when no bounds are set. Usually include_zero or fit_data.", MarkdownDescription: "How a line chart fits its Y axis when no bounds are set. Usually `include_zero` or `fit_data`."}, "y_axis_scale": schema.StringAttribute{Optional: true, Computed: true, Description: "Scale of the Y axis. Usually linear or log.", MarkdownDescription: "Scale of the Y axis. Usually `linear` or `log`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "min": schema.Float64Attribute{Optional: true, Computed: true, Description: "Lower bound of a gauge.", PlanModifiers: []planmodifier.Float64{float64planmodifier.UseStateForUnknown()}}, "max": schema.Float64Attribute{Optional: true, Computed: true, Description: "Upper bound of a gauge, the goal value.", PlanModifiers: []planmodifier.Float64{float64planmodifier.UseStateForUnknown()}}, "treat_missing_values": schema.StringAttribute{Optional: true, Computed: true, Description: "How gaps in the data are drawn. Usually connected, disconnected, zero or previous.", MarkdownDescription: "How gaps in the data are drawn. Usually `connected`, `disconnected`, `zero` or `previous`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "stacking": schema.StringAttribute{Optional: true, Computed: true, Description: "How series are stacked. Usually dont_stack, stack or stack_to_100.", MarkdownDescription: "How series are stacked. Usually `dont_stack`, `stack` or `stack_to_100`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "orientation": schema.StringAttribute{Optional: true, Computed: true, Description: "Direction of the bars on a bar chart. Usually vertical or horizontal.", MarkdownDescription: "Direction of the bars on a bar chart. Usually `vertical` or `horizontal`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "legend": schema.StringAttribute{Optional: true, Computed: true, Description: "Where the legend is shown. Usually hidden, shown_below, shown_below_with_statistics or shown_right.", MarkdownDescription: "Where the legend is shown. Usually `hidden`, `shown_below`, `shown_below_with_statistics` or `shown_right`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "series_colors": schema.MapAttribute{Optional: true, ElementType: types.StringType, Description: "Color of each series, keyed by its series_name, as a hex color such as #22c55e.", MarkdownDescription: "Color of each series, keyed by its `series_name`, as a hex color such as `#22c55e`."}, "series_order": schema.ListAttribute{Optional: true, ElementType: types.StringType, Description: "Order the series are shown in, by name."}, "show_previous_period": schema.BoolAttribute{Optional: true, Description: "Whether a line chart also shows the previous period."}, "color_mode": schema.StringAttribute{Optional: true, Computed: true, Description: "How a number chart colors its value. Usually auto, high_green, high_red or specific_words.", MarkdownDescription: "How a number chart colors its value. Usually `auto`, `high_green`, `high_red` or `specific_words`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "color_upper_threshold": schema.Float64Attribute{Optional: true, Computed: true, Description: "Upper threshold of a number chart's colors.", PlanModifiers: []planmodifier.Float64{float64planmodifier.UseStateForUnknown()}}, "color_lower_threshold": schema.Float64Attribute{Optional: true, Computed: true, Description: "Lower threshold of a number chart's colors.", PlanModifiers: []planmodifier.Float64{float64planmodifier.UseStateForUnknown()}}, "color_green_words": schema.StringAttribute{Optional: true, Computed: true, Description: "Values a number chart shows in green, separated by commas.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "color_yellow_words": schema.StringAttribute{Optional: true, Computed: true, Description: "Values a number chart shows in yellow, separated by commas.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "color_red_words": schema.StringAttribute{Optional: true, Computed: true, Description: "Values a number chart shows in red, separated by commas.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "column_units": schema.MapNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"unit": schema.StringAttribute{Optional: true, Computed: true, Description: "Unit the column's values are shown in, such as auto, percent or bytes.", MarkdownDescription: "Unit the column's values are shown in, such as `auto`, `percent` or `bytes`."}, "custom_unit": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether unit is your own suffix, shown after the value as written and never scaled.", MarkdownDescription: "Whether `unit` is your own suffix, shown after the value as written and never scaled."}}}, Description: "Unit of each table column, by column name.", PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()}}, "percentage_highlight_columns": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Table columns holding ratios from 0 to 1, shown with a bar.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}}, "series_unit": schema.StringAttribute{Optional: true, Description: "Unit of a heatmap's Y axis labels."}, "series_custom_unit": schema.BoolAttribute{Optional: true, Description: "Whether series_unit is your own suffix.", MarkdownDescription: "Whether `series_unit` is your own suffix."}, "heatmap_color_mode": schema.StringAttribute{Optional: true, Description: "How a heatmap colors its cells. Usually gradient or categorized.", MarkdownDescription: "How a heatmap colors its cells. Usually `gradient` or `categorized`."}, "value_categories": schema.MapNestedAttribute{Optional: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"label": schema.StringAttribute{Optional: true, Computed: true, Description: "Text shown for the value."}, "color": schema.StringAttribute{Optional: true, Computed: true, Description: "Color of the cells with the value, as a hex color such as #22c55e.", MarkdownDescription: "Color of the cells with the value, as a hex color such as `#22c55e`."}}}, Description: "Label and color of each cell value of a categorized heatmap."}, "column_widths": schema.MapAttribute{Optional: true, Computed: true, ElementType: types.Float64Type, Description: "Width of each table column, by column name, as the chart editor saves it.", PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()}}, "table_width": schema.Int64Attribute{Optional: true, Computed: true, Description: "Width of the table the column_widths were saved for.", MarkdownDescription: "Width of the table the `column_widths` were saved for.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}}, "guessed_series_colors": schema.MapAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Colors the chart picked for its series, keyed by series_name.", MarkdownDescription: "Colors the chart picked for its series, keyed by `series_name`.", PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()}}, "label": schema.StringAttribute{Optional: true, Computed: true, Description: "A legend placement the chart editor saves next to legend, such as shown_below. Charts ignore it and place the legend by legend.", MarkdownDescription: "A legend placement the chart editor saves next to `legend`, such as `shown_below`. Charts ignore it and place the legend by `legend`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "text": schema.StringAttribute{Optional: true, Computed: true, Description: "Markdown text of a text chart.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "row_templates": schema.MapAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Live tail row format of each source, by source ID.", PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()}}, "sampling": schema.Int64Attribute{Optional: true, Description: "Percentage of data the chart samples."}, "fresh": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether the chart skips cached results.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}}, "funnel_unit_name": schema.StringAttribute{Optional: true, Computed: true, Description: "Word a funnel chart counts in, such as people.", MarkdownDescription: "Word a funnel chart counts in, such as `people`.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}}, "filtered_series": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Series the chart shows, by name.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}}, "filtered_releases": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Releases the chart shows.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}}, "force_source_series": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether the chart shows one series per source.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}}, "treat_zero_values": schema.StringAttribute{Optional: true, Description: "How zero values are drawn, keep or drop_disconnected. Defaults to keep.", MarkdownDescription: "How zero values are drawn, `keep` or `drop_disconnected`. Defaults to `keep`."}, "projection": schema.StringAttribute{Optional: true, Description: "Map projection of a map chart, such as mercator.", MarkdownDescription: "Map projection of a map chart, such as `mercator`."}, "published_format": schema.StringAttribute{Optional: true, Description: "Format a published chart is served in, json by default.", MarkdownDescription: "Format a published chart is served in, `json` by default."}, "published_cache_for": schema.Int64Attribute{Optional: true, Description: "Seconds a published chart's results are cached, 3 by default."}, "y_axis_annotations": schema.ListNestedAttribute{Optional: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"value": schema.Float64Attribute{Optional: true, Computed: true, Description: "The Y axis value the line is drawn at."}, "label": schema.StringAttribute{Optional: true, Computed: true, Description: "Text shown next to the line."}, "color": schema.StringAttribute{Optional: true, Computed: true, Description: "The line's color, as a hex color such as #22c55e. Left out, the line is gray.", MarkdownDescription: "The line's color, as a hex color such as `#22c55e`. Left out, the line is gray."}}}, Description: "Horizontal lines drawn at values on the Y axis, each with a label and color."}, "x_axis_annotations": schema.ListNestedAttribute{Optional: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"value": schema.StringAttribute{Optional: true, Computed: true, Description: "The X axis value the line is drawn at, a time or a number."}, "label": schema.StringAttribute{Optional: true, Computed: true, Description: "Text shown next to the line."}, "color": schema.StringAttribute{Optional: true, Computed: true, Description: "The line's color, as a hex color such as #22c55e. Left out, the line is gray.", MarkdownDescription: "The line's color, as a hex color such as `#22c55e`. Left out, the line is gray."}}}, Description: "Vertical lines drawn at values on the X axis, each with a label and color. A value is a time or a number, as the X axis reads it."}}, Description: "Display settings for the chart type, such as unit, axes, legend, stacking and decimal places. An update replaces all of them."}}, Description: "Chart settings. chart_type is required on create. A funnel's settings accept funnel_unit_name, the word the chart counts in. The chart is always placed at x: 0, y: 0, w: 12, h: 10, and its name comes from the exploration's name. Returned without an id.", MarkdownDescription: "Chart settings. `chart_type` is required on create. A funnel's `settings` accept `funnel_unit_name`, the word the chart counts in. The chart is always placed at `x: 0, y: 0, w: 12, h: 10`, and its name comes from the exploration's name. Returned without an `id`."},
 			"created_at":           schema.StringAttribute{Computed: true, Description: "When the exploration was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"date_range_from":      schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("now-3h"), Description: "Default range start, for example now-3h. Applied only when sent, so it can't be cleared."},
+			"date_range_from":      schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("now-3h"), Description: "Start of the default date range, such as now-3h. A funnel's defaults to now-7d. It's applied only when sent, so it can't be cleared.", MarkdownDescription: "Start of the default date range, such as `now-3h`. A funnel's defaults to `now-7d`. It's applied only when sent, so it can't be cleared."},
 			"date_range_to":        schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("now"), Description: "Default range end, for example now. Applied only when sent, so it can't be cleared."},
-			"exploration_group_id": schema.StringAttribute{Optional: true, Description: "Group this exploration belongs to. Send `null` or `\"0\"` to remove it from its group."},
-			"name":                 schema.StringAttribute{Required: true, Description: "Exploration name. The chart takes its name from it, so the chart's name is never sent."},
-			"queries":              schema.DynamicAttribute{Required: true, Description: "The chart's queries, in ID order. Updating an exploration replaces all of its queries. Each query takes only the keys its `query_type` uses: `sql_query` and `source_variable` for `sql_expression`, `where_condition` and `source_variable` for `tail_query`, and `static_text` for `static_text`. Sending a key another type uses, or more than one query on a chart other than `line_chart`, returns 422."},
-			"queries_result":       schema.DynamicAttribute{Computed: true, Description: "Complete server result for `queries`, including computed fields."},
-			"team_name":            schema.StringAttribute{Computed: true, Description: "Name of the team that owns the exploration."},
+			"exploration_group_id": schema.StringAttribute{Optional: true, Description: "Group this exploration belongs to. Remove the argument or set it to \"0\" to clear it from its group.", MarkdownDescription: "Group this exploration belongs to. Remove the argument or set it to `\"0\"` to clear it from its group."},
+			"name":                 schema.StringAttribute{Required: true, Description: "Exploration name. While it's still the default, a name generated from the query is returned. The chart is named after it, so the chart's name is never sent."},
+			"product":              schema.StringAttribute{Optional: true, Computed: true, Description: "The Explore the exploration lives in. Leave it out on create to put the exploration in Telemetry's Explore. A funnel over web events goes in RUM's Explore instead. Changing it moves the exploration to the other Explore.\n\n- telemetry: Telemetry's Explore.\n- rum: RUM's Explore, which reads an application's web events only.", MarkdownDescription: "The Explore the exploration lives in. Leave it out on create to put the exploration in Telemetry's Explore. A funnel over web events goes in RUM's Explore instead. Changing it moves the exploration to the other Explore.\n\n- `telemetry`: Telemetry's Explore.\n- `rum`: RUM's Explore, which reads an application's web events only.", Validators: []validator.String{stringvalidator.OneOf("telemetry", "rum")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"queries":              schema.ListNestedAttribute{Required: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true, Description: "The query's ID."}, "query_type": schema.StringAttribute{Optional: true, Computed: true, Description: "Query type. You can replace a read-only query with a writable one, never edit it. Reads can also return promql_query, promql_v2_query and promql_via_llm for queries made in the app.\n\n- sql_expression: A query written in SQL. You can write it through the API.\n- tail_query: The filter of a tail chart. You can write it through the API.\n- static_text: The text of a static_text_chart. You can write it through the API.\n- pql_expression: A query written in PQL. It's read-only.\n- tail_query_builder: A tail chart's query made in the query builder. It's read-only.\n- query_builder: A query made in the query builder. It's read-only.\n- funnel_query: A funnel's one query. You can write it through the API.", MarkdownDescription: "Query type. You can replace a read-only query with a writable one, never edit it. Reads can also return `promql_query`, `promql_v2_query` and `promql_via_llm` for queries made in the app.\n\n- `sql_expression`: A query written in SQL. You can write it through the API.\n- `tail_query`: The filter of a tail chart. You can write it through the API.\n- `static_text`: The text of a `static_text_chart`. You can write it through the API.\n- `pql_expression`: A query written in PQL. It's read-only.\n- `tail_query_builder`: A tail chart's query made in the query builder. It's read-only.\n- `query_builder`: A query made in the query builder. It's read-only.\n- `funnel_query`: A funnel's one query. You can write it through the API.", Validators: []validator.String{stringvalidator.OneOf("sql_expression", "tail_query", "static_text", "pql_expression", "tail_query_builder", "query_builder", "funnel_query")}}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The query's name."}, "sql_query": schema.StringAttribute{Optional: true, Computed: true, Description: "The SQL the query runs. Present for sql_expression, pql_expression, query_builder, tail_query_builder and funnel_query queries, and omitted when not set. Read-only except for sql_expression.", MarkdownDescription: "The SQL the query runs. Present for `sql_expression`, `pql_expression`, `query_builder`, `tail_query_builder` and `funnel_query` queries, and omitted when not set. Read-only except for `sql_expression`."}, "pql_query": schema.StringAttribute{Optional: true, Computed: true, Description: "The PQL the query is written in. Present only for pql_expression queries.", MarkdownDescription: "The PQL the query is written in. Present only for `pql_expression` queries."}, "where_condition": schema.StringAttribute{Optional: true, Computed: true, Description: "The query's filter. Present only for tail_query and tail_query_builder queries, and omitted when not set.", MarkdownDescription: "The query's filter. Present only for `tail_query` and `tail_query_builder` queries, and omitted when not set."}, "static_text": schema.StringAttribute{Optional: true, Computed: true, Description: "The query's Markdown content. Present only for static_text queries, and omitted when not set.", MarkdownDescription: "The query's Markdown content. Present only for `static_text` queries, and omitted when not set."}, "source_variable": schema.StringAttribute{Optional: true, Computed: true, Description: "The sources the query reads, either the name of a source variable, such as source, or source: followed by specific sources. Defaults to source on create. Omitted when not set.", MarkdownDescription: "The sources the query reads, either the name of a `source` variable, such as `source`, or `source:` followed by specific sources. Defaults to `source` on create. Omitted when not set."}, "x_axis": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"explore_block_type": schema.StringAttribute{Optional: true, Computed: true, Description: "What the block reads, such as count, field, json_value, json_value_from_column, special_column, virtual_field or search.", MarkdownDescription: "What the block reads, such as `count`, `field`, `json_value`, `json_value_from_column`, `special_column`, `virtual_field` or `search`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The column or field the block reads, such as dt.", MarkdownDescription: "The column or field the block reads, such as `dt`."}, "type": schema.StringAttribute{Optional: true, Computed: true, Description: "The value's data type, such as datetime.", MarkdownDescription: "The value's data type, such as `datetime`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name the block is shown with. The editor shows value when it's empty.", MarkdownDescription: "The name the block is shown with. The editor shows `value` when it's empty."}, "measure": schema.StringAttribute{Optional: true, Computed: true, Description: "The aggregation applied to the value, such as avg, count, uniq, max, min, sum or p95.", MarkdownDescription: "The aggregation applied to the value, such as `avg`, `count`, `uniq`, `max`, `min`, `sum` or `p95`."}, "value_type": schema.StringAttribute{Optional: true, Computed: true, Description: "rate to chart the value's rate of change.", MarkdownDescription: "`rate` to chart the value's rate of change."}, "operator": schema.StringAttribute{Optional: true, Computed: true, Description: "The comparison of a filter block."}, "operator_symbol": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter block's comparison written as a symbol."}, "condition_value": schema.StringAttribute{Optional: true, Computed: true, Description: "The value a filter block compares against."}, "series_name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name a Y-axis or coordinates block's series is shown as."}, "logical_operator": schema.StringAttribute{Optional: true, Computed: true, Description: "How a filter block joins the filters before it, and or or. Defaults to and.", MarkdownDescription: "How a filter block joins the filters before it, `and` or `or`. Defaults to `and`."}, "direction": schema.StringAttribute{Optional: true, Computed: true, Description: "The sort direction of an order block, asc or desc.", MarkdownDescription: "The sort direction of an order block, `asc` or `desc`."}, "interval_seconds": schema.Int64Attribute{Optional: true, Computed: true, Description: "The time bucket size in seconds, for a time block on the X axis."}, "kind": schema.StringAttribute{Optional: true, Computed: true, Description: "metric for an aggregated value, or label for a raw dimension.", MarkdownDescription: "`metric` for an aggregated value, or `label` for a raw dimension."}, "schema": schema.StringAttribute{Optional: true, Computed: true, Description: "The source's storage layout, row_based or column_based.", MarkdownDescription: "The source's storage layout, `row_based` or `column_based`."}}}, Description: "X-axis blocks of a query_builder or tail_query_builder query. Read-only.", MarkdownDescription: "X-axis blocks of a `query_builder` or `tail_query_builder` query. Read-only."}, "y_axis": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"explore_block_type": schema.StringAttribute{Optional: true, Computed: true, Description: "What the block reads, such as count, field, json_value, json_value_from_column, special_column, virtual_field or search.", MarkdownDescription: "What the block reads, such as `count`, `field`, `json_value`, `json_value_from_column`, `special_column`, `virtual_field` or `search`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The column or field the block reads, such as dt.", MarkdownDescription: "The column or field the block reads, such as `dt`."}, "type": schema.StringAttribute{Optional: true, Computed: true, Description: "The value's data type, such as datetime.", MarkdownDescription: "The value's data type, such as `datetime`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name the block is shown with. The editor shows value when it's empty.", MarkdownDescription: "The name the block is shown with. The editor shows `value` when it's empty."}, "measure": schema.StringAttribute{Optional: true, Computed: true, Description: "The aggregation applied to the value, such as avg, count, uniq, max, min, sum or p95.", MarkdownDescription: "The aggregation applied to the value, such as `avg`, `count`, `uniq`, `max`, `min`, `sum` or `p95`."}, "value_type": schema.StringAttribute{Optional: true, Computed: true, Description: "rate to chart the value's rate of change.", MarkdownDescription: "`rate` to chart the value's rate of change."}, "operator": schema.StringAttribute{Optional: true, Computed: true, Description: "The comparison of a filter block."}, "operator_symbol": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter block's comparison written as a symbol."}, "condition_value": schema.StringAttribute{Optional: true, Computed: true, Description: "The value a filter block compares against."}, "series_name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name a Y-axis or coordinates block's series is shown as."}, "logical_operator": schema.StringAttribute{Optional: true, Computed: true, Description: "How a filter block joins the filters before it, and or or. Defaults to and.", MarkdownDescription: "How a filter block joins the filters before it, `and` or `or`. Defaults to `and`."}, "direction": schema.StringAttribute{Optional: true, Computed: true, Description: "The sort direction of an order block, asc or desc.", MarkdownDescription: "The sort direction of an order block, `asc` or `desc`."}, "interval_seconds": schema.Int64Attribute{Optional: true, Computed: true, Description: "The time bucket size in seconds, for a time block on the X axis."}, "kind": schema.StringAttribute{Optional: true, Computed: true, Description: "metric for an aggregated value, or label for a raw dimension.", MarkdownDescription: "`metric` for an aggregated value, or `label` for a raw dimension."}, "schema": schema.StringAttribute{Optional: true, Computed: true, Description: "The source's storage layout, row_based or column_based.", MarkdownDescription: "The source's storage layout, `row_based` or `column_based`."}}}, Description: "Y-axis blocks of a query_builder or tail_query_builder query. Read-only.", MarkdownDescription: "Y-axis blocks of a `query_builder` or `tail_query_builder` query. Read-only."}, "point_size": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"explore_block_type": schema.StringAttribute{Optional: true, Computed: true, Description: "What the block reads, such as count, field, json_value, json_value_from_column, special_column, virtual_field or search.", MarkdownDescription: "What the block reads, such as `count`, `field`, `json_value`, `json_value_from_column`, `special_column`, `virtual_field` or `search`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The column or field the block reads, such as dt.", MarkdownDescription: "The column or field the block reads, such as `dt`."}, "type": schema.StringAttribute{Optional: true, Computed: true, Description: "The value's data type, such as datetime.", MarkdownDescription: "The value's data type, such as `datetime`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name the block is shown with. The editor shows value when it's empty.", MarkdownDescription: "The name the block is shown with. The editor shows `value` when it's empty."}, "measure": schema.StringAttribute{Optional: true, Computed: true, Description: "The aggregation applied to the value, such as avg, count, uniq, max, min, sum or p95.", MarkdownDescription: "The aggregation applied to the value, such as `avg`, `count`, `uniq`, `max`, `min`, `sum` or `p95`."}, "value_type": schema.StringAttribute{Optional: true, Computed: true, Description: "rate to chart the value's rate of change.", MarkdownDescription: "`rate` to chart the value's rate of change."}, "operator": schema.StringAttribute{Optional: true, Computed: true, Description: "The comparison of a filter block."}, "operator_symbol": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter block's comparison written as a symbol."}, "condition_value": schema.StringAttribute{Optional: true, Computed: true, Description: "The value a filter block compares against."}, "series_name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name a Y-axis or coordinates block's series is shown as."}, "logical_operator": schema.StringAttribute{Optional: true, Computed: true, Description: "How a filter block joins the filters before it, and or or. Defaults to and.", MarkdownDescription: "How a filter block joins the filters before it, `and` or `or`. Defaults to `and`."}, "direction": schema.StringAttribute{Optional: true, Computed: true, Description: "The sort direction of an order block, asc or desc.", MarkdownDescription: "The sort direction of an order block, `asc` or `desc`."}, "interval_seconds": schema.Int64Attribute{Optional: true, Computed: true, Description: "The time bucket size in seconds, for a time block on the X axis."}, "kind": schema.StringAttribute{Optional: true, Computed: true, Description: "metric for an aggregated value, or label for a raw dimension.", MarkdownDescription: "`metric` for an aggregated value, or `label` for a raw dimension."}, "schema": schema.StringAttribute{Optional: true, Computed: true, Description: "The source's storage layout, row_based or column_based.", MarkdownDescription: "The source's storage layout, `row_based` or `column_based`."}}}, Description: "Point size blocks of a query_builder or tail_query_builder query. Read-only.", MarkdownDescription: "Point size blocks of a `query_builder` or `tail_query_builder` query. Read-only."}, "coordinates": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"explore_block_type": schema.StringAttribute{Optional: true, Computed: true, Description: "What the block reads, such as count, field, json_value, json_value_from_column, special_column, virtual_field or search.", MarkdownDescription: "What the block reads, such as `count`, `field`, `json_value`, `json_value_from_column`, `special_column`, `virtual_field` or `search`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The column or field the block reads, such as dt.", MarkdownDescription: "The column or field the block reads, such as `dt`."}, "type": schema.StringAttribute{Optional: true, Computed: true, Description: "The value's data type, such as datetime.", MarkdownDescription: "The value's data type, such as `datetime`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name the block is shown with. The editor shows value when it's empty.", MarkdownDescription: "The name the block is shown with. The editor shows `value` when it's empty."}, "measure": schema.StringAttribute{Optional: true, Computed: true, Description: "The aggregation applied to the value, such as avg, count, uniq, max, min, sum or p95.", MarkdownDescription: "The aggregation applied to the value, such as `avg`, `count`, `uniq`, `max`, `min`, `sum` or `p95`."}, "value_type": schema.StringAttribute{Optional: true, Computed: true, Description: "rate to chart the value's rate of change.", MarkdownDescription: "`rate` to chart the value's rate of change."}, "operator": schema.StringAttribute{Optional: true, Computed: true, Description: "The comparison of a filter block."}, "operator_symbol": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter block's comparison written as a symbol."}, "condition_value": schema.StringAttribute{Optional: true, Computed: true, Description: "The value a filter block compares against."}, "series_name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name a Y-axis or coordinates block's series is shown as."}, "logical_operator": schema.StringAttribute{Optional: true, Computed: true, Description: "How a filter block joins the filters before it, and or or. Defaults to and.", MarkdownDescription: "How a filter block joins the filters before it, `and` or `or`. Defaults to `and`."}, "direction": schema.StringAttribute{Optional: true, Computed: true, Description: "The sort direction of an order block, asc or desc.", MarkdownDescription: "The sort direction of an order block, `asc` or `desc`."}, "interval_seconds": schema.Int64Attribute{Optional: true, Computed: true, Description: "The time bucket size in seconds, for a time block on the X axis."}, "kind": schema.StringAttribute{Optional: true, Computed: true, Description: "metric for an aggregated value, or label for a raw dimension.", MarkdownDescription: "`metric` for an aggregated value, or `label` for a raw dimension."}, "schema": schema.StringAttribute{Optional: true, Computed: true, Description: "The source's storage layout, row_based or column_based.", MarkdownDescription: "The source's storage layout, `row_based` or `column_based`."}}}, Description: "Coordinate blocks of a query_builder or tail_query_builder query. Read-only.", MarkdownDescription: "Coordinate blocks of a `query_builder` or `tail_query_builder` query. Read-only."}, "filters": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"explore_block_type": schema.StringAttribute{Optional: true, Computed: true, Description: "What the block reads, such as count, field, json_value, json_value_from_column, special_column, virtual_field or search.", MarkdownDescription: "What the block reads, such as `count`, `field`, `json_value`, `json_value_from_column`, `special_column`, `virtual_field` or `search`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The column or field the block reads, such as dt.", MarkdownDescription: "The column or field the block reads, such as `dt`."}, "type": schema.StringAttribute{Optional: true, Computed: true, Description: "The value's data type, such as datetime.", MarkdownDescription: "The value's data type, such as `datetime`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name the block is shown with. The editor shows value when it's empty.", MarkdownDescription: "The name the block is shown with. The editor shows `value` when it's empty."}, "measure": schema.StringAttribute{Optional: true, Computed: true, Description: "The aggregation applied to the value, such as avg, count, uniq, max, min, sum or p95.", MarkdownDescription: "The aggregation applied to the value, such as `avg`, `count`, `uniq`, `max`, `min`, `sum` or `p95`."}, "value_type": schema.StringAttribute{Optional: true, Computed: true, Description: "rate to chart the value's rate of change.", MarkdownDescription: "`rate` to chart the value's rate of change."}, "operator": schema.StringAttribute{Optional: true, Computed: true, Description: "The comparison of a filter block."}, "operator_symbol": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter block's comparison written as a symbol."}, "condition_value": schema.StringAttribute{Optional: true, Computed: true, Description: "The value a filter block compares against."}, "series_name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name a Y-axis or coordinates block's series is shown as."}, "logical_operator": schema.StringAttribute{Optional: true, Computed: true, Description: "How a filter block joins the filters before it, and or or. Defaults to and.", MarkdownDescription: "How a filter block joins the filters before it, `and` or `or`. Defaults to `and`."}, "direction": schema.StringAttribute{Optional: true, Computed: true, Description: "The sort direction of an order block, asc or desc.", MarkdownDescription: "The sort direction of an order block, `asc` or `desc`."}, "interval_seconds": schema.Int64Attribute{Optional: true, Computed: true, Description: "The time bucket size in seconds, for a time block on the X axis."}, "kind": schema.StringAttribute{Optional: true, Computed: true, Description: "metric for an aggregated value, or label for a raw dimension.", MarkdownDescription: "`metric` for an aggregated value, or `label` for a raw dimension."}, "schema": schema.StringAttribute{Optional: true, Computed: true, Description: "The source's storage layout, row_based or column_based.", MarkdownDescription: "The source's storage layout, `row_based` or `column_based`."}}}, Description: "Filter blocks of a query_builder or tail_query_builder query. Read-only.", MarkdownDescription: "Filter blocks of a `query_builder` or `tail_query_builder` query. Read-only."}, "where": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"explore_block_type": schema.StringAttribute{Optional: true, Computed: true, Description: "What the block reads, such as count, field, json_value, json_value_from_column, special_column, virtual_field or search.", MarkdownDescription: "What the block reads, such as `count`, `field`, `json_value`, `json_value_from_column`, `special_column`, `virtual_field` or `search`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The column or field the block reads, such as dt.", MarkdownDescription: "The column or field the block reads, such as `dt`."}, "type": schema.StringAttribute{Optional: true, Computed: true, Description: "The value's data type, such as datetime.", MarkdownDescription: "The value's data type, such as `datetime`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name the block is shown with. The editor shows value when it's empty.", MarkdownDescription: "The name the block is shown with. The editor shows `value` when it's empty."}, "measure": schema.StringAttribute{Optional: true, Computed: true, Description: "The aggregation applied to the value, such as avg, count, uniq, max, min, sum or p95.", MarkdownDescription: "The aggregation applied to the value, such as `avg`, `count`, `uniq`, `max`, `min`, `sum` or `p95`."}, "value_type": schema.StringAttribute{Optional: true, Computed: true, Description: "rate to chart the value's rate of change.", MarkdownDescription: "`rate` to chart the value's rate of change."}, "operator": schema.StringAttribute{Optional: true, Computed: true, Description: "The comparison of a filter block."}, "operator_symbol": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter block's comparison written as a symbol."}, "condition_value": schema.StringAttribute{Optional: true, Computed: true, Description: "The value a filter block compares against."}, "series_name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name a Y-axis or coordinates block's series is shown as."}, "logical_operator": schema.StringAttribute{Optional: true, Computed: true, Description: "How a filter block joins the filters before it, and or or. Defaults to and.", MarkdownDescription: "How a filter block joins the filters before it, `and` or `or`. Defaults to `and`."}, "direction": schema.StringAttribute{Optional: true, Computed: true, Description: "The sort direction of an order block, asc or desc.", MarkdownDescription: "The sort direction of an order block, `asc` or `desc`."}, "interval_seconds": schema.Int64Attribute{Optional: true, Computed: true, Description: "The time bucket size in seconds, for a time block on the X axis."}, "kind": schema.StringAttribute{Optional: true, Computed: true, Description: "metric for an aggregated value, or label for a raw dimension.", MarkdownDescription: "`metric` for an aggregated value, or `label` for a raw dimension."}, "schema": schema.StringAttribute{Optional: true, Computed: true, Description: "The source's storage layout, row_based or column_based.", MarkdownDescription: "The source's storage layout, `row_based` or `column_based`."}}}, Description: "Where blocks of a query_builder or tail_query_builder query. Read-only.", MarkdownDescription: "Where blocks of a `query_builder` or `tail_query_builder` query. Read-only."}, "group_by": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"explore_block_type": schema.StringAttribute{Optional: true, Computed: true, Description: "What the block reads, such as count, field, json_value, json_value_from_column, special_column, virtual_field or search.", MarkdownDescription: "What the block reads, such as `count`, `field`, `json_value`, `json_value_from_column`, `special_column`, `virtual_field` or `search`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The column or field the block reads, such as dt.", MarkdownDescription: "The column or field the block reads, such as `dt`."}, "type": schema.StringAttribute{Optional: true, Computed: true, Description: "The value's data type, such as datetime.", MarkdownDescription: "The value's data type, such as `datetime`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name the block is shown with. The editor shows value when it's empty.", MarkdownDescription: "The name the block is shown with. The editor shows `value` when it's empty."}, "measure": schema.StringAttribute{Optional: true, Computed: true, Description: "The aggregation applied to the value, such as avg, count, uniq, max, min, sum or p95.", MarkdownDescription: "The aggregation applied to the value, such as `avg`, `count`, `uniq`, `max`, `min`, `sum` or `p95`."}, "value_type": schema.StringAttribute{Optional: true, Computed: true, Description: "rate to chart the value's rate of change.", MarkdownDescription: "`rate` to chart the value's rate of change."}, "operator": schema.StringAttribute{Optional: true, Computed: true, Description: "The comparison of a filter block."}, "operator_symbol": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter block's comparison written as a symbol."}, "condition_value": schema.StringAttribute{Optional: true, Computed: true, Description: "The value a filter block compares against."}, "series_name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name a Y-axis or coordinates block's series is shown as."}, "logical_operator": schema.StringAttribute{Optional: true, Computed: true, Description: "How a filter block joins the filters before it, and or or. Defaults to and.", MarkdownDescription: "How a filter block joins the filters before it, `and` or `or`. Defaults to `and`."}, "direction": schema.StringAttribute{Optional: true, Computed: true, Description: "The sort direction of an order block, asc or desc.", MarkdownDescription: "The sort direction of an order block, `asc` or `desc`."}, "interval_seconds": schema.Int64Attribute{Optional: true, Computed: true, Description: "The time bucket size in seconds, for a time block on the X axis."}, "kind": schema.StringAttribute{Optional: true, Computed: true, Description: "metric for an aggregated value, or label for a raw dimension.", MarkdownDescription: "`metric` for an aggregated value, or `label` for a raw dimension."}, "schema": schema.StringAttribute{Optional: true, Computed: true, Description: "The source's storage layout, row_based or column_based.", MarkdownDescription: "The source's storage layout, `row_based` or `column_based`."}}}, Description: "Grouping blocks of a query_builder or tail_query_builder query. Read-only.", MarkdownDescription: "Grouping blocks of a `query_builder` or `tail_query_builder` query. Read-only."}, "having": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"explore_block_type": schema.StringAttribute{Optional: true, Computed: true, Description: "What the block reads, such as count, field, json_value, json_value_from_column, special_column, virtual_field or search.", MarkdownDescription: "What the block reads, such as `count`, `field`, `json_value`, `json_value_from_column`, `special_column`, `virtual_field` or `search`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The column or field the block reads, such as dt.", MarkdownDescription: "The column or field the block reads, such as `dt`."}, "type": schema.StringAttribute{Optional: true, Computed: true, Description: "The value's data type, such as datetime.", MarkdownDescription: "The value's data type, such as `datetime`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name the block is shown with. The editor shows value when it's empty.", MarkdownDescription: "The name the block is shown with. The editor shows `value` when it's empty."}, "measure": schema.StringAttribute{Optional: true, Computed: true, Description: "The aggregation applied to the value, such as avg, count, uniq, max, min, sum or p95.", MarkdownDescription: "The aggregation applied to the value, such as `avg`, `count`, `uniq`, `max`, `min`, `sum` or `p95`."}, "value_type": schema.StringAttribute{Optional: true, Computed: true, Description: "rate to chart the value's rate of change.", MarkdownDescription: "`rate` to chart the value's rate of change."}, "operator": schema.StringAttribute{Optional: true, Computed: true, Description: "The comparison of a filter block."}, "operator_symbol": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter block's comparison written as a symbol."}, "condition_value": schema.StringAttribute{Optional: true, Computed: true, Description: "The value a filter block compares against."}, "series_name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name a Y-axis or coordinates block's series is shown as."}, "logical_operator": schema.StringAttribute{Optional: true, Computed: true, Description: "How a filter block joins the filters before it, and or or. Defaults to and.", MarkdownDescription: "How a filter block joins the filters before it, `and` or `or`. Defaults to `and`."}, "direction": schema.StringAttribute{Optional: true, Computed: true, Description: "The sort direction of an order block, asc or desc.", MarkdownDescription: "The sort direction of an order block, `asc` or `desc`."}, "interval_seconds": schema.Int64Attribute{Optional: true, Computed: true, Description: "The time bucket size in seconds, for a time block on the X axis."}, "kind": schema.StringAttribute{Optional: true, Computed: true, Description: "metric for an aggregated value, or label for a raw dimension.", MarkdownDescription: "`metric` for an aggregated value, or `label` for a raw dimension."}, "schema": schema.StringAttribute{Optional: true, Computed: true, Description: "The source's storage layout, row_based or column_based.", MarkdownDescription: "The source's storage layout, `row_based` or `column_based`."}}}, Description: "Having blocks of a query_builder or tail_query_builder query. Read-only.", MarkdownDescription: "Having blocks of a `query_builder` or `tail_query_builder` query. Read-only."}, "order_by": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"explore_block_type": schema.StringAttribute{Optional: true, Computed: true, Description: "What the block reads, such as count, field, json_value, json_value_from_column, special_column, virtual_field or search.", MarkdownDescription: "What the block reads, such as `count`, `field`, `json_value`, `json_value_from_column`, `special_column`, `virtual_field` or `search`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The column or field the block reads, such as dt.", MarkdownDescription: "The column or field the block reads, such as `dt`."}, "type": schema.StringAttribute{Optional: true, Computed: true, Description: "The value's data type, such as datetime.", MarkdownDescription: "The value's data type, such as `datetime`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name the block is shown with. The editor shows value when it's empty.", MarkdownDescription: "The name the block is shown with. The editor shows `value` when it's empty."}, "measure": schema.StringAttribute{Optional: true, Computed: true, Description: "The aggregation applied to the value, such as avg, count, uniq, max, min, sum or p95.", MarkdownDescription: "The aggregation applied to the value, such as `avg`, `count`, `uniq`, `max`, `min`, `sum` or `p95`."}, "value_type": schema.StringAttribute{Optional: true, Computed: true, Description: "rate to chart the value's rate of change.", MarkdownDescription: "`rate` to chart the value's rate of change."}, "operator": schema.StringAttribute{Optional: true, Computed: true, Description: "The comparison of a filter block."}, "operator_symbol": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter block's comparison written as a symbol."}, "condition_value": schema.StringAttribute{Optional: true, Computed: true, Description: "The value a filter block compares against."}, "series_name": schema.StringAttribute{Optional: true, Computed: true, Description: "The name a Y-axis or coordinates block's series is shown as."}, "logical_operator": schema.StringAttribute{Optional: true, Computed: true, Description: "How a filter block joins the filters before it, and or or. Defaults to and.", MarkdownDescription: "How a filter block joins the filters before it, `and` or `or`. Defaults to `and`."}, "direction": schema.StringAttribute{Optional: true, Computed: true, Description: "The sort direction of an order block, asc or desc.", MarkdownDescription: "The sort direction of an order block, `asc` or `desc`."}, "interval_seconds": schema.Int64Attribute{Optional: true, Computed: true, Description: "The time bucket size in seconds, for a time block on the X axis."}, "kind": schema.StringAttribute{Optional: true, Computed: true, Description: "metric for an aggregated value, or label for a raw dimension.", MarkdownDescription: "`metric` for an aggregated value, or `label` for a raw dimension."}, "schema": schema.StringAttribute{Optional: true, Computed: true, Description: "The source's storage layout, row_based or column_based.", MarkdownDescription: "The source's storage layout, `row_based` or `column_based`."}}}, Description: "Ordering blocks of a query_builder or tail_query_builder query. Read-only.", MarkdownDescription: "Ordering blocks of a `query_builder` or `tail_query_builder` query. Read-only."}, "funnel_query": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"steps": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true, Description: "Step name shown on the chart. Defaults to Step <n>.", MarkdownDescription: "Step name shown on the chart. Defaults to `Step <n>`."}, "conditions": schema.StringAttribute{Required: true, Description: "Live tail query that the step's events match, such as payload.meta.path=\"/cart\".", MarkdownDescription: "Live tail query that the step's events match, such as `payload.meta.path=\"/cart\"`."}}}, Description: "The funnel's steps in journey order, 2 to 32. An update with steps replaces every step.", MarkdownDescription: "The funnel's steps in journey order, 2 to 32. An update with `steps` replaces every step."}, "session_field": schema.StringAttribute{Optional: true, Computed: true, Description: "Field that ties one journey's events together. Defaults to session_id. Use user.id to follow an identified user. An empty value resets it to session_id.", MarkdownDescription: "Field that ties one journey's events together. Defaults to `session_id`. Use `user.id` to follow an identified user. An empty value resets it to `session_id`."}, "breakdown_field": schema.StringAttribute{Optional: true, Computed: true, Description: "Field each step is split by, such as contexts.browser.name. An empty value removes the breakdown.", MarkdownDescription: "Field each step is split by, such as `contexts.browser.name`. An empty value removes the breakdown."}, "breakdown": schema.SingleNestedAttribute{Computed: true, Attributes: map[string]schema.Attribute{"value": schema.StringAttribute{Optional: true, Computed: true, Description: "The field each step is split by, such as contexts.browser.name.", MarkdownDescription: "The field each step is split by, such as `contexts.browser.name`."}, "type": schema.StringAttribute{Optional: true, Computed: true, Description: "The type of the breakdown field, always string.", MarkdownDescription: "The type of the breakdown field, always `string`."}}, Description: "The breakdown the funnel is split by. Its field is in value.", MarkdownDescription: "The breakdown the funnel is split by. Its field is in `value`."}}, Description: "A funnel's steps, session field and breakdown. Present only for funnel_query queries. An update keeps the steps and fields it leaves out as they are.", MarkdownDescription: "A funnel's steps, session field and breakdown. Present only for `funnel_query` queries. An update keeps the steps and fields it leaves out as they are."}}}, Description: "The chart's queries, in ID order. Updating an exploration replaces all of its queries. Each query accepts only the keys its query_type uses. A sql_expression query uses sql_query and source_variable. A tail_query uses where_condition and source_variable. A static_text query uses static_text, and a funnel_query uses funnel_query. A key another type uses, or more than one query on a chart other than line_chart, is refused.", MarkdownDescription: "The chart's queries, in ID order. Updating an exploration replaces all of its queries. Each query accepts only the keys its `query_type` uses. A `sql_expression` query uses `sql_query` and `source_variable`. A `tail_query` uses `where_condition` and `source_variable`. A `static_text` query uses `static_text`, and a `funnel_query` uses `funnel_query`. A key another type uses, or more than one query on a chart other than `line_chart`, is refused."},
+			"source_id":            schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the source a funnel reads. Required when creating a funnel, and accepted only then. Other explorations pick their sources in the source variable.", MarkdownDescription: "ID of the source a funnel reads. Required when creating a funnel, and accepted only then. Other explorations pick their sources in the `source` variable.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_exploration"}}},
+			"source_type":          schema.StringAttribute{Optional: true, Computed: true, Description: "The events a funnel reads from its source. When it's left out or the source doesn't have them, the funnel reads web events, logs or spans, the first of them the source has.", Validators: []validator.String{stringvalidator.OneOf("web_events", "logs", "spans")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_exploration"}}},
+			"team_id":              schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns the exploration, such as t123. Defaults to the provider's team_id. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", MarkdownDescription: "Team that owns the exploration, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_exploration"}}},
+			"team_name":            schema.StringAttribute{Computed: true, Description: "Name of the team that owns the exploration.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"updated_at":           schema.StringAttribute{Computed: true, Description: "When the exploration was last updated."},
-			"variables":            schema.DynamicAttribute{Optional: true, Computed: true, Description: "Template variables. An update replaces all variables: any you don't send is removed, except the built-in time, start_time, end_time and source variables, which always exist. `sql_definition` applies only to `select_with_sql` and `multi_select_with_sql` variables. `allow_multiple_values` is saved only for `select_value` and `select_with_sql` variables. A source variable's values are IDs of sources the team can access.", PlanModifiers: []planmodifier.Dynamic{dynamicplanmodifier.UseStateForUnknown()}},
+			"variables":            schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true, Description: "The variable's name, used as {{name}} in queries.", MarkdownDescription: "The variable's name, used as `{{name}}` in queries."}, "variable_type": schema.StringAttribute{Optional: true, Computed: true, Description: "Variable kind.", Validators: []validator.String{stringvalidator.OneOf("source", "date", "datetime", "string", "number", "sql_expression", "select_value", "boolean", "select_with_sql", "multi_select_with_sql", "select_predefined_sql")}}, "values": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "The variable's current values as strings, or an empty array when it has none. For a source variable, these are the IDs of the selected sources.", MarkdownDescription: "The variable's current values as strings, or an empty array when it has none. For a `source` variable, these are the IDs of the selected sources."}, "default_values": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "The variable's default values as strings, or an empty array when it has none."}, "sql_definition": schema.StringAttribute{Optional: true, Computed: true, Description: "The SQL expression whose distinct values are the options of a select_with_sql variable, such as JSONExtractString(raw, 'service'). It runs against the variable's source over the selected range.", MarkdownDescription: "The SQL expression whose distinct values are the options of a `select_with_sql` variable, such as `JSONExtractString(raw, 'service')`. It runs against the variable's source over the selected range."}, "structured_value": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"selected_label": schema.StringAttribute{Optional: true, Computed: true, Description: "Label of the selected value."}, "canonical_source_ids": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Selected sources of a source variable. Source IDs in values set them.", MarkdownDescription: "Selected sources of a `source` variable. Source IDs in `values` set them."}, "service_ids": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Selected services of a source variable.", MarkdownDescription: "Selected services of a `source` variable."}, "filters": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"label": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter's label, shown in the variable's menu."}, "sql": schema.StringAttribute{Optional: true, Computed: true, Description: "A complete query that returns one column with the filter's options."}}}, Description: "Saved filters, each a label and the SQL that lists its values."}}, Description: "The variable's other settings, such as the selected sources of a source variable in canonicalSourceIds and its services in serviceIds, or the saved filters of a select_predefined_sql variable. Left out when not set.", MarkdownDescription: "The variable's other settings, such as the selected sources of a `source` variable in `canonicalSourceIds` and its services in `serviceIds`, or the saved filters of a `select_predefined_sql` variable. Left out when not set."}, "allow_multiple_values": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether a select_value or select_with_sql variable accepts more than one value at a time.", MarkdownDescription: "Whether a `select_value` or `select_with_sql` variable accepts more than one value at a time."}, "source_ids": schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "The IDs of the sources a source variable selects. They set the selection. Each must be a source the team can access.", MarkdownDescription: "The IDs of the sources a `source` variable selects. They set the selection. Each must be a source the team can access."}, "filters": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"label": schema.StringAttribute{Optional: true, Computed: true, Description: "The filter's label, shown in the variable's menu."}, "sql": schema.StringAttribute{Optional: true, Computed: true, Description: "A complete query that returns one column with the filter's options."}}}, Description: "The saved filters of a select_predefined_sql variable. Each has a label and an sql query, a complete query that returns one column with the filter's options.", MarkdownDescription: "The saved filters of a `select_predefined_sql` variable. Each has a `label` and an `sql` query, a complete query that returns one column with the filter's options."}, "selected_label": schema.StringAttribute{Optional: true, Computed: true, Description: "The label of the selected filter of a select_predefined_sql variable. When not sent, the first filter is selected. A label that matches none of filters is refused.", MarkdownDescription: "The label of the selected filter of a `select_predefined_sql` variable. When not sent, the first filter is selected. A label that matches none of `filters` is refused."}}}, Description: "Template variables. An update replaces all variables. Any the list leaves out is removed, except the built-in time, start_time, end_time and source variables, which always exist. A listed variable without default_values, sql_definition or structured_value keeps the stored ones while its variable_type stays the same, and a new variable_type clears them. One sent without values gets empty values, except a source variable, which keeps its sources while it leaves out both values and structured_value. One sent without allow_multiple_values keeps the stored flag. sql_definition applies only to select_with_sql and multi_select_with_sql variables. allow_multiple_values is saved only for select_value and select_with_sql variables. When a variable is saved with empty values, a select_value gets the first of its default_values, a string, number, boolean or sql_expression gets all of them, and a select_with_sql whose sql_definition is new or changed gets the first option it returns. An ISO 8601 date in a date or datetime variable is saved in values as a Unix timestamp in microseconds. A new or changed sql_definition or filter sql runs against the selected source, and the change is refused when the query fails. A source variable's values are IDs of sources the team can access. In a rum exploration, pick each source as its web events, <table_name>:web_events. A funnel can't have variables. Its source is set in source_id. See Query variables (https://betterstack.com/docs/logs/dashboards/variables/).", MarkdownDescription: "Template variables. An update replaces all variables. Any the list leaves out is removed, except the built-in `time`, `start_time`, `end_time` and `source` variables, which always exist. A listed variable without `default_values`, `sql_definition` or `structured_value` keeps the stored ones while its `variable_type` stays the same, and a new `variable_type` clears them. One sent without `values` gets empty `values`, except a `source` variable, which keeps its sources while it leaves out both `values` and `structured_value`. One sent without `allow_multiple_values` keeps the stored flag. `sql_definition` applies only to `select_with_sql` and `multi_select_with_sql` variables. `allow_multiple_values` is saved only for `select_value` and `select_with_sql` variables. When a variable is saved with empty `values`, a `select_value` gets the first of its `default_values`, a `string`, `number`, `boolean` or `sql_expression` gets all of them, and a `select_with_sql` whose `sql_definition` is new or changed gets the first option it returns. An ISO 8601 date in a `date` or `datetime` variable is saved in `values` as a Unix timestamp in microseconds. A new or changed `sql_definition` or filter `sql` runs against the selected source, and the change is refused when the query fails. A `source` variable's values are IDs of sources the team can access. In a `rum` exploration, pick each source as its web events, `<table_name>:web_events`. A funnel can't have variables. Its source is set in `source_id`. See [Query variables](https://betterstack.com/docs/logs/dashboards/variables/).", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -168,31 +3230,86 @@ func (r *ExplorationResource) body(ctx context.Context, m ExplorationModel) map[
 		body["date_range_to"] = m.DateRangeTo.ValueString()
 	}
 	if !m.ExplorationGroupId.IsNull() && !m.ExplorationGroupId.IsUnknown() {
-		body["exploration_group_id"] = idToAPI(m.ExplorationGroupId.ValueString())
+		body["exploration_group_id"] = m.ExplorationGroupId.ValueString()
 	}
 	if !m.Chart.IsNull() && !m.Chart.IsUnknown() {
 		body["chart"] = expandExplorationChart(ctx, m.Chart)
 	}
-	if !m.Queries.IsNull() && !m.Queries.IsUnknown() && !m.Queries.IsUnderlyingValueNull() && !m.Queries.IsUnderlyingValueUnknown() {
-		if tv, err := m.Queries.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-			if av, err := tftypesToAPI(tv); err == nil {
-				body["queries"] = projectAPIWrite(av, apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"id": apiValueShape{ReadOnly: true}, "query_type": apiValueShape{}, "name": apiValueShape{}, "sql_query": apiValueShape{}, "pql_query": apiValueShape{}, "where_condition": apiValueShape{}, "static_text": apiValueShape{}, "source_variable": apiValueShape{}, "x_axis": apiValueShape{}, "y_axis": apiValueShape{}, "point_size": apiValueShape{}, "coordinates": apiValueShape{}, "filters": apiValueShape{}, "where": apiValueShape{}, "group_by": apiValueShape{}, "having": apiValueShape{}, "order_by": apiValueShape{}, "funnel_query": apiValueShape{}}}, Identity: "id"})
+	if !m.Queries.IsNull() && !m.Queries.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Queries.Elements()))
+		for _, el := range m.Queries.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandExplorationQueries(ctx, obj))
 			}
 		}
+		body["queries"] = items
 	}
-	if !m.Variables.IsNull() && !m.Variables.IsUnknown() && !m.Variables.IsUnderlyingValueNull() && !m.Variables.IsUnderlyingValueUnknown() {
-		if tv, err := m.Variables.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-			if av, err := tftypesToAPI(tv); err == nil {
-				body["variables"] = projectAPIWrite(av, apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"name": apiValueShape{}, "variable_type": apiValueShape{}, "values": apiValueShape{Element: &apiValueShape{}}, "default_values": apiValueShape{Element: &apiValueShape{}}, "sql_definition": apiValueShape{}, "structured_value": apiValueShape{}, "allow_multiple_values": apiValueShape{}}}})
+	if !m.Variables.IsNull() && !m.Variables.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Variables.Elements()))
+		for _, el := range m.Variables.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandExplorationVariables(ctx, obj))
 			}
 		}
+		body["variables"] = items
+	}
+	if !m.SourceId.IsNull() && !m.SourceId.IsUnknown() {
+		body["source_id"] = m.SourceId.ValueString()
+	}
+	if !m.SourceType.IsNull() && !m.SourceType.IsUnknown() {
+		body["source_type"] = m.SourceType.ValueString()
+	}
+	if !m.Product.IsNull() && !m.Product.IsUnknown() {
+		body["product"] = m.Product.ValueString()
+	}
+	return body
+}
+
+// bodyForUpdate excludes create-only fields, which require replacement rather than PATCH.
+func (r *ExplorationResource) bodyForUpdate(ctx context.Context, m ExplorationModel) map[string]interface{} {
+	body := map[string]interface{}{}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		body["name"] = m.Name.ValueString()
+	}
+	if !m.DateRangeFrom.IsNull() && !m.DateRangeFrom.IsUnknown() {
+		body["date_range_from"] = m.DateRangeFrom.ValueString()
+	}
+	if !m.DateRangeTo.IsNull() && !m.DateRangeTo.IsUnknown() {
+		body["date_range_to"] = m.DateRangeTo.ValueString()
+	}
+	if !m.ExplorationGroupId.IsNull() && !m.ExplorationGroupId.IsUnknown() {
+		body["exploration_group_id"] = m.ExplorationGroupId.ValueString()
+	}
+	if !m.Chart.IsNull() && !m.Chart.IsUnknown() {
+		body["chart"] = expandExplorationChart(ctx, m.Chart)
+	}
+	if !m.Queries.IsNull() && !m.Queries.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Queries.Elements()))
+		for _, el := range m.Queries.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandExplorationQueries(ctx, obj))
+			}
+		}
+		body["queries"] = items
+	}
+	if !m.Variables.IsNull() && !m.Variables.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Variables.Elements()))
+		for _, el := range m.Variables.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandExplorationVariables(ctx, obj))
+			}
+		}
+		body["variables"] = items
+	}
+	if !m.Product.IsNull() && !m.Product.IsUnknown() {
+		body["product"] = m.Product.ValueString()
 	}
 	return body
 }
 
 // updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
 func (r *ExplorationResource) updateBody(ctx context.Context, config, plan, state ExplorationModel) map[string]interface{} {
-	body := r.body(ctx, config)
+	body := r.bodyForUpdate(ctx, config)
 	if !state.ExplorationGroupId.IsNull() && !state.ExplorationGroupId.IsUnknown() && plan.ExplorationGroupId.IsNull() {
 		body["exploration_group_id"] = nil
 	}
@@ -210,8 +3327,16 @@ func (r *ExplorationResource) Create(ctx context.Context, req resource.CreateReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
 	out, err := r.client.Create(ctx, explorationBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating exploration", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating exploration", err, req.Plan.Raw.Type())
 		return
@@ -236,9 +3361,22 @@ func (r *ExplorationResource) Read(ctx context.Context, req resource.ReadRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, explorationBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), explorationBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading exploration", err, req.State.Raw.Type())
 		return
@@ -260,9 +3398,6 @@ func populateExploration(ctx context.Context, m *ExplorationModel, attrs map[str
 	if v, ok := stringFromAPI(attrs["name"]); ok {
 		m.Name = types.StringValue(v)
 	}
-	if v, ok := stringFromAPI(attrs["team_name"]); ok {
-		m.TeamName = types.StringValue(v)
-	}
 	if v, ok := stringFromAPI(attrs["date_range_from"]); ok {
 		m.DateRangeFrom = types.StringValue(v)
 	}
@@ -281,31 +3416,62 @@ func populateExploration(ctx context.Context, m *ExplorationModel, attrs map[str
 	if raw, ok := attrs["chart"].(map[string]interface{}); ok {
 		m.Chart = flattenExplorationChart(ctx, m.Chart, raw)
 	}
-	if raw, ok := attrs["queries"]; ok && raw != nil {
-		var prior interface{}
-		if !m.Queries.IsNull() && !m.Queries.IsUnknown() && !m.Queries.IsUnderlyingValueNull() && !m.Queries.IsUnderlyingValueUnknown() {
-			if tv, err := m.Queries.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-				prior, _ = tftypesToAPI(tv)
+	if raw, ok := attrs["queries"].([]interface{}); ok {
+		priorByID := map[string]types.Object{}
+		for _, element := range m.Queries.Elements() {
+			if object, ok := element.(types.Object); ok && !object.IsNull() && !object.IsUnknown() {
+				if value := object.Attributes()["id"]; value != nil && !value.IsNull() && !value.IsUnknown() {
+					if tv, err := value.ToTerraformValue(ctx); err == nil {
+						if av, err := tftypesToAPI(tv); err == nil {
+							priorByID[stringifyScalar(av)] = object
+						}
+					}
+				}
 			}
 		}
-		raw = mergeAPIRead(raw, prior, apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"id": apiValueShape{ReadOnly: true}, "query_type": apiValueShape{}, "name": apiValueShape{}, "sql_query": apiValueShape{}, "pql_query": apiValueShape{}, "where_condition": apiValueShape{}, "static_text": apiValueShape{}, "source_variable": apiValueShape{}, "x_axis": apiValueShape{}, "y_axis": apiValueShape{}, "point_size": apiValueShape{}, "coordinates": apiValueShape{}, "filters": apiValueShape{}, "where": apiValueShape{}, "group_by": apiValueShape{}, "having": apiValueShape{}, "order_by": apiValueShape{}, "funnel_query": apiValueShape{}}}, Identity: "id"})
-		raw = configuredAPIRead(raw, prior, apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"id": apiValueShape{ReadOnly: true}, "query_type": apiValueShape{}, "name": apiValueShape{}, "sql_query": apiValueShape{}, "pql_query": apiValueShape{}, "where_condition": apiValueShape{}, "static_text": apiValueShape{}, "source_variable": apiValueShape{}, "x_axis": apiValueShape{}, "y_axis": apiValueShape{}, "point_size": apiValueShape{}, "coordinates": apiValueShape{}, "filters": apiValueShape{}, "where": apiValueShape{}, "group_by": apiValueShape{}, "having": apiValueShape{}, "order_by": apiValueShape{}, "funnel_query": apiValueShape{}}}, Identity: "id"})
-		if dv, err := types.DynamicType.ValueFromTerraform(ctx, dynamicFromAPI(raw)); err == nil {
-			m.Queries = dv.(types.Dynamic)
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(explorationQueriesAttrTypes())
+				if identity := stringifyScalar(mp["id"]); identity != "" {
+					if existing, ok := priorByID[identity]; ok {
+						prior = existing
+					}
+				}
+				items = append(items, flattenExplorationQueries(ctx, prior, mp))
+			}
 		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: explorationQueriesAttrTypes()}, items)
+		m.Queries = lv
 	}
-	if raw, ok := attrs["variables"]; ok && raw != nil {
-		var prior interface{}
-		if !m.Variables.IsNull() && !m.Variables.IsUnknown() && !m.Variables.IsUnderlyingValueNull() && !m.Variables.IsUnderlyingValueUnknown() {
-			if tv, err := m.Variables.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-				prior, _ = tftypesToAPI(tv)
+	if raw, ok := attrs["variables"].([]interface{}); ok {
+		priorKeys, priorComplete := []string{}, true
+		for _, element := range m.Variables.Elements() {
+			if object, ok := element.(types.Object); ok && !object.IsNull() && !object.IsUnknown() {
+				if value, ok := object.Attributes()["name"].(types.String); ok && !value.IsUnknown() {
+					if !value.IsNull() {
+						priorKeys = append(priorKeys, value.ValueString())
+					}
+				} else {
+					priorComplete = false
+				}
+			} else if ok && object.IsUnknown() {
+				priorComplete = false
 			}
 		}
-		raw = mergeAPIRead(raw, prior, apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"name": apiValueShape{}, "variable_type": apiValueShape{}, "values": apiValueShape{Element: &apiValueShape{}}, "default_values": apiValueShape{Element: &apiValueShape{}}, "sql_definition": apiValueShape{}, "structured_value": apiValueShape{}, "allow_multiple_values": apiValueShape{}}}})
-		raw = configuredAPIRead(raw, prior, apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"name": apiValueShape{}, "variable_type": apiValueShape{}, "values": apiValueShape{Element: &apiValueShape{}}, "default_values": apiValueShape{Element: &apiValueShape{}}, "sql_definition": apiValueShape{}, "structured_value": apiValueShape{}, "allow_multiple_values": apiValueShape{}}}})
-		if dv, err := types.DynamicType.ValueFromTerraform(ctx, dynamicFromAPI(raw)); err == nil {
-			m.Variables = dv.(types.Dynamic)
+		raw = keyedAPIRead(raw, "name", priorKeys, priorComplete, []string{"time", "start_time", "end_time", "source"})
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(explorationVariablesAttrTypes())
+				items = append(items, flattenExplorationVariables(ctx, prior, mp))
+			}
 		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: explorationVariablesAttrTypes()}, items)
+		m.Variables = lv
+	}
+	if v, ok := stringFromAPI(attrs["product"]); ok {
+		m.Product = types.StringValue(v)
 	}
 	if v, ok := stringFromAPI(attrs["created_at"]); ok {
 		m.CreatedAt = datetimeValue(m.CreatedAt, v)
@@ -313,21 +3479,40 @@ func populateExploration(ctx context.Context, m *ExplorationModel, attrs map[str
 	if v, ok := stringFromAPI(attrs["updated_at"]); ok {
 		m.UpdatedAt = datetimeValue(m.UpdatedAt, v)
 	}
-	if raw, ok := attrs["queries_result"]; ok && raw != nil {
-		var prior interface{}
-		if !m.QueriesResult.IsNull() && !m.QueriesResult.IsUnknown() && !m.QueriesResult.IsUnderlyingValueNull() && !m.QueriesResult.IsUnderlyingValueUnknown() {
-			if tv, err := m.QueriesResult.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-				prior, _ = tftypesToAPI(tv)
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(attrs["team_name"]); ok {
+		m.TeamName = types.StringValue(v)
+	}
+}
+
+func (r *ExplorationResource) mergeResponse(ctx context.Context, m ExplorationModel, attrs map[string]interface{}) {
+	if raw, ok := attrs["queries"]; ok && !m.Queries.IsNull() && !m.Queries.IsUnknown() {
+		if tv, err := m.Queries.ToTerraformValue(ctx); err == nil {
+			if prior, err := tftypesToAPI(tv); err == nil {
+				attrs["queries"] = mergeAPIRead(raw, prior, apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"id": apiValueShape{ReadOnly: true}, "query_type": apiValueShape{}, "name": apiValueShape{}, "sql_query": apiValueShape{}, "pql_query": apiValueShape{}, "where_condition": apiValueShape{}, "static_text": apiValueShape{}, "source_variable": apiValueShape{}, "x_axis": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "y_axis": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "point_size": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "coordinates": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "filters": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "where": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "group_by": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "having": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "order_by": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"explore_block_type": apiValueShape{}, "value": apiValueShape{}, "type": apiValueShape{}, "name": apiValueShape{}, "measure": apiValueShape{}, "value_type": apiValueShape{}, "operator": apiValueShape{}, "operator_symbol": apiValueShape{}, "condition_value": apiValueShape{}, "series_name": apiValueShape{}, "logical_operator": apiValueShape{}, "direction": apiValueShape{}, "interval_seconds": apiValueShape{}, "kind": apiValueShape{}, "schema": apiValueShape{}}}}, "funnel_query": apiValueShape{Fields: map[string]apiValueShape{"steps": apiValueShape{Element: &apiValueShape{Fields: map[string]apiValueShape{"name": apiValueShape{}, "conditions": apiValueShape{}}}}, "session_field": apiValueShape{}, "breakdown_field": apiValueShape{WriteOnly: true}, "breakdown": apiValueShape{ReadOnly: true, Fields: map[string]apiValueShape{"value": apiValueShape{}, "type": apiValueShape{}}}}}}}, Identity: "id"})
 			}
 		}
-		raw = mergeAPIRead(raw, prior, apiValueShape{ReadOnly: true, Element: &apiValueShape{Fields: map[string]apiValueShape{"id": apiValueShape{ReadOnly: true}, "query_type": apiValueShape{}, "name": apiValueShape{}, "sql_query": apiValueShape{}, "pql_query": apiValueShape{}, "where_condition": apiValueShape{}, "static_text": apiValueShape{}, "source_variable": apiValueShape{}, "x_axis": apiValueShape{}, "y_axis": apiValueShape{}, "point_size": apiValueShape{}, "coordinates": apiValueShape{}, "filters": apiValueShape{}, "where": apiValueShape{}, "group_by": apiValueShape{}, "having": apiValueShape{}, "order_by": apiValueShape{}, "funnel_query": apiValueShape{}}}, Identity: "id"})
-		if dv, err := types.DynamicType.ValueFromTerraform(ctx, dynamicFromAPI(raw)); err == nil {
-			m.QueriesResult = dv.(types.Dynamic)
+	}
+	if raw, ok := attrs["source_id"]; ok && !m.SourceId.IsNull() && !m.SourceId.IsUnknown() {
+		if tv, err := m.SourceId.ToTerraformValue(ctx); err == nil {
+			if prior, err := tftypesToAPI(tv); err == nil {
+				attrs["source_id"] = mergeAPIRead(raw, prior, apiValueShape{WriteOnly: true})
+			}
+		}
+	}
+	if raw, ok := attrs["source_type"]; ok && !m.SourceType.IsNull() && !m.SourceType.IsUnknown() {
+		if tv, err := m.SourceType.ToTerraformValue(ctx); err == nil {
+			if prior, err := tftypesToAPI(tv); err == nil {
+				attrs["source_type"] = mergeAPIRead(raw, prior, apiValueShape{WriteOnly: true})
+			}
 		}
 	}
 }
 
 func (r *ExplorationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	defer rememberConfigured(ctx, req.Config, resp.Private, explorationKeptOnRemoval, &resp.Diagnostics)
 	var plan ExplorationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -346,6 +3531,19 @@ func (r *ExplorationResource) Update(ctx context.Context, req resource.UpdateReq
 	if !plan.DateRangeTo.Equal(state.DateRangeTo) {
 		request.DateRangeTo = plan.DateRangeTo
 	}
+	// The API replaces this object whole, so a change sends it as planned, with the parts the app
+	// wrote itself (keep_unset), and an unchanged one isn't sent, so the API keeps all of it.
+	if plan.Chart.Equal(state.Chart) {
+		request.Chart = types.ObjectNull(request.Chart.AttributeTypes(ctx))
+	} else {
+		request.Chart = plan.Chart
+	}
+	// The API recreates every item of this list under a new id when the list is sent, so an
+	// unchanged one isn't sent and its items keep their ids (ModifyPlan planned them from state).
+	if plan.Queries.Equal(state.Queries) {
+		request.Queries = types.ListNull(request.Queries.ElementType(ctx))
+	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, err := r.client.Update(ctx, explorationBinding, vars, r.updateBody(ctx, request, plan, state))
@@ -356,6 +3554,7 @@ func (r *ExplorationResource) Update(ctx context.Context, req resource.UpdateReq
 	if out == nil {
 		out = map[string]interface{}{}
 	}
+	r.mergeResponse(ctx, state, out)
 	resp.State.Raw = stateFromPlan(req.Plan.Raw, req.State.Raw, out)
 }
 
@@ -365,6 +3564,7 @@ func (r *ExplorationResource) Delete(ctx context.Context, req resource.DeleteReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	if err := r.client.Delete(ctx, explorationBinding, vars); err != nil {
@@ -373,14 +3573,19 @@ func (r *ExplorationResource) Delete(ctx context.Context, req resource.DeleteReq
 }
 
 // Attributes whose removal from the configuration keeps the server's value (no default, no null).
-var explorationKeptOnRemoval = []string{"variables"}
+var explorationKeptOnRemoval = []string{"product", "variables"}
 
 func (r *ExplorationResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseUnnamedTeam(ctx, req, resp, r.client, "exploration")
 	warnKeptOnRemoval(ctx, "betterstack_exploration", req, resp, explorationKeptOnRemoval)
+	keepListItemIDs(ctx, req, resp, path.Root("queries"))
 }
 
 func (r *ExplorationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("date_range_from"), "now-3h")...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("date_range_to"), "now")...)
 }
 
 var _ resource.ResourceWithMoveState = &ExplorationResource{}
@@ -389,6 +3594,6 @@ var _ resource.ResourceWithMoveState = &ExplorationResource{}
 // logtail_exploration (registry.terraform.io/BetterStackHQ/logtail).
 func (r *ExplorationResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{\"query\":\"queries\",\"variable\":\"variables\"},\"constants\":{},\"transforms\":[{\"op\":\"singleton\",\"path\":\"chart\"},{\"op\":\"sentinel_null\",\"path\":\"chart.settings\",\"value\":\"\"},{\"op\":\"json_decode\",\"path\":\"chart.settings\"},{\"op\":\"sentinel_omit\",\"path\":\"queries[].name\",\"value\":\"\"},{\"op\":\"sentinel_omit\",\"path\":\"queries[].sql_query\",\"value\":\"\"},{\"op\":\"sentinel_omit\",\"path\":\"queries[].where_condition\",\"value\":\"\"},{\"op\":\"sentinel_omit\",\"path\":\"queries[].static_text\",\"value\":\"\"},{\"op\":\"sentinel_omit\",\"path\":\"queries[].source_variable\",\"value\":\"\"},{\"op\":\"sentinel_null\",\"path\":\"exploration_group_id\",\"value\":0},{\"op\":\"string_id\",\"path\":\"exploration_group_id\"}],\"ignored_fields\":[\"team_name\"],\"instructions\":[\"Keep every attribute's wire name: the legacy provider wrote the same /api/v2/explorations fields. Verify GET /api/v2/explorations/:id under the authoritative global team, move the existing exploration ID and select that team on the provider instead of team_name. Convert chart from a singleton block into an object, jsondecode chart.settings without stringifying booleans/numbers/arrays, and rename the query/variable blocks to queries/variables. Keep every SQL/source variable/date-range/group/selection setting. Omit only empty optional query strings that the legacy provider omitted on the wire. chart.name remains a computed output.\",\"Preserve existing query-builder/PQL/funnel payloads without rewriting them; name-only updates must not replace the queries. Migration does not recreate the exploration or its alert history.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_exploration\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"description\":\"The chart configuration for this exploration.\",\"max_items\":1,\"name\":\"chart\",\"required\":true,\"type\":\"list(object)\",\"json\":\"chart\"},{\"description\":\"The type of chart: 'line_chart', 'bar_chart', 'pie_chart', 'number_chart', 'table_chart', 'tail_chart', 'static_text_chart', 'scatter_chart', 'gauge_chart', 'heatmap_chart', 'map_chart', 'text_chart', 'funnel_chart', or 'anomalies_chart'.\",\"name\":\"chart.chart_type\",\"required\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func51\",\"note\":\"14 values\"},{\"computed\":true,\"description\":\"The description of the chart.\",\"name\":\"chart.description\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The name of the chart. Automatically set to the exploration name by the API.\",\"name\":\"chart.name\",\"type\":\"string\",\"note\":\"server derives it from the exploration name; never sent\"},{\"computed\":true,\"description\":\"Chart settings as a JSON string. Settings vary by chart type and include options like unit, decimal_places, legend, stacking, etc.\",\"diff_suppress_func\":\"provider.init.func12\",\"name\":\"chart.settings\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this exploration was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The start of the date range (e.g., 'now-3h', 'now-24h').\",\"name\":\"date_range_from\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The end of the date range (e.g., 'now').\",\"name\":\"date_range_to\",\"optional\":true,\"type\":\"string\"},{\"description\":\"The ID of the exploration group this exploration belongs to. Use 0 to remove from group.\",\"diff_suppress_func\":\"provider.init.func11\",\"name\":\"exploration_group_id\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The ID of this exploration.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"The name of this exploration.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"description\":\"The queries for this exploration. At least one query is required.\",\"min_items\":1,\"name\":\"query\",\"required\":true,\"type\":\"list(object)\",\"note\":\"TF `query` maps to JSON `queries`\",\"json\":\"queries\"},{\"computed\":true,\"description\":\"The ID of this query (read-only).\",\"name\":\"query.id\",\"type\":\"int\"},{\"description\":\"The name of the query.\",\"name\":\"query.name\",\"optional\":true,\"type\":\"string\"},{\"description\":\"The type of query: 'sql_expression', 'tail_query', or 'static_text'. Note: 'pql_expression', 'query_builder', and 'funnel_query' are read-only.\",\"name\":\"query.query_type\",\"required\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func52\"},{\"computed\":true,\"description\":\"The source variable reference (default: 'source').\",\"name\":\"query.source_variable\",\"optional\":true,\"type\":\"string\"},{\"description\":\"The SQL query string. Required when query_type is 'sql_expression'.\",\"name\":\"query.sql_query\",\"optional\":true,\"type\":\"string\"},{\"description\":\"The static text content (markdown). Required when query_type is 'static_text'.\",\"name\":\"query.static_text\",\"optional\":true,\"type\":\"string\"},{\"description\":\"The WHERE condition for filtering. Required when query_type is 'tail_query'.\",\"name\":\"query.where_condition\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.init.teamNameSchema.func50\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\",\"note\":\"cleared on update\"},{\"computed\":true,\"description\":\"The time when this exploration was updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"description\":\"Variables for this exploration. Default variables (time, start_time, end_time, source) are auto-created.\",\"name\":\"variable\",\"optional\":true,\"type\":\"list(object)\",\"note\":\"sub-attrs are Optional only, unlike the dashboard variant which is Optional+Computed\",\"json\":\"variables\"},{\"description\":\"For 'string', 'number', and 'boolean' variables: fallback value used when `values` is empty. For 'select_value' variables: the predefined options shown in the picker. Unused for other types.\",\"name\":\"variable.default_values\",\"optional\":true,\"type\":\"list(string)\"},{\"description\":\"The name of the variable (used as {{name}} in queries).\",\"name\":\"variable.name\",\"required\":true,\"type\":\"string\"},{\"description\":\"SQL definition for 'select_with_sql' or 'multi_select_with_sql' type variables.\",\"name\":\"variable.sql_definition\",\"optional\":true,\"type\":\"string\"},{\"description\":\"The selected values. For 'source' variables these are the source IDs the variable resolves to (e.g. `logtail_source.web.id`) - this is the field that selects the source. For other types it is the current picker selection or input.\",\"name\":\"variable.values\",\"optional\":true,\"type\":\"list(string)\"},{\"description\":\"The type of variable: 'source', 'string', 'number', 'date', 'datetime', 'boolean', 'sql_expression', 'select_value', 'select_with_sql', or 'multi_select_with_sql'.\",\"name\":\"variable.variable_type\",\"required\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func53\"}],\"response_projections\":[{\"source\":\"queries\",\"target\":\"queries_result\",\"readonly_fields\":[\"queries[].id\"]}]}"),
+		legacyStateMover("{\"renames\":{\"query\":\"queries\",\"variable\":\"variables\"},\"constants\":{},\"transforms\":[{\"op\":\"singleton\",\"path\":\"chart\"},{\"op\":\"sentinel_omit\",\"path\":\"queries[].name\",\"value\":\"\"},{\"op\":\"sentinel_omit\",\"path\":\"queries[].sql_query\",\"value\":\"\"},{\"op\":\"sentinel_omit\",\"path\":\"queries[].where_condition\",\"value\":\"\"},{\"op\":\"sentinel_omit\",\"path\":\"queries[].static_text\",\"value\":\"\"},{\"op\":\"sentinel_omit\",\"path\":\"queries[].source_variable\",\"value\":\"\"},{\"op\":\"sentinel_null\",\"path\":\"exploration_group_id\",\"value\":0},{\"op\":\"string_id\",\"path\":\"exploration_group_id\"}],\"ignored_fields\":[\"team_name\",\"query[].id\",\"chart[].settings\"],\"instructions\":[\"Keep every attribute under its current name. Check the exploration's team with `betterstack exploration get ID`, move the existing exploration ID and select that team on the provider instead of team_name. Turn the chart block into an object, write the settings you manage as attributes of the typed chart.settings object (the move leaves them out of the moved state and the first refresh reads them), and rename the query and variable blocks to queries and variables. Keep every SQL, source variable, date range, group and selection setting. Leave out only the empty optional query strings that the legacy provider left out too. chart.name stays a computed output.\",\"Preserve existing query-builder/PQL/funnel payloads without rewriting them; name-only updates must not replace the queries. Migration does not recreate the exploration or its alert history.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/logtail\",\"source_type\":\"logtail_exploration\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"defaults\":{\"date_range_from\":\"now-3h\",\"date_range_to\":\"now\"},\"source_attributes\":[{\"description\":\"The chart configuration for this exploration.\",\"max_items\":1,\"name\":\"chart\",\"required\":true,\"type\":\"list(object)\",\"json\":\"chart\"},{\"description\":\"The type of chart: 'line_chart', 'bar_chart', 'pie_chart', 'number_chart', 'table_chart', 'tail_chart', 'static_text_chart', 'scatter_chart', 'gauge_chart', 'heatmap_chart', 'map_chart', 'text_chart', 'funnel_chart', or 'anomalies_chart'.\",\"name\":\"chart.chart_type\",\"required\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func51\",\"note\":\"14 values\"},{\"computed\":true,\"description\":\"The description of the chart.\",\"name\":\"chart.description\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The name of the chart. Automatically set to the exploration name by the API.\",\"name\":\"chart.name\",\"type\":\"string\",\"note\":\"server derives it from the exploration name; never sent\"},{\"computed\":true,\"description\":\"Chart settings as a JSON string. Settings vary by chart type and include options like unit, decimal_places, legend, stacking, etc.\",\"diff_suppress_func\":\"provider.init.func12\",\"name\":\"chart.settings\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this exploration was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"The start of the date range (e.g., 'now-3h', 'now-24h').\",\"name\":\"date_range_from\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The end of the date range (e.g., 'now').\",\"name\":\"date_range_to\",\"optional\":true,\"type\":\"string\"},{\"description\":\"The ID of the exploration group this exploration belongs to. Use 0 to remove from group.\",\"diff_suppress_func\":\"provider.init.func11\",\"name\":\"exploration_group_id\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The ID of this exploration.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"The name of this exploration.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"},{\"description\":\"The queries for this exploration. At least one query is required.\",\"min_items\":1,\"name\":\"query\",\"required\":true,\"type\":\"list(object)\",\"note\":\"TF `query` maps to JSON `queries`\",\"json\":\"queries\"},{\"computed\":true,\"description\":\"The ID of this query (read-only).\",\"name\":\"query.id\",\"type\":\"int\"},{\"description\":\"The name of the query.\",\"name\":\"query.name\",\"optional\":true,\"type\":\"string\"},{\"description\":\"The type of query: 'sql_expression', 'tail_query', or 'static_text'. Note: 'pql_expression', 'query_builder', and 'funnel_query' are read-only.\",\"name\":\"query.query_type\",\"required\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func52\"},{\"computed\":true,\"description\":\"The source variable reference (default: 'source').\",\"name\":\"query.source_variable\",\"optional\":true,\"type\":\"string\"},{\"description\":\"The SQL query string. Required when query_type is 'sql_expression'.\",\"name\":\"query.sql_query\",\"optional\":true,\"type\":\"string\"},{\"description\":\"The static text content (markdown). Required when query_type is 'static_text'.\",\"name\":\"query.static_text\",\"optional\":true,\"type\":\"string\"},{\"description\":\"The WHERE condition for filtering. Required when query_type is 'tail_query'.\",\"name\":\"query.where_condition\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.init.teamNameSchema.func50\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\",\"note\":\"cleared on update\"},{\"computed\":true,\"description\":\"The time when this exploration was updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"description\":\"Variables for this exploration. Default variables (time, start_time, end_time, source) are auto-created.\",\"name\":\"variable\",\"optional\":true,\"type\":\"list(object)\",\"note\":\"sub-attrs are Optional only, unlike the dashboard variant which is Optional+Computed\",\"json\":\"variables\"},{\"description\":\"For 'string', 'number', and 'boolean' variables: fallback value used when `values` is empty. For 'select_value' variables: the predefined options shown in the picker. Unused for other types.\",\"name\":\"variable.default_values\",\"optional\":true,\"type\":\"list(string)\"},{\"description\":\"The name of the variable (used as {{name}} in queries).\",\"name\":\"variable.name\",\"required\":true,\"type\":\"string\"},{\"description\":\"SQL definition for 'select_with_sql' or 'multi_select_with_sql' type variables.\",\"name\":\"variable.sql_definition\",\"optional\":true,\"type\":\"string\"},{\"description\":\"The selected values. For 'source' variables these are the source IDs the variable resolves to (e.g. `logtail_source.web.id`) - this is the field that selects the source. For other types it is the current picker selection or input.\",\"name\":\"variable.values\",\"optional\":true,\"type\":\"list(string)\"},{\"description\":\"The type of variable: 'source', 'string', 'number', 'date', 'datetime', 'boolean', 'sql_expression', 'select_value', 'select_with_sql', or 'multi_select_with_sql'.\",\"name\":\"variable.variable_type\",\"required\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func53\"}],\"response_projections\":[]}"),
 	}
 }

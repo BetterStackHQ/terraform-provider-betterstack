@@ -14,18 +14,25 @@ import (
 // resource, against the in-memory mock API built from the same bindings the provider uses. Any
 // unresolved unknown after apply, refresh drift, or import mismatch fails the run.
 type smokeCase struct {
-	name          string
-	addr          string
+	name string
+	addr string
+	// idKey is the attribute holding the object's identity: `id`, or the resource's id_field.
+	idKey         string
 	createConfig  string
 	updateConfig  string
 	replaceConfig string
-	importIgnore  []string
+	// inPlaceConfigs each change fields the API changes through an action of their own.
+	inPlaceConfigs []string
+	importIgnore   []string
 	// importParts is the resource's address as the API spells it: the parent path variables plus
 	// the id, which is what a composite `terraform import` string has to carry.
 	importParts    []string
 	seed           func(*MockAPI) error
 	computedFields map[string]map[string]interface{}
 	computedChecks map[string]string
+	// settle is what the API shows once the write's work is done (a status of running): the mock
+	// assigns it on create, so the provider's wait for it ends.
+	settle map[string]interface{}
 }
 
 // importID rebuilds the composite import string out of applied state, so the import step exercises
@@ -46,33 +53,27 @@ func importID(addr string, parts []string) resource.ImportStateIdFunc {
 
 var smokeCases = []smokeCase{
 	{
-		name: "alert",
-		addr: "betterstack_alert.test",
+		name:  "alert",
+		addr:  "betterstack_alert.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_alert" "test" {
-  dashboard_id = "12345"
-  chart_id     = "12345"
   name         = "example"
   alert_type   = "threshold"
+  dashboard_id = "12345"
+  chart_id     = "12345"
 }`,
 		updateConfig: `resource "betterstack_alert" "test" {
-  dashboard_id = "12345"
-  chart_id     = "12345"
   name         = "example"
   alert_type   = "threshold"
+  dashboard_id = "12345"
+  chart_id     = "12345"
   string_value = "example-updated"
 }`,
-		importIgnore:   []string{},
-		importParts:    []string{"dashboard_id", "chart_id", "id"},
-		computedFields: map[string]map[string]interface{}{},
-		computedChecks: map[string]string{},
-	},
-	{
-		name: "amazon_sns_integration",
-		addr: "betterstack_amazon_sns_integration.test",
-		createConfig: `resource "betterstack_amazon_sns_integration" "test" {
-}`,
-		updateConfig: `resource "betterstack_amazon_sns_integration" "test" {
-  name = "example-updated"
+		replaceConfig: `resource "betterstack_alert" "test" {
+  name         = "example"
+  alert_type   = "threshold"
+  dashboard_id = "12345-updated"
+  chart_id     = "12345"
 }`,
 		importIgnore:   []string{},
 		importParts:    []string{"id"},
@@ -80,22 +81,23 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "application",
-		addr: "betterstack_application.test",
+		name:  "application",
+		addr:  "betterstack_application.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_application" "test" {
   name                = "example"
-  platform            = "react_errors"
+  platform            = "aiohttp_errors"
   deletion_protection = false
 }`,
 		updateConfig: `resource "betterstack_application" "test" {
   name                 = "example"
-  platform             = "react_errors"
+  platform             = "aiohttp_errors"
   application_group_id = "12345-updated"
   deletion_protection  = false
 }`,
 		replaceConfig: `resource "betterstack_application" "test" {
   name                = "example"
-  platform            = "vue_errors"
+  platform            = "android_errors"
   deletion_protection = false
 }`,
 		importIgnore:   []string{"deletion_protection"},
@@ -104,8 +106,9 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "application_group",
-		addr: "betterstack_application_group.test",
+		name:  "application_group",
+		addr:  "betterstack_application_group.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_application_group" "test" {
   name = "example"
 }`,
@@ -118,53 +121,33 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "aws_cloudwatch_integration",
-		addr: "betterstack_aws_cloudwatch_integration.test",
-		createConfig: `resource "betterstack_aws_cloudwatch_integration" "test" {
+		name:  "aws_log_group_subscription",
+		addr:  "betterstack_aws_log_group_subscription.test",
+		idKey: "id",
+		createConfig: `resource "betterstack_aws_log_group_subscription" "test" {
+  source_id  = "12345"
+  region     = "example"
+  name       = "example"
+  subscribed = true
 }`,
-		updateConfig: `resource "betterstack_aws_cloudwatch_integration" "test" {
-  name = "example-updated"
+		replaceConfig: `resource "betterstack_aws_log_group_subscription" "test" {
+  source_id  = "12345"
+  region     = "example-updated"
+  name       = "example"
+  subscribed = true
 }`,
 		importIgnore:   []string{},
-		importParts:    []string{"id"},
+		importParts:    []string{"source_id", "id"},
 		computedFields: map[string]map[string]interface{}{},
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "azure_integration",
-		addr: "betterstack_azure_integration.test",
-		createConfig: `resource "betterstack_azure_integration" "test" {
-}`,
-		updateConfig: `resource "betterstack_azure_integration" "test" {
-  name = "example-updated"
-}`,
-		importIgnore:   []string{},
-		importParts:    []string{"id"},
-		computedFields: map[string]map[string]interface{}{},
-		computedChecks: map[string]string{},
-	},
-	{
-		name: "catalog_attribute",
-		addr: "betterstack_catalog_attribute.test",
-		createConfig: `resource "betterstack_catalog_attribute" "test" {
-  catalog_relation_id = "12345"
-  name                = "example"
-}`,
-		updateConfig: `resource "betterstack_catalog_attribute" "test" {
-  catalog_relation_id = "12345"
-  name                = "example-updated"
-}`,
-		importIgnore:   []string{},
-		importParts:    []string{"catalog_relation_id", "id"},
-		computedFields: map[string]map[string]interface{}{},
-		computedChecks: map[string]string{},
-	},
-	{
-		name: "catalog_record",
-		addr: "betterstack_catalog_record.test",
+		name:  "catalog_record",
+		addr:  "betterstack_catalog_record.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_catalog_record" "test" {
   catalog_relation_id = "12345"
-  attributes          = [{ attribute = { id = "example" } }]
+  attributes          = [{ attribute = { id = "example" }, values = [{ type = "example" }] }]
 }`,
 		importIgnore:   []string{},
 		importParts:    []string{"catalog_relation_id", "id"},
@@ -172,17 +155,21 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "catalog_relation",
-		addr: "betterstack_catalog_relation.test",
+		name:  "catalog_relation",
+		addr:  "betterstack_catalog_relation.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_catalog_relation" "test" {
-  name = "example"
+  name       = "example"
+  attributes = [{ name = "example" }]
 }`,
 		updateConfig: `resource "betterstack_catalog_relation" "test" {
   name        = "example"
+  attributes  = [{ name = "example" }]
   description = "example-updated"
 }`,
 		replaceConfig: `resource "betterstack_catalog_relation" "test" {
   name            = "example"
+  attributes      = [{ name = "example" }]
   organization_id = "12345-updated"
 }`,
 		importIgnore:   []string{"organization_id"},
@@ -191,8 +178,9 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "collector",
-		addr: "betterstack_collector.test",
+		name:  "collector",
+		addr:  "betterstack_collector.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_collector" "test" {
   name                = "example"
   platform            = "docker"
@@ -215,8 +203,9 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "collector_target",
-		addr: "betterstack_collector_target.test",
+		name:  "collector_target",
+		addr:  "betterstack_collector_target.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_collector_target" "test" {
   collector_id = "12345"
   kind         = "postgres"
@@ -225,8 +214,7 @@ var smokeCases = []smokeCase{
 		updateConfig: `resource "betterstack_collector_target" "test" {
   collector_id = "12345"
   kind         = "postgres"
-  host         = "example"
-  service      = "example-updated"
+  host         = "example-updated"
 }`,
 		replaceConfig: `resource "betterstack_collector_target" "test" {
   collector_id = "12345"
@@ -239,8 +227,9 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "connection",
-		addr: "betterstack_connection.test",
+		name:  "connection",
+		addr:  "betterstack_connection.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_connection" "test" {
   client_type = "clickhouse"
   team_ids    = ["example"]
@@ -255,8 +244,9 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "dashboard",
-		addr: "betterstack_dashboard.test",
+		name:  "dashboard",
+		addr:  "betterstack_dashboard.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_dashboard" "test" {
   name = "example"
 }`,
@@ -265,17 +255,18 @@ var smokeCases = []smokeCase{
   dashboard_group_id = "12345-updated"
 }`,
 		replaceConfig: `resource "betterstack_dashboard" "test" {
-  name        = "example"
-  template_id = "12345-updated"
+  name    = "example"
+  product = "rum"
 }`,
-		importIgnore:   []string{"resource_group_name", "source_id", "template_id", "variables."},
+		importIgnore:   []string{"resource_group_name", "source_id", "template_id"},
 		importParts:    []string{"id"},
 		computedFields: map[string]map[string]interface{}{},
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "dashboard_chart",
-		addr: "betterstack_dashboard_chart.test",
+		name:  "dashboard_chart",
+		addr:  "betterstack_dashboard_chart.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_dashboard_chart" "test" {
   dashboard_id = "12345"
   chart_type   = "line_chart"
@@ -287,18 +278,15 @@ var smokeCases = []smokeCase{
   queries      = [{ query_type = "example" }]
   name         = "example-updated"
 }`,
-		importIgnore: []string{"queries."},
-		importParts:  []string{"dashboard_id", "id"},
-		computedFields: map[string]map[string]interface{}{
-			"queries": {"id": "example"},
-		},
-		computedChecks: map[string]string{
-			"queries_result.0.id": "example",
-		},
+		importIgnore:   []string{"dashboard_id"},
+		importParts:    []string{"dashboard_id", "id"},
+		computedFields: map[string]map[string]interface{}{},
+		computedChecks: map[string]string{},
 	},
 	{
-		name: "dashboard_group",
-		addr: "betterstack_dashboard_group.test",
+		name:  "dashboard_group",
+		addr:  "betterstack_dashboard_group.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_dashboard_group" "test" {
   name = "example"
 }`,
@@ -311,8 +299,9 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "dashboard_section",
-		addr: "betterstack_dashboard_section.test",
+		name:  "dashboard_section",
+		addr:  "betterstack_dashboard_section.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_dashboard_section" "test" {
   dashboard_id = "12345"
   name         = "example"
@@ -322,53 +311,15 @@ var smokeCases = []smokeCase{
   name         = "example"
   explanation  = "example-updated"
 }`,
-		importIgnore:   []string{},
+		importIgnore:   []string{"dashboard_id"},
 		importParts:    []string{"dashboard_id", "id"},
 		computedFields: map[string]map[string]interface{}{},
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "datadog_integration",
-		addr: "betterstack_datadog_integration.test",
-		createConfig: `resource "betterstack_datadog_integration" "test" {
-}`,
-		updateConfig: `resource "betterstack_datadog_integration" "test" {
-  name = "example-updated"
-}`,
-		importIgnore:   []string{},
-		importParts:    []string{"id"},
-		computedFields: map[string]map[string]interface{}{},
-		computedChecks: map[string]string{},
-	},
-	{
-		name: "elastic_integration",
-		addr: "betterstack_elastic_integration.test",
-		createConfig: `resource "betterstack_elastic_integration" "test" {
-}`,
-		updateConfig: `resource "betterstack_elastic_integration" "test" {
-  name = "example-updated"
-}`,
-		importIgnore:   []string{},
-		importParts:    []string{"id"},
-		computedFields: map[string]map[string]interface{}{},
-		computedChecks: map[string]string{},
-	},
-	{
-		name: "email_integration",
-		addr: "betterstack_email_integration.test",
-		createConfig: `resource "betterstack_email_integration" "test" {
-}`,
-		updateConfig: `resource "betterstack_email_integration" "test" {
-  name = "example-updated"
-}`,
-		importIgnore:   []string{},
-		importParts:    []string{"id"},
-		computedFields: map[string]map[string]interface{}{},
-		computedChecks: map[string]string{},
-	},
-	{
-		name: "errors_jira_integration",
-		addr: "betterstack_errors_jira_integration.test",
+		name:  "errors_jira_integration",
+		addr:  "betterstack_errors_jira_integration.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_errors_jira_integration" "test" {
   id = "12345"
 }`,
@@ -385,8 +336,9 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "errors_linear_integration",
-		addr: "betterstack_errors_linear_integration.test",
+		name:  "errors_linear_integration",
+		addr:  "betterstack_errors_linear_integration.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_errors_linear_integration" "test" {
   id = "12345"
 }`,
@@ -403,8 +355,9 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "errors_microsoft_teams_integration",
-		addr: "betterstack_errors_microsoft_teams_integration.test",
+		name:  "errors_microsoft_teams_integration",
+		addr:  "betterstack_errors_microsoft_teams_integration.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_errors_microsoft_teams_integration" "test" {
   id = "12345"
 }`,
@@ -421,8 +374,9 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "errors_slack_integration",
-		addr: "betterstack_errors_slack_integration.test",
+		name:  "errors_slack_integration",
+		addr:  "betterstack_errors_slack_integration.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_errors_slack_integration" "test" {
   id = "12345"
 }`,
@@ -439,8 +393,9 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "escalation_policy",
-		addr: "betterstack_escalation_policy.test",
+		name:  "escalation_policy",
+		addr:  "betterstack_escalation_policy.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_escalation_policy" "test" {
   name = "example"
 }`,
@@ -454,8 +409,9 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "escalation_policy_group",
-		addr: "betterstack_escalation_policy_group.test",
+		name:  "escalation_policy_group",
+		addr:  "betterstack_escalation_policy_group.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_escalation_policy_group" "test" {
   name = "example"
 }`,
@@ -468,8 +424,9 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "exploration",
-		addr: "betterstack_exploration.test",
+		name:  "exploration",
+		addr:  "betterstack_exploration.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_exploration" "test" {
   name    = "example"
   chart   = { chart_type = "line_chart" }
@@ -481,18 +438,21 @@ var smokeCases = []smokeCase{
   queries         = [{ query_type = "sql_expression" }]
   date_range_from = "example-updated"
 }`,
-		importIgnore: []string{"queries.", "variables."},
-		importParts:  []string{"id"},
-		computedFields: map[string]map[string]interface{}{
-			"queries": {"id": "example"},
-		},
-		computedChecks: map[string]string{
-			"queries_result.0.id": "example",
-		},
+		replaceConfig: `resource "betterstack_exploration" "test" {
+  name        = "example"
+  chart       = { chart_type = "line_chart" }
+  queries     = [{ query_type = "sql_expression" }]
+  source_type = "logs"
+}`,
+		importIgnore:   []string{"source_id", "source_type"},
+		importParts:    []string{"id"},
+		computedFields: map[string]map[string]interface{}{},
+		computedChecks: map[string]string{},
 	},
 	{
-		name: "exploration_group",
-		addr: "betterstack_exploration_group.test",
+		name:  "exploration_group",
+		addr:  "betterstack_exploration_group.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_exploration_group" "test" {
   name = "example"
 }`,
@@ -505,53 +465,50 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "google_monitoring_integration",
-		addr: "betterstack_google_monitoring_integration.test",
-		createConfig: `resource "betterstack_google_monitoring_integration" "test" {
+		name:  "extracted_metric",
+		addr:  "betterstack_extracted_metric.test",
+		idKey: "id",
+		createConfig: `resource "betterstack_extracted_metric" "test" {
+  source_id      = "12345"
+  name           = "example"
+  sql_expression = "example"
 }`,
-		updateConfig: `resource "betterstack_google_monitoring_integration" "test" {
-  name = "example-updated"
+		updateConfig: `resource "betterstack_extracted_metric" "test" {
+  source_id      = "12345"
+  name           = "example-updated"
+  sql_expression = "example"
 }`,
-		importIgnore:   []string{},
-		importParts:    []string{"id"},
+		importIgnore:   []string{"build_type"},
+		importParts:    []string{"source_id", "id"},
 		computedFields: map[string]map[string]interface{}{},
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "grafana_integration",
-		addr: "betterstack_grafana_integration.test",
-		createConfig: `resource "betterstack_grafana_integration" "test" {
-}`,
-		updateConfig: `resource "betterstack_grafana_integration" "test" {
-  name = "example-updated"
-}`,
-		importIgnore:   []string{},
-		importParts:    []string{"id"},
-		computedFields: map[string]map[string]interface{}{},
-		computedChecks: map[string]string{},
-	},
-	{
-		name: "heartbeat",
-		addr: "betterstack_heartbeat.test",
+		name:  "heartbeat",
+		addr:  "betterstack_heartbeat.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_heartbeat" "test" {
-  name   = "example"
-  period = 1
-  grace  = 1
+  name                = "example"
+  period              = 1
+  grace               = 1
+  deletion_protection = false
 }`,
 		updateConfig: `resource "betterstack_heartbeat" "test" {
-  name               = "example"
-  period             = 1
-  grace              = 1
-  heartbeat_group_id = "12345-updated"
+  name                = "example"
+  period              = 1
+  grace               = 1
+  heartbeat_group_id  = "12345-updated"
+  deletion_protection = false
 }`,
-		importIgnore:   []string{},
+		importIgnore:   []string{"deletion_protection"},
 		importParts:    []string{"id"},
 		computedFields: map[string]map[string]interface{}{},
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "heartbeat_group",
-		addr: "betterstack_heartbeat_group.test",
+		name:  "heartbeat_group",
+		addr:  "betterstack_heartbeat_group.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_heartbeat_group" "test" {
   name = "example"
 }`,
@@ -564,11 +521,12 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "incoming_webhook_integration",
-		addr: "betterstack_incoming_webhook_integration.test",
-		createConfig: `resource "betterstack_incoming_webhook_integration" "test" {
+		name:  "incidents_amazon_sns_integration",
+		addr:  "betterstack_incidents_amazon_sns_integration.test",
+		idKey: "id",
+		createConfig: `resource "betterstack_incidents_amazon_sns_integration" "test" {
 }`,
-		updateConfig: `resource "betterstack_incoming_webhook_integration" "test" {
+		updateConfig: `resource "betterstack_incidents_amazon_sns_integration" "test" {
   name = "example-updated"
 }`,
 		importIgnore:   []string{},
@@ -577,26 +535,241 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "jira_integration",
-		addr: "betterstack_jira_integration.test",
-		createConfig: `resource "betterstack_jira_integration" "test" {
+		name:  "incidents_aws_cloudwatch_integration",
+		addr:  "betterstack_incidents_aws_cloudwatch_integration.test",
+		idKey: "id",
+		createConfig: `resource "betterstack_incidents_aws_cloudwatch_integration" "test" {
+}`,
+		updateConfig: `resource "betterstack_incidents_aws_cloudwatch_integration" "test" {
+  name = "example-updated"
+}`,
+		importIgnore:   []string{},
+		importParts:    []string{"id"},
+		computedFields: map[string]map[string]interface{}{},
+		computedChecks: map[string]string{},
+	},
+	{
+		name:  "incidents_azure_integration",
+		addr:  "betterstack_incidents_azure_integration.test",
+		idKey: "id",
+		createConfig: `resource "betterstack_incidents_azure_integration" "test" {
+}`,
+		updateConfig: `resource "betterstack_incidents_azure_integration" "test" {
+  name = "example-updated"
+}`,
+		importIgnore:   []string{},
+		importParts:    []string{"id"},
+		computedFields: map[string]map[string]interface{}{},
+		computedChecks: map[string]string{},
+	},
+	{
+		name:  "incidents_datadog_integration",
+		addr:  "betterstack_incidents_datadog_integration.test",
+		idKey: "id",
+		createConfig: `resource "betterstack_incidents_datadog_integration" "test" {
+}`,
+		updateConfig: `resource "betterstack_incidents_datadog_integration" "test" {
+  name = "example-updated"
+}`,
+		importIgnore:   []string{},
+		importParts:    []string{"id"},
+		computedFields: map[string]map[string]interface{}{},
+		computedChecks: map[string]string{},
+	},
+	{
+		name:  "incidents_elastic_integration",
+		addr:  "betterstack_incidents_elastic_integration.test",
+		idKey: "id",
+		createConfig: `resource "betterstack_incidents_elastic_integration" "test" {
+}`,
+		updateConfig: `resource "betterstack_incidents_elastic_integration" "test" {
+  name = "example-updated"
+}`,
+		importIgnore:   []string{},
+		importParts:    []string{"id"},
+		computedFields: map[string]map[string]interface{}{},
+		computedChecks: map[string]string{},
+	},
+	{
+		name:  "incidents_google_monitoring_integration",
+		addr:  "betterstack_incidents_google_monitoring_integration.test",
+		idKey: "id",
+		createConfig: `resource "betterstack_incidents_google_monitoring_integration" "test" {
+}`,
+		updateConfig: `resource "betterstack_incidents_google_monitoring_integration" "test" {
+  name = "example-updated"
+}`,
+		importIgnore:   []string{},
+		importParts:    []string{"id"},
+		computedFields: map[string]map[string]interface{}{},
+		computedChecks: map[string]string{},
+	},
+	{
+		name:  "incidents_grafana_integration",
+		addr:  "betterstack_incidents_grafana_integration.test",
+		idKey: "id",
+		createConfig: `resource "betterstack_incidents_grafana_integration" "test" {
+}`,
+		updateConfig: `resource "betterstack_incidents_grafana_integration" "test" {
+  name = "example-updated"
+}`,
+		importIgnore:   []string{},
+		importParts:    []string{"id"},
+		computedFields: map[string]map[string]interface{}{},
+		computedChecks: map[string]string{},
+	},
+	{
+		name:  "incidents_incoming_email_integration",
+		addr:  "betterstack_incidents_incoming_email_integration.test",
+		idKey: "id",
+		createConfig: `resource "betterstack_incidents_incoming_email_integration" "test" {
+}`,
+		updateConfig: `resource "betterstack_incidents_incoming_email_integration" "test" {
+  name = "example-updated"
+}`,
+		importIgnore:   []string{},
+		importParts:    []string{"id"},
+		computedFields: map[string]map[string]interface{}{},
+		computedChecks: map[string]string{},
+	},
+	{
+		name:  "incidents_incoming_webhook_integration",
+		addr:  "betterstack_incidents_incoming_webhook_integration.test",
+		idKey: "id",
+		createConfig: `resource "betterstack_incidents_incoming_webhook_integration" "test" {
+}`,
+		updateConfig: `resource "betterstack_incidents_incoming_webhook_integration" "test" {
+  name = "example-updated"
+}`,
+		importIgnore:   []string{},
+		importParts:    []string{"id"},
+		computedFields: map[string]map[string]interface{}{},
+		computedChecks: map[string]string{},
+	},
+	{
+		name:  "incidents_jira_integration",
+		addr:  "betterstack_incidents_jira_integration.test",
+		idKey: "id",
+		createConfig: `resource "betterstack_incidents_jira_integration" "test" {
   id = "12345"
 }`,
-		updateConfig: `resource "betterstack_jira_integration" "test" {
+		updateConfig: `resource "betterstack_incidents_jira_integration" "test" {
   id   = "12345"
   name = "example-updated"
 }`,
 		importIgnore: []string{},
 		importParts:  []string{"id"},
 		seed: func(mock *MockAPI) error {
-			return mock.Seed("jira_integration", map[string]string{}, "12345")
+			return mock.Seed("incidents_jira_integration", map[string]string{}, "12345")
 		},
 		computedFields: map[string]map[string]interface{}{},
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "metadata",
-		addr: "betterstack_metadata.test",
+		name:  "incidents_new_relic_integration",
+		addr:  "betterstack_incidents_new_relic_integration.test",
+		idKey: "id",
+		createConfig: `resource "betterstack_incidents_new_relic_integration" "test" {
+}`,
+		updateConfig: `resource "betterstack_incidents_new_relic_integration" "test" {
+  name = "example-updated"
+}`,
+		importIgnore:   []string{},
+		importParts:    []string{"id"},
+		computedFields: map[string]map[string]interface{}{},
+		computedChecks: map[string]string{},
+	},
+	{
+		name:  "incidents_outgoing_email_integration",
+		addr:  "betterstack_incidents_outgoing_email_integration.test",
+		idKey: "id",
+		createConfig: `resource "betterstack_incidents_outgoing_email_integration" "test" {
+  recipients = [{ email = "test@example.com" }]
+}`,
+		updateConfig: `resource "betterstack_incidents_outgoing_email_integration" "test" {
+  recipients = [{ email = "test@example.com" }]
+  name       = "example-updated"
+}`,
+		importIgnore:   []string{},
+		importParts:    []string{"id"},
+		computedFields: map[string]map[string]interface{}{},
+		computedChecks: map[string]string{},
+	},
+	{
+		name:  "incidents_outgoing_pagerduty_integration",
+		addr:  "betterstack_incidents_outgoing_pagerduty_integration.test",
+		idKey: "id",
+		createConfig: `resource "betterstack_incidents_outgoing_pagerduty_integration" "test" {
+  name     = "example"
+  key      = "example"
+  severity = "info"
+}`,
+		updateConfig: `resource "betterstack_incidents_outgoing_pagerduty_integration" "test" {
+  name     = "example-updated"
+  key      = "example"
+  severity = "info"
+}`,
+		importIgnore:   []string{},
+		importParts:    []string{"id"},
+		computedFields: map[string]map[string]interface{}{},
+		computedChecks: map[string]string{},
+	},
+	{
+		name:  "incidents_outgoing_webhook_integration",
+		addr:  "betterstack_incidents_outgoing_webhook_integration.test",
+		idKey: "id",
+		createConfig: `resource "betterstack_incidents_outgoing_webhook_integration" "test" {
+  url          = "https://example.com"
+  trigger_type = "incident_change"
+}`,
+		updateConfig: `resource "betterstack_incidents_outgoing_webhook_integration" "test" {
+  url          = "https://example.com"
+  trigger_type = "incident_change"
+  name         = "example-updated"
+}`,
+		replaceConfig: `resource "betterstack_incidents_outgoing_webhook_integration" "test" {
+  url          = "https://example.com"
+  trigger_type = "on_call_change"
+}`,
+		importIgnore:   []string{"custom_webhook_template_attributes"},
+		importParts:    []string{"id"},
+		computedFields: map[string]map[string]interface{}{},
+		computedChecks: map[string]string{},
+	},
+	{
+		name:  "incidents_prometheus_integration",
+		addr:  "betterstack_incidents_prometheus_integration.test",
+		idKey: "id",
+		createConfig: `resource "betterstack_incidents_prometheus_integration" "test" {
+}`,
+		updateConfig: `resource "betterstack_incidents_prometheus_integration" "test" {
+  name = "example-updated"
+}`,
+		importIgnore:   []string{},
+		importParts:    []string{"id"},
+		computedFields: map[string]map[string]interface{}{},
+		computedChecks: map[string]string{},
+	},
+	{
+		name:  "incidents_splunk_on_call_integration",
+		addr:  "betterstack_incidents_splunk_on_call_integration.test",
+		idKey: "id",
+		createConfig: `resource "betterstack_incidents_splunk_on_call_integration" "test" {
+  url = "https://example.com"
+}`,
+		updateConfig: `resource "betterstack_incidents_splunk_on_call_integration" "test" {
+  url  = "https://example.com"
+  name = "example-updated"
+}`,
+		importIgnore:   []string{},
+		importParts:    []string{"id"},
+		computedFields: map[string]map[string]interface{}{},
+		computedChecks: map[string]string{},
+	},
+	{
+		name:  "metadata",
+		addr:  "betterstack_metadata.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_metadata" "test" {
   owner_type = "example"
   owner_id   = "12345"
@@ -622,42 +795,26 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "metric",
-		addr: "betterstack_metric.test",
-		createConfig: `resource "betterstack_metric" "test" {
-  source_id      = "12345"
-  name           = "example"
-  sql_expression = "example"
-}`,
-		updateConfig: `resource "betterstack_metric" "test" {
-  source_id      = "12345"
-  name           = "example-updated"
-  sql_expression = "example"
-}`,
-		importIgnore:   []string{"build_type"},
-		importParts:    []string{"source_id", "id"},
-		computedFields: map[string]map[string]interface{}{},
-		computedChecks: map[string]string{},
-	},
-	{
-		name: "monitor",
-		addr: "betterstack_monitor.test",
+		name:  "monitor",
+		addr:  "betterstack_monitor.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_monitor" "test" {
-  monitor_type = "status"
-  url          = "https://example.com"
+  url                 = "https://example.com"
+  deletion_protection = false
 }`,
 		updateConfig: `resource "betterstack_monitor" "test" {
-  monitor_type = "status"
-  url          = "https://example.com"
+  url                 = "https://example.com/updated"
+  deletion_protection = false
 }`,
-		importIgnore:   []string{},
+		importIgnore:   []string{"auth_password", "deletion_protection"},
 		importParts:    []string{"id"},
 		computedFields: map[string]map[string]interface{}{},
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "monitor_group",
-		addr: "betterstack_monitor_group.test",
+		name:  "monitor_group",
+		addr:  "betterstack_monitor_group.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_monitor_group" "test" {
   name = "example"
 }`,
@@ -670,21 +827,9 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "new_relic_integration",
-		addr: "betterstack_new_relic_integration.test",
-		createConfig: `resource "betterstack_new_relic_integration" "test" {
-}`,
-		updateConfig: `resource "betterstack_new_relic_integration" "test" {
-  name = "example-updated"
-}`,
-		importIgnore:   []string{},
-		importParts:    []string{"id"},
-		computedFields: map[string]map[string]interface{}{},
-		computedChecks: map[string]string{},
-	},
-	{
-		name: "on_call_rotation",
-		addr: "betterstack_on_call_rotation.test",
+		name:  "on_call_rotation",
+		addr:  "betterstack_on_call_rotation.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_on_call_rotation" "test" {
   id                 = "example"
   users              = ["example"]
@@ -706,8 +851,9 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "on_call_schedule",
-		addr: "betterstack_on_call_schedule.test",
+		name:  "on_call_schedule",
+		addr:  "betterstack_on_call_schedule.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_on_call_schedule" "test" {
   name = "example"
 }`,
@@ -721,75 +867,9 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "outgoing_email_integration",
-		addr: "betterstack_outgoing_email_integration.test",
-		createConfig: `resource "betterstack_outgoing_email_integration" "test" {
-  recipients = [{ email = "test@example.com" }]
-}`,
-		updateConfig: `resource "betterstack_outgoing_email_integration" "test" {
-  recipients = [{ email = "test@example.com" }]
-  name       = "example-updated"
-}`,
-		importIgnore:   []string{},
-		importParts:    []string{"id"},
-		computedFields: map[string]map[string]interface{}{},
-		computedChecks: map[string]string{},
-	},
-	{
-		name: "outgoing_webhook_integration",
-		addr: "betterstack_outgoing_webhook_integration.test",
-		createConfig: `resource "betterstack_outgoing_webhook_integration" "test" {
-  url          = "https://example.com"
-  trigger_type = "incident_change"
-}`,
-		updateConfig: `resource "betterstack_outgoing_webhook_integration" "test" {
-  url          = "https://example.com"
-  trigger_type = "incident_change"
-  name         = "example-updated"
-}`,
-		replaceConfig: `resource "betterstack_outgoing_webhook_integration" "test" {
-  url          = "https://example.com"
-  trigger_type = "on_call_change"
-}`,
-		importIgnore:   []string{"custom_webhook_template_attributes"},
-		importParts:    []string{"id"},
-		computedFields: map[string]map[string]interface{}{},
-		computedChecks: map[string]string{},
-	},
-	{
-		name: "pagerduty_integration",
-		addr: "betterstack_pagerduty_integration.test",
-		createConfig: `resource "betterstack_pagerduty_integration" "test" {
-  name     = "example"
-  key      = "example"
-  severity = "info"
-}`,
-		updateConfig: `resource "betterstack_pagerduty_integration" "test" {
-  name     = "example-updated"
-  key      = "example"
-  severity = "info"
-}`,
-		importIgnore:   []string{},
-		importParts:    []string{"id"},
-		computedFields: map[string]map[string]interface{}{},
-		computedChecks: map[string]string{},
-	},
-	{
-		name: "prometheus_integration",
-		addr: "betterstack_prometheus_integration.test",
-		createConfig: `resource "betterstack_prometheus_integration" "test" {
-}`,
-		updateConfig: `resource "betterstack_prometheus_integration" "test" {
-  name = "example-updated"
-}`,
-		importIgnore:   []string{},
-		importParts:    []string{"id"},
-		computedFields: map[string]map[string]interface{}{},
-		computedChecks: map[string]string{},
-	},
-	{
-		name: "release",
-		addr: "betterstack_release.test",
+		name:  "release",
+		addr:  "betterstack_release.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_release" "test" {
   version        = "example"
   application_id = "12345"
@@ -805,8 +885,9 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "severity",
-		addr: "betterstack_severity.test",
+		name:  "severity",
+		addr:  "betterstack_severity.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_severity" "test" {
   name = "example"
 }`,
@@ -820,8 +901,9 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "severity_group",
-		addr: "betterstack_severity_group.test",
+		name:  "severity_group",
+		addr:  "betterstack_severity_group.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_severity_group" "test" {
   name = "example"
 }`,
@@ -834,8 +916,9 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "source",
-		addr: "betterstack_source.test",
+		name:  "source",
+		addr:  "betterstack_source.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_source" "test" {
   name                = "example"
   platform            = "apache2"
@@ -852,34 +935,60 @@ var smokeCases = []smokeCase{
   platform            = "aws"
   deletion_protection = false
 }`,
-		importIgnore:   []string{"aws_account_id", "aws_external_id", "aws_role_arn", "deletion_protection", "gcp_account_id", "gcp_project_id", "gcp_project_number"},
+		importIgnore:   []string{"deletion_protection", "scrape_request_basic_auth_password"},
 		importParts:    []string{"id"},
 		computedFields: map[string]map[string]interface{}{},
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "source_aws_log_group",
-		addr: "betterstack_source_aws_log_group.test",
-		createConfig: `resource "betterstack_source_aws_log_group" "test" {
-  source_id  = "12345"
-  region     = "example"
-  name       = "example"
-  subscribed = true
+		name:  "source_aws_account",
+		addr:  "betterstack_source_aws_account.test",
+		idKey: "source_id",
+		createConfig: `resource "betterstack_source_aws_account" "test" {
+  source_id       = "12345"
+  aws_role_arn    = "example"
+  aws_external_id = "12345"
 }`,
-		replaceConfig: `resource "betterstack_source_aws_log_group" "test" {
-  source_id  = "12345"
-  region     = "example-updated"
-  name       = "example"
-  subscribed = true
+		updateConfig: `resource "betterstack_source_aws_account" "test" {
+  source_id               = "12345"
+  aws_role_arn            = "example"
+  aws_external_id         = "12345"
+  aws_auto_sub_log_groups = true
 }`,
-		importIgnore:   []string{},
-		importParts:    []string{"source_id", "id"},
+		importIgnore: []string{"aws_account_id", "aws_external_id", "aws_role_arn"},
+		importParts:  []string{"source_id"},
+		seed: func(mock *MockAPI) error {
+			return mock.Seed("source_aws_account", map[string]string{}, "12345")
+		},
 		computedFields: map[string]map[string]interface{}{},
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "source_group",
-		addr: "betterstack_source_group.test",
+		name:  "source_gcp_project",
+		addr:  "betterstack_source_gcp_project.test",
+		idKey: "source_id",
+		createConfig: `resource "betterstack_source_gcp_project" "test" {
+  source_id          = "12345"
+  gcp_project_id     = "12345"
+  gcp_project_number = "example"
+}`,
+		updateConfig: `resource "betterstack_source_gcp_project" "test" {
+  source_id          = "12345"
+  gcp_project_id     = "12345-updated"
+  gcp_project_number = "example"
+}`,
+		importIgnore: []string{"gcp_account_id", "gcp_project_id", "gcp_project_number"},
+		importParts:  []string{"source_id"},
+		seed: func(mock *MockAPI) error {
+			return mock.Seed("source_gcp_project", map[string]string{}, "12345")
+		},
+		computedFields: map[string]map[string]interface{}{},
+		computedChecks: map[string]string{},
+	},
+	{
+		name:  "source_group",
+		addr:  "betterstack_source_group.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_source_group" "test" {
   name = "example"
 }`,
@@ -892,48 +1001,38 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "splunk_on_call_integration",
-		addr: "betterstack_splunk_on_call_integration.test",
-		createConfig: `resource "betterstack_splunk_on_call_integration" "test" {
-  url = "https://example.com"
-}`,
-		updateConfig: `resource "betterstack_splunk_on_call_integration" "test" {
-  url  = "https://example.com"
-  name = "example-updated"
-}`,
-		importIgnore:   []string{},
-		importParts:    []string{"id"},
-		computedFields: map[string]map[string]interface{}{},
-		computedChecks: map[string]string{},
-	},
-	{
-		name: "status_page",
-		addr: "betterstack_status_page.test",
+		name:  "status_page",
+		addr:  "betterstack_status_page.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_status_page" "test" {
-  company_name = "example"
-  subdomain    = "example-page"
-  timezone     = "UTC"
+  company_name        = "example"
+  subdomain           = "example-page"
+  timezone            = "UTC"
+  deletion_protection = false
 }`,
 		updateConfig: `resource "betterstack_status_page" "test" {
-  company_name = "example"
-  subdomain    = "example-page"
-  timezone     = "UTC"
-  company_url  = "https://example.com/updated"
+  company_name        = "example"
+  subdomain           = "example-page"
+  timezone            = "UTC"
+  company_url         = "https://example.com/updated"
+  deletion_protection = false
 }`,
 		replaceConfig: `resource "betterstack_status_page" "test" {
-  company_name    = "example"
-  subdomain       = "example-page"
-  timezone        = "UTC"
-  organization_id = "12345-updated"
+  company_name        = "example"
+  subdomain           = "example-page"
+  timezone            = "UTC"
+  organization_id     = "12345-updated"
+  deletion_protection = false
 }`,
-		importIgnore:   []string{"password"},
+		importIgnore:   []string{"deletion_protection", "password"},
 		importParts:    []string{"id"},
 		computedFields: map[string]map[string]interface{}{},
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "status_page_group",
-		addr: "betterstack_status_page_group.test",
+		name:  "status_page_group",
+		addr:  "betterstack_status_page_group.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_status_page_group" "test" {
   name = "example"
 }`,
@@ -950,49 +1049,41 @@ var smokeCases = []smokeCase{
 		computedChecks: map[string]string{},
 	},
 	{
-		name: "status_page_resource",
-		addr: "betterstack_status_page_resource.test",
-		createConfig: `resource "betterstack_status_page_resource" "test" {
-  status_page_id = "12345"
-  resource_type  = "Monitor"
-  public_name    = "example"
-}`,
-		updateConfig: `resource "betterstack_status_page_resource" "test" {
-  status_page_id         = "12345"
-  resource_type          = "Monitor"
-  public_name            = "example"
-  status_page_section_id = "12345-updated"
-}`,
-		importIgnore:   []string{},
-		importParts:    []string{"status_page_id", "id"},
-		computedFields: map[string]map[string]interface{}{},
-		computedChecks: map[string]string{},
-	},
-	{
-		name: "status_page_section",
-		addr: "betterstack_status_page_section.test",
-		createConfig: `resource "betterstack_status_page_section" "test" {
-  status_page_id = "12345"
-}`,
-		updateConfig: `resource "betterstack_status_page_section" "test" {
-  status_page_id = "12345"
-  name           = "example-updated"
-}`,
-		importIgnore:   []string{},
-		importParts:    []string{"status_page_id", "id"},
-		computedFields: map[string]map[string]interface{}{},
-		computedChecks: map[string]string{},
-	},
-	{
-		name: "team",
-		addr: "betterstack_team.test",
+		name:  "team",
+		addr:  "betterstack_team.test",
+		idKey: "id",
 		createConfig: `resource "betterstack_team" "test" {
-  name = "example"
+  name                = "example"
+  deletion_protection = false
 }`,
 		updateConfig: `resource "betterstack_team" "test" {
-  name = "example-updated"
+  name                = "example"
+  logo_remote_url     = "https://example.com/updated"
+  deletion_protection = false
 }`,
-		importIgnore:   []string{},
+		importIgnore:   []string{"deletion_protection"},
+		importParts:    []string{"id"},
+		computedFields: map[string]map[string]interface{}{},
+		computedChecks: map[string]string{},
+	},
+	{
+		name:  "team_member",
+		addr:  "betterstack_team_member.test",
+		idKey: "id",
+		createConfig: `resource "betterstack_team_member" "test" {
+  email               = "test@example.com"
+  deletion_protection = false
+}`,
+		updateConfig: `resource "betterstack_team_member" "test" {
+  email               = "test@example.com"
+  role_id             = "12345-updated"
+  deletion_protection = false
+}`,
+		replaceConfig: `resource "betterstack_team_member" "test" {
+  email               = "test@example.com-updated"
+  deletion_protection = false
+}`,
+		importIgnore:   []string{"deletion_protection"},
 		importParts:    []string{"id"},
 		computedFields: map[string]map[string]interface{}{},
 		computedChecks: map[string]string{},
@@ -1010,8 +1101,11 @@ func TestAccSmokeCRUD(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			if tc.settle != nil {
+				mock.InjectOnCreate(tc.name, tc.settle)
+			}
 			mock.InjectItemFields(tc.name, tc.computedFields)
-			checks := []resource.TestCheckFunc{resource.TestCheckResourceAttrSet(tc.addr, "id")}
+			checks := []resource.TestCheckFunc{resource.TestCheckResourceAttrSet(tc.addr, tc.idKey)}
 			for path, value := range tc.computedChecks {
 				checks = append(checks, resource.TestCheckResourceAttr(tc.addr, path, value))
 			}
@@ -1024,6 +1118,15 @@ func TestAccSmokeCRUD(t *testing.T) {
 			if tc.updateConfig != "" {
 				steps = append(steps, resource.TestStep{Config: providerConfig(mock.URL()) + tc.updateConfig})
 			}
+			for _, config := range tc.inPlaceConfigs {
+				// What the API changes in place is never a replacement.
+				steps = append(steps, resource.TestStep{
+					Config: providerConfig(mock.URL()) + config,
+					ConfigPlanChecks: resource.ConfigPlanChecks{
+						PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(tc.addr, plancheck.ResourceActionUpdate)},
+					},
+				})
+			}
 			if tc.replaceConfig != "" {
 				// A create-only field is RequiresReplace; changing it must destroy and recreate
 				// the object rather than send a PATCH the API would reject.
@@ -1035,11 +1138,12 @@ func TestAccSmokeCRUD(t *testing.T) {
 				})
 			}
 			steps = append(steps, resource.TestStep{
-				ResourceName:            tc.addr,
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: tc.importIgnore,
-				ImportStateIdFunc:       importID(tc.addr, tc.importParts),
+				ResourceName:                         tc.addr,
+				ImportState:                          true,
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: tc.idKey,
+				ImportStateVerifyIgnore:              tc.importIgnore,
+				ImportStateIdFunc:                    importID(tc.addr, tc.importParts),
 			})
 			resource.Test(t, resource.TestCase{
 				ProtoV6ProviderFactories: testProviderFactories,

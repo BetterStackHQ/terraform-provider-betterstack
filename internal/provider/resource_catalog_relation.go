@@ -4,6 +4,7 @@ package provider
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -12,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 )
@@ -19,6 +21,7 @@ import (
 var _ resource.Resource = &CatalogRelationResource{}
 var _ resource.ResourceWithConfigure = &CatalogRelationResource{}
 var _ resource.ResourceWithImportState = &CatalogRelationResource{}
+var _ resource.ResourceWithModifyPlan = &CatalogRelationResource{}
 
 type CatalogRelationResource struct {
 	client *Client
@@ -30,11 +33,71 @@ func NewCatalogRelationResource() resource.Resource {
 
 type CatalogRelationModel struct {
 	Id             types.String `tfsdk:"id"`
+	Attributes     types.List   `tfsdk:"attributes"`
 	Description    types.String `tfsdk:"description"`
 	MatchMode      types.String `tfsdk:"match_mode"`
 	Name           types.String `tfsdk:"name"`
 	OrganizationId types.String `tfsdk:"organization_id"`
 	RecordsCount   types.Int64  `tfsdk:"records_count"`
+}
+
+type CatalogRelationAttributesModel struct {
+	Name     types.String `tfsdk:"name"`
+	Primary  types.Bool   `tfsdk:"primary"`
+	Id       types.String `tfsdk:"id"`
+	Position types.Int64  `tfsdk:"position"`
+}
+
+func catalogRelationAttributesAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"name":     types.StringType,
+		"primary":  types.BoolType,
+		"id":       types.StringType,
+		"position": types.Int64Type,
+	}
+}
+
+// expandCatalogRelationAttributes marshals a nested CatalogRelationAttributes object into its request map.
+func expandCatalogRelationAttributes(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m CatalogRelationAttributesModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Primary.IsNull() && !m.Primary.IsUnknown() {
+		out["primary"] = m.Primary.ValueBool()
+	}
+	if !m.Id.IsNull() && !m.Id.IsUnknown() {
+		out["id"] = m.Id.ValueString()
+	}
+	return out
+}
+
+// flattenCatalogRelationAttributes refreshes a typed CatalogRelationAttributes object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenCatalogRelationAttributes(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m CatalogRelationAttributesModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := boolFromAPI(raw["primary"]); ok {
+		m.Primary = types.BoolValue(v)
+	}
+	if v, ok := stringFromAPI(raw["id"]); ok {
+		m.Id = types.StringValue(v)
+	}
+	if v, ok := int64FromAPI(raw["position"]); ok {
+		m.Position = types.Int64Value(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, catalogRelationAttributesAttrTypes(), m)
+	return obj
 }
 
 func (r *CatalogRelationResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -43,13 +106,15 @@ func (r *CatalogRelationResource) Metadata(ctx context.Context, req resource.Met
 
 func (r *CatalogRelationResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A catalog relation: a named table of on-call catalog records and their attributes.",
+		Description:         "A catalog relation, a named table of on-call catalog records and their attributes.",
+		MarkdownDescription: "A catalog relation, a named table of on-call catalog records and their attributes.",
 		Attributes: map[string]schema.Attribute{
 			"id":              schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"attributes":      schema.ListNestedAttribute{Required: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Required: true, Description: "Attribute name. Names must be unique within the relation."}, "primary": schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether records are matched by this attribute. Defaults to false.", MarkdownDescription: "Whether records are matched by this attribute. Defaults to `false`."}, "id": schema.StringAttribute{Optional: true, Computed: true, Description: "ID of an existing attribute to keep. Leave it out to keep the attribute with the same name, or to add a new one."}, "position": schema.Int64Attribute{Computed: true, Description: "Display order, set by the order of the list. Primary attributes count from 0 and added attributes from 1000."}}}, Description: "The relation's attributes, in the order the web app shows them as columns. List primary attributes first, since primary attributes always come before the others. Required on create, and at least one must be primary. An update replaces all attributes with the list, and attributes it leaves out are removed with their values from every record. An update without the list keeps the attributes as they are. In Terraform, an item without an id keeps the id of the existing item with the same name, so a reorder or a move updates it in place. An item that matches none keeps the id of the existing item at its position when no other item took that one, so a rename updates it in place too.", MarkdownDescription: "The relation's attributes, in the order the web app shows them as columns. List primary attributes first, since primary attributes always come before the others. Required on create, and at least one must be primary. An update replaces all attributes with the list, and attributes it leaves out are removed with their values from every record. An update without the list keeps the attributes as they are. In Terraform, an item without an id keeps the id of the existing item with the same `name`, so a reorder or a move updates it in place. An item that matches none keeps the id of the existing item at its position when no other item took that one, so a rename updates it in place too."},
 			"description":     schema.StringAttribute{Optional: true, Description: "What this catalog relation describes."},
-			"match_mode":      schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("any"), Description: "How primary attributes combine when matching records: `any` matches a record when any primary attribute matches, `all` when every primary attribute matches.", Validators: []validator.String{stringvalidator.OneOf("any", "all")}},
+			"match_mode":      schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("any"), Description: "How primary attributes combine when matching records.\n\n- any: Matches a record when any primary attribute matches.\n- all: Matches a record when every primary attribute matches.", MarkdownDescription: "How primary attributes combine when matching records.\n\n- `any`: Matches a record when any primary attribute matches.\n- `all`: Matches a record when every primary attribute matches.", Validators: []validator.String{stringvalidator.OneOf("any", "all")}},
 			"name":            schema.StringAttribute{Required: true, Description: "Catalog relation name."},
-			"organization_id": schema.StringAttribute{Optional: true, Computed: true, Description: "Organization that owns this catalog relation, as a plain numeric Better Stack ID.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_catalog_relation"}}},
+			"organization_id": schema.StringAttribute{Optional: true, Computed: true, Description: "Organization that owns this catalog relation, such as 123. Defaults to the token's own organization. Required when you sign in with OAuth and can access more than one organization.", MarkdownDescription: "Organization that owns this catalog relation, such as `123`. Defaults to the token's own organization. Required when you sign in with OAuth and can access more than one organization.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_catalog_relation"}}},
 			"records_count":   schema.Int64Attribute{Computed: true, Description: "Number of catalog records in this catalog relation."},
 		},
 	}
@@ -79,6 +144,15 @@ func (r *CatalogRelationResource) body(ctx context.Context, m CatalogRelationMod
 	if !m.MatchMode.IsNull() && !m.MatchMode.IsUnknown() {
 		body["match_mode"] = m.MatchMode.ValueString()
 	}
+	if !m.Attributes.IsNull() && !m.Attributes.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Attributes.Elements()))
+		for _, el := range m.Attributes.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandCatalogRelationAttributes(ctx, obj))
+			}
+		}
+		body["attributes"] = items
+	}
 	return body
 }
 
@@ -93,6 +167,15 @@ func (r *CatalogRelationResource) bodyForUpdate(ctx context.Context, m CatalogRe
 	}
 	if !m.MatchMode.IsNull() && !m.MatchMode.IsUnknown() {
 		body["match_mode"] = m.MatchMode.ValueString()
+	}
+	if !m.Attributes.IsNull() && !m.Attributes.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Attributes.Elements()))
+		for _, el := range m.Attributes.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandCatalogRelationAttributes(ctx, obj))
+			}
+		}
+		body["attributes"] = items
 	}
 	return body
 }
@@ -117,6 +200,13 @@ func (r *CatalogRelationResource) Create(ctx context.Context, req resource.Creat
 	}
 	vars := map[string]string{}
 	out, err := r.client.Create(ctx, catalogRelationBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating catalog_relation", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating catalog_relation", err, req.Plan.Raw.Type())
 		return
@@ -180,6 +270,34 @@ func populateCatalogRelation(ctx context.Context, m *CatalogRelationModel, attrs
 	if v, ok := int64FromAPI(attrs["records_count"]); ok {
 		m.RecordsCount = types.Int64Value(v)
 	}
+	if raw, ok := attrs["attributes"].([]interface{}); ok {
+		priorByID := map[string]types.Object{}
+		for _, element := range m.Attributes.Elements() {
+			if object, ok := element.(types.Object); ok && !object.IsNull() && !object.IsUnknown() {
+				if value := object.Attributes()["id"]; value != nil && !value.IsNull() && !value.IsUnknown() {
+					if tv, err := value.ToTerraformValue(ctx); err == nil {
+						if av, err := tftypesToAPI(tv); err == nil {
+							priorByID[stringifyScalar(av)] = object
+						}
+					}
+				}
+			}
+		}
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(catalogRelationAttributesAttrTypes())
+				if identity := stringifyScalar(mp["id"]); identity != "" {
+					if existing, ok := priorByID[identity]; ok {
+						prior = existing
+					}
+				}
+				items = append(items, flattenCatalogRelationAttributes(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: catalogRelationAttributesAttrTypes()}, items)
+		m.Attributes = lv
+	}
 }
 
 func (r *CatalogRelationResource) mergeResponse(ctx context.Context, m CatalogRelationModel, attrs map[string]interface{}) {
@@ -193,10 +311,12 @@ func (r *CatalogRelationResource) mergeResponse(ctx context.Context, m CatalogRe
 }
 
 func (r *CatalogRelationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	var plan CatalogRelationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request CatalogRelationModel
 	resp.Diagnostics.Append(configWithPlannedUnknowns(ctx, req.Config, req.Plan, req.State.Raw, &request)...)
+	request.Attributes = withPlannedIDs(ctx, request.Attributes, plan.Attributes, itemMatch{Keys: [][]string{{"name"}}}, &resp.Diagnostics)
 	var state CatalogRelationModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -206,6 +326,12 @@ func (r *CatalogRelationResource) Update(ctx context.Context, req resource.Updat
 	// removed): resending an unchanged default can act on its own, e.g. unpause a group's members.
 	if !plan.MatchMode.Equal(state.MatchMode) {
 		request.MatchMode = plan.MatchMode
+	}
+	// Sent, this list replaces the whole structure, so an unchanged one isn't sent: whatever was
+	// added outside this configuration since the last refresh (a Pulumi update reads no live state)
+	// stays instead of being removed.
+	if plan.Attributes.Equal(state.Attributes) {
+		request.Attributes = types.ListNull(request.Attributes.ElementType(ctx))
 	}
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
@@ -234,8 +360,29 @@ func (r *CatalogRelationResource) Delete(ctx context.Context, req resource.Delet
 	}
 }
 
+// ModifyPlan matches each configured list item without an id to the existing item it stands for,
+// by the list's item key, and plans that item's id and unconfigured values from it. The write then
+// updates the item in place, where an item sent without an id would be created anew.
+func (r *CatalogRelationResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if resp.Diagnostics.HasError() || req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
+		return
+	}
+	var plan, state CatalogRelationModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if matched, ok := matchPlannedList(ctx, plan.Attributes, state.Attributes, itemMatch{Keys: [][]string{{"name"}}}, &resp.Diagnostics).(types.List); ok {
+		plan.Attributes = matched
+	}
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
+}
+
 func (r *CatalogRelationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("match_mode"), "any")...)
 }
 
 var _ resource.ResourceWithMoveState = &CatalogRelationResource{}
@@ -244,6 +391,6 @@ var _ resource.ResourceWithMoveState = &CatalogRelationResource{}
 // betteruptime_catalog_relation (registry.terraform.io/BetterStackHQ/better-uptime).
 func (r *CatalogRelationResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[],\"ignored_fields\":[],\"instructions\":[\"Retain the relation id, name, description and match_mode. The relation and all of its columns and records remain organization-owned; import uses the existing relation id.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/better-uptime\",\"source_type\":\"betteruptime_catalog_relation\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"scope\":{\"kind\":\"organization\",\"field\":\"organization_id\"},\"source_attributes\":[{\"description\":\"A description of the Catalog relation.\",\"name\":\"description\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this Catalog relation.\",\"name\":\"id\",\"type\":\"string\"},{\"default\":\"any\",\"description\":\"Should a record enrich incidents matching any of its primary attribute values, or only incidents matching all of them (an empty primary value then matches any value). Possible values: any, all. Defaults to any.\",\"name\":\"match_mode\",\"optional\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func20\"},{\"description\":\"The name of the Catalog relation.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"}],\"response_projections\":[]}"),
+		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[],\"ignored_fields\":[],\"instructions\":[\"Retain the relation id, name, description and match_mode. The relation and all of its columns and records remain organization-owned; import uses the existing relation id.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/better-uptime\",\"source_type\":\"betteruptime_catalog_relation\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"scope\":{\"kind\":\"organization\",\"field\":\"organization_id\"},\"refreshed_fields\":[\"attributes\"],\"defaults\":{\"match_mode\":\"any\"},\"source_attributes\":[{\"description\":\"A description of the Catalog relation.\",\"name\":\"description\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this Catalog relation.\",\"name\":\"id\",\"type\":\"string\"},{\"default\":\"any\",\"description\":\"Should a record enrich incidents matching any of its primary attribute values, or only incidents matching all of them (an empty primary value then matches any value). Possible values: any, all. Defaults to any.\",\"name\":\"match_mode\",\"optional\":true,\"type\":\"string\",\"validate_func\":\"provider.init.StringInSlice.func20\"},{\"description\":\"The name of the Catalog relation.\",\"name\":\"name\",\"required\":true,\"type\":\"string\"}],\"response_projections\":[]}"),
 	}
 }

@@ -20,6 +20,7 @@ import (
 var _ resource.Resource = &MetadataResource{}
 var _ resource.ResourceWithConfigure = &MetadataResource{}
 var _ resource.ResourceWithImportState = &MetadataResource{}
+var _ resource.ResourceWithModifyPlan = &MetadataResource{}
 
 type MetadataResource struct {
 	client *Client
@@ -35,6 +36,7 @@ type MetadataModel struct {
 	Mode      types.String `tfsdk:"mode"`
 	OwnerId   types.String `tfsdk:"owner_id"`
 	OwnerType types.String `tfsdk:"owner_type"`
+	TeamId    types.String `tfsdk:"team_id"`
 	TeamName  types.String `tfsdk:"team_name"`
 	Values    types.List   `tfsdk:"values"`
 }
@@ -99,8 +101,14 @@ func flattenMetadataValues(ctx context.Context, prior types.Object, raw map[stri
 	if v, ok := stringFromAPI(raw["item_id"]); ok {
 		m.ItemId = types.StringValue(v)
 	}
-	if v, ok := stringFromAPI(raw["name"]); ok {
-		m.Name = types.StringValue(v)
+	if rawValue, exists := raw["name"]; exists {
+		if rawValue == nil {
+			m.Name = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["name"]); ok {
+				m.Name = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := stringFromAPI(raw["email"]); ok {
 		m.Email = types.StringValue(v)
@@ -115,15 +123,17 @@ func (r *MetadataResource) Metadata(ctx context.Context, req resource.MetadataRe
 
 func (r *MetadataResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A metadata annotation: a key and its values, attached to a monitor, heartbeat, incident, or integration.",
+		Description:         "A metadata annotation is a key and its values, attached to a monitor, heartbeat, incident, or integration.",
+		MarkdownDescription: "A metadata annotation is a key and its values, attached to a monitor, heartbeat, incident, or integration.",
 		Attributes: map[string]schema.Attribute{
 			"id":         schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"key":        schema.StringAttribute{Required: true, Description: "Metadata key. Renaming it on update keeps the entry's ID and values."},
-			"mode":       schema.StringAttribute{Optional: true, Computed: true, Description: "What create does when the object already has this key: `replace` overwrites its values, `merge` adds the new values and skips duplicates.", Validators: []validator.String{stringvalidator.OneOf("replace", "merge")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_metadata"}}},
+			"key":        schema.StringAttribute{Required: true, Description: "Metadata key. Renaming it keeps the entry's ID and values."},
+			"mode":       schema.StringAttribute{Optional: true, Computed: true, Description: "What create does when the object already has this key.\n\n- replace: Overwrites the key's values.\n- merge: Adds the new values to the key and skips duplicates.", MarkdownDescription: "What create does when the object already has this key.\n\n- `replace`: Overwrites the key's values.\n- `merge`: Adds the new values to the key and skips duplicates.", Validators: []validator.String{stringvalidator.OneOf("replace", "merge")}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_metadata"}}},
 			"owner_id":   schema.StringAttribute{Required: true, Description: "ID of the object this metadata is attached to."},
-			"owner_type": schema.StringAttribute{Required: true, Description: "Type of object this metadata is attached to: Monitor, Heartbeat, Incident, WebhookIntegration, EmailIntegration, IncomingWebhook or AmazonSnsIntegration. Changing it together with owner_id on update moves the key to another object."},
-			"team_name":  schema.StringAttribute{Computed: true, Description: "Name of the team that owns the object this metadata is attached to."},
-			"values":     schema.ListNestedAttribute{Required: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true, Description: "`String`, or the type of the referenced item."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The text of a String value."}, "item_id": schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the referenced item: a number, or for a team its ID starting with `t`, such as `t123`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "Referenced item's name."}, "email": schema.StringAttribute{Optional: true, Computed: true, Description: "Referenced user's e-mail."}}}, Description: "Values attached to the key. The notes below describe each value's shape. Required on create. On update, the values you send replace all current values, and an empty list removes the key."},
+			"owner_type": schema.StringAttribute{Required: true, Description: "Type of object this metadata is attached to, one of Monitor, Heartbeat, Incident, WebhookIntegration, EmailIntegration, IncomingWebhook, AmazonSnsIntegration or CallRouting. Create and update accept every type except CallRouting. Changing it together with owner_id moves the key to another object.", MarkdownDescription: "Type of object this metadata is attached to, one of `Monitor`, `Heartbeat`, `Incident`, `WebhookIntegration`, `EmailIntegration`, `IncomingWebhook`, `AmazonSnsIntegration` or `CallRouting`. Create and update accept every type except `CallRouting`. Changing it together with `owner_id` moves the key to another object."},
+			"team_id":    schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns the object this metadata is attached to, such as t123. Defaults to the provider's team_id. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", MarkdownDescription: "Team that owns the object this metadata is attached to, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_metadata"}}},
+			"team_name":  schema.StringAttribute{Computed: true, Description: "Name of the team that owns the object this metadata is attached to.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"values":     schema.ListNestedAttribute{Required: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true, Description: "String, or the type of the referenced item, which is one of User, Team, EscalationPolicy, OnCallSchedule, Monitor, SlackIntegration, LinearIntegration, JiraIntegration, MicrosoftTeamsIntegration, ZapierZap, OutgoingWebhook, PagerDutyIntegration or Source.", MarkdownDescription: "`String`, or the type of the referenced item, which is one of `User`, `Team`, `EscalationPolicy`, `OnCallSchedule`, `Monitor`, `SlackIntegration`, `LinearIntegration`, `JiraIntegration`, `MicrosoftTeamsIntegration`, `ZapierZap`, `OutgoingWebhook`, `PagerDutyIntegration` or `Source`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The text of a String value.", MarkdownDescription: "The text of a `String` value."}, "item_id": schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the referenced item. For a user it's u123 or their e-mail. For a team it's t123, and for any other item it's the item's own ID. Responses return users and teams in this form. Get a user's ID via List team members (https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via List teams (https://betterstack.com/docs/uptime/api/teams/list/).", MarkdownDescription: "ID of the referenced item. For a user it's `u123` or their e-mail. For a team it's `t123`, and for any other item it's the item's own ID. Responses return users and teams in this form. Get a user's ID via [List team members](https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via [List teams](https://betterstack.com/docs/uptime/api/teams/list/).", Validators: []validator.String{patternWhenString{Sibling: "type", Patterns: map[string]string{"User": "^(u[1-9][0-9]*|[^@/\\s]+@[^@/\\s]+)$", "Team": "^t[1-9][0-9]*$"}}}}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "Referenced item's name, or null when the item has no name or no longer exists. An item can also be found by its name instead of item_id.", MarkdownDescription: "Referenced item's name, or `null` when the item has no name or no longer exists. An item can also be found by its name instead of `item_id`."}, "email": schema.StringAttribute{Optional: true, Computed: true, Description: "Referenced user's e-mail, returned for a User. A user can also be found by e-mail."}}}, Description: "Values attached to the key. Required on create. An update replaces all current values, and an empty list removes the key."},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -196,8 +206,16 @@ func (r *MetadataResource) Create(ctx context.Context, req resource.CreateReques
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
 	out, err := r.client.Create(ctx, metadataBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating metadata", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating metadata", err, req.Plan.Raw.Type())
 		return
@@ -222,9 +240,22 @@ func (r *MetadataResource) Read(ctx context.Context, req resource.ReadRequest, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, metadataBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), metadataBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading metadata", err, req.State.Raw.Type())
 		return
@@ -242,9 +273,6 @@ func (r *MetadataResource) Read(ctx context.Context, req resource.ReadRequest, r
 func populateMetadata(ctx context.Context, m *MetadataModel, attrs map[string]interface{}) {
 	if attrs == nil {
 		return
-	}
-	if v, ok := stringFromAPI(attrs["team_name"]); ok {
-		m.TeamName = types.StringValue(v)
 	}
 	if v, ok := stringFromAPI(attrs["owner_type"]); ok {
 		m.OwnerType = types.StringValue(v)
@@ -266,6 +294,12 @@ func populateMetadata(ctx context.Context, m *MetadataModel, attrs map[string]in
 		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: metadataValuesAttrTypes()}, items)
 		m.Values = lv
 	}
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(attrs["team_name"]); ok {
+		m.TeamName = types.StringValue(v)
+	}
 }
 
 func (r *MetadataResource) mergeResponse(ctx context.Context, m MetadataModel, attrs map[string]interface{}) {
@@ -279,6 +313,7 @@ func (r *MetadataResource) mergeResponse(ctx context.Context, m MetadataModel, a
 }
 
 func (r *MetadataResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	var plan MetadataModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request MetadataModel
@@ -288,6 +323,7 @@ func (r *MetadataResource) Update(ctx context.Context, req resource.UpdateReques
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, err := r.client.Update(ctx, metadataBinding, vars, r.bodyForUpdate(ctx, request))
@@ -308,6 +344,7 @@ func (r *MetadataResource) Delete(ctx context.Context, req resource.DeleteReques
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	if err := r.client.Delete(ctx, metadataBinding, vars); err != nil {
@@ -315,6 +352,11 @@ func (r *MetadataResource) Delete(ctx context.Context, req resource.DeleteReques
 	}
 }
 
+func (r *MetadataResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseUnnamedTeam(ctx, req, resp, r.client, "metadata")
+}
+
 func (r *MetadataResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

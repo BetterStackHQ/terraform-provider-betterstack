@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -28,47 +29,50 @@ func (d *AlertDataSource) Metadata(ctx context.Context, req datasource.MetadataR
 
 func (d *AlertDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "An alert on a dashboard chart or a saved exploration that opens an incident when its condition is met.",
+		Description:         "An alert on a dashboard chart or a saved exploration that opens an incident when its condition is met.",
+		MarkdownDescription: "An alert on a dashboard chart or a saved exploration that opens an incident when its condition is met.",
 		Attributes: map[string]schema.Attribute{
-			"id":                          schema.StringAttribute{Optional: true, Computed: true, Description: "Look up by id, or by name."},
-			"additional_conditions":       schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"alert_type": schema.StringAttribute{Computed: true}, "operator": schema.StringAttribute{Computed: true}, "value": schema.Float64Attribute{Computed: true}, "string_value": schema.StringAttribute{Computed: true}, "series_names": schema.ListAttribute{Computed: true, ElementType: types.StringType}, "series_names_except": schema.ListAttribute{Computed: true, ElementType: types.StringType}}}, Description: "Extra conditions evaluated alongside the alert's own."},
-			"aggregation_interval":        schema.Int64Attribute{Computed: true, Description: "Aggregation interval in seconds. Defaults to `query_period`, then `check_period`, then 60."},
-			"alert_type":                  schema.StringAttribute{Computed: true, Description: "Alert type: `threshold` fires when the value crosses a threshold, `relative` compares it with the previous period, and `anomaly_rrcf` uses anomaly detection."},
-			"anomaly_sensitivity":         schema.Float64Attribute{Computed: true, Description: "Anomaly sensitivity, for `anomaly_rrcf` alerts only. `null` on threshold and relative alerts."},
-			"anomaly_training_range_days": schema.Int64Attribute{Computed: true, Description: "Days of history the anomaly model is first trained on, from 1 to 30. For `anomaly_rrcf` alerts only. `null` on threshold and relative alerts."},
-			"anomaly_trigger":             schema.StringAttribute{Computed: true, Description: "Which direction of anomaly fires the alert, for `anomaly_rrcf` alerts only. `null` on threshold and relative alerts."},
-			"call":                        schema.BoolAttribute{Computed: true, Description: "Trigger phone-call alerts."},
-			"chart_id":                    schema.StringAttribute{Required: true, Description: "Chart this alert watches. It can't be changed after the alert is created. The alert belongs to the chart's dashboard or exploration."},
-			"check_period":                schema.Int64Attribute{Computed: true, Description: "How often the alert is evaluated, in seconds. Required when creating a threshold or relative alert. Not returned for anomaly alerts. An update that sends `check_period` without `query_period` or `aggregation_interval` sets both to it."},
-			"confirmation_period":         schema.Int64Attribute{Computed: true, Description: "Seconds the condition must hold before the incident opens."},
+			"id":                          schema.StringAttribute{Optional: true, Computed: true, Description: "Look up by id, or by dashboard_id / chart_id / exploration_id / name."},
+			"additional_conditions":       schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"alert_type": schema.StringAttribute{Computed: true, Description: "The type of the condition, threshold or relative.", MarkdownDescription: "The type of the condition, `threshold` or `relative`."}, "operator": schema.StringAttribute{Computed: true, Description: "The comparison the condition makes, from the same values as operator.", MarkdownDescription: "The comparison the condition makes, from the same values as `operator`."}, "value": schema.Float64Attribute{Computed: true, Description: "Threshold value. null when the condition compares string_value.", MarkdownDescription: "Threshold value. `null` when the condition compares `string_value`."}, "string_value": schema.StringAttribute{Computed: true, Description: "Threshold value for a string series. null when the condition compares value.", MarkdownDescription: "Threshold value for a string series. `null` when the condition compares `value`."}, "series_names": schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "The series the condition is limited to. An empty list means every series."}, "series_names_except": schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "The series the condition ignores while it watches every other series."}}}, Description: "Up to 4 more conditions on top of the alert's own. A series fires only when it breaches the alert's own condition and every other condition that covers it, in the same time bucket. A condition limited to other series is met when one of those series breaches it. Each has an alert_type of threshold or relative, an operator, a value or string_value, and optionally series_names or series_names_except. Anomaly detection can't be an additional condition. An empty list removes them all.", MarkdownDescription: "Up to 4 more conditions on top of the alert's own. A series fires only when it breaches the alert's own condition and every other condition that covers it, in the same time bucket. A condition limited to other series is met when one of those series breaches it. Each has an `alert_type` of `threshold` or `relative`, an `operator`, a `value` or `string_value`, and optionally `series_names` or `series_names_except`. Anomaly detection can't be an additional condition. An empty list removes them all."},
+			"aggregation_interval":        schema.Int64Attribute{Computed: true, Description: "The size of the buckets the data is aggregated into before each bucket is evaluated, in seconds."},
+			"alert_type":                  schema.StringAttribute{Computed: true, Description: "Alert type. An update can change it.\n\n- threshold: Fires when the value crosses a threshold.\n- relative: Compares the value with the previous period as a percentage change.\n- anomaly_rrcf: Uses machine learning anomaly detection. Table charts don't accept it.", MarkdownDescription: "Alert type. An update can change it.\n\n- `threshold`: Fires when the value crosses a threshold.\n- `relative`: Compares the value with the previous period as a percentage change.\n- `anomaly_rrcf`: Uses machine learning anomaly detection. Table charts don't accept it."},
+			"anomaly_sensitivity":         schema.Float64Attribute{Computed: true, Description: "How far a value must deviate from its prediction to trigger the alert, for anomaly_rrcf alerts only. The app shows it as Significance. A higher value needs a larger deviation, so the alert fires less often. Left out for threshold and relative alerts.", MarkdownDescription: "How far a value must deviate from its prediction to trigger the alert, for `anomaly_rrcf` alerts only. The app shows it as Significance. A higher value needs a larger deviation, so the alert fires less often. Left out for threshold and relative alerts."},
+			"anomaly_training_range_days": schema.Int64Attribute{Computed: true, Description: "Days of history the anomaly model is first trained on, from 1 to 30. For anomaly_rrcf alerts only. Left out of the response on threshold and relative alerts.", MarkdownDescription: "Days of history the anomaly model is first trained on, from 1 to 30. For `anomaly_rrcf` alerts only. Left out of the response on threshold and relative alerts."},
+			"anomaly_trigger":             schema.StringAttribute{Computed: true, Description: "Which direction of anomaly fires the alert, for anomaly_rrcf alerts only. Left out of the response on threshold and relative alerts.\n\n- any: Fires on values above or below the prediction.\n- higher: Fires on values above the prediction.\n- lower: Fires on values below the prediction.", MarkdownDescription: "Which direction of anomaly fires the alert, for `anomaly_rrcf` alerts only. Left out of the response on threshold and relative alerts.\n\n- `any`: Fires on values above or below the prediction.\n- `higher`: Fires on values above the prediction.\n- `lower`: Fires on values below the prediction."},
+			"call":                        schema.BoolAttribute{Computed: true, Description: "Trigger phone-call alerts. Left out of reads when the alert routes to an escalation policy. A plan without phone call alerts refuses true with a 422, unless the alert already has it.", MarkdownDescription: "Trigger phone-call alerts. Left out of reads when the alert routes to an escalation policy. A plan without phone call alerts refuses `true` with a 422, unless the alert already has it."},
+			"chart_id":                    schema.StringAttribute{Optional: true, Computed: true, Description: "Chart this alert watches, on the dashboard in dashboard_id. null for an alert on an exploration.", MarkdownDescription: "Chart this alert watches, on the dashboard in `dashboard_id`. `null` for an alert on an exploration."},
+			"check_period":                schema.Int64Attribute{Computed: true, Description: "How often the alert is checked, in seconds. Not returned for anomaly_rrcf alerts. An update that includes check_period without query_period or aggregation_interval sets both to it.", MarkdownDescription: "How often the alert is checked, in seconds. Not returned for `anomaly_rrcf` alerts. An update that includes `check_period` without `query_period` or `aggregation_interval` sets both to it."},
+			"confirmation_period":         schema.Int64Attribute{Computed: true, Description: "How long the condition must hold before an incident starts, in seconds, from 0 to 86400. 0 starts it at once.", MarkdownDescription: "How long the condition must hold before an incident starts, in seconds, from `0` to `86400`. `0` starts it at once."},
 			"created_at":                  schema.StringAttribute{Computed: true, Description: "When the alert was created."},
-			"critical_alert":              schema.BoolAttribute{Computed: true, Description: "Trigger critical push alerts that bypass silent mode."},
-			"dashboard_id":                schema.StringAttribute{Required: true, Description: "Dashboard of the chart this alert watches. `null` for an alert on an exploration."},
-			"email":                       schema.BoolAttribute{Computed: true, Description: "Trigger e-mail alerts."},
-			"escalation_target":           schema.DynamicAttribute{Computed: true, Description: "Where the incident is routed: the string `current_team`, which is the default, an object with a numeric `policy_id` and `policy_name`, or an object with `team_id` and `team_name`. Reads return the string `unknown` when the target can't be looked up or no longer exists. When writing, name the policy or team by ID, by name or both. Naming both a policy and a team, an unknown one, or a name several match without an ID returns 422."},
-			"exploration_id":              schema.StringAttribute{Computed: true, Description: "Exploration this alert watches. `null` for an alert on a dashboard chart."},
-			"incident_cause":              schema.StringAttribute{Computed: true, Description: "Incident cause text."},
-			"incident_name":               schema.StringAttribute{Computed: true, Description: "Incident name text."},
-			"incident_per_series":         schema.BoolAttribute{Computed: true, Description: "Open one incident per series rather than one for the whole alert."},
-			"metadata":                    schema.DynamicAttribute{Computed: true, Description: "Custom incident metadata: arbitrary keys whose values are a string or an array of strings. Sending an empty object clears it."},
+			"critical_alert":              schema.BoolAttribute{Computed: true, Description: "Trigger critical push alerts that bypass silent mode. Left out of reads when the alert routes to an escalation policy. A plan without critical alerts refuses true with a 422, unless the alert already has it.", MarkdownDescription: "Trigger critical push alerts that bypass silent mode. Left out of reads when the alert routes to an escalation policy. A plan without critical alerts refuses `true` with a 422, unless the alert already has it."},
+			"dashboard_id":                schema.StringAttribute{Optional: true, Computed: true, Description: "Dashboard of the chart this alert watches. null for an alert on an exploration.", MarkdownDescription: "Dashboard of the chart this alert watches. `null` for an alert on an exploration."},
+			"email":                       schema.BoolAttribute{Computed: true, Description: "Trigger e-mail alerts. Left out of reads when the alert routes to an escalation policy."},
+			"escalation_target":           schema.SingleNestedAttribute{Computed: true, Attributes: map[string]schema.Attribute{"policy_id": schema.StringAttribute{Computed: true, Description: "Escalation policy ID."}, "policy_name": schema.StringAttribute{Computed: true, Description: "Escalation policy name."}, "team_id": schema.StringAttribute{Computed: true, Description: "Team ID, such as t123.", MarkdownDescription: "Team ID, such as `t123`."}, "team_name": schema.StringAttribute{Computed: true, Description: "Team name."}}, Description: "Where the incident is routed. It's the string current_team, which is the default, an object with policy_id and policy_name, or an object with team_id and team_name. Reads return the string unknown when the target can't be looked up or no longer exists. A policy is named by ID, by name or both, and a team by team_id. An empty object routes to the current team too. Naming both a policy and a team, an unknown one, or a policy name several match without an ID, is refused.", MarkdownDescription: "Where the incident is routed. It's the string `current_team`, which is the default, an object with `policy_id` and `policy_name`, or an object with `team_id` and `team_name`. Reads return the string `unknown` when the target can't be looked up or no longer exists. A policy is named by ID, by name or both, and a team by `team_id`. An empty object routes to the current team too. Naming both a policy and a team, an unknown one, or a policy name several match without an ID, is refused."},
+			"exploration_id":              schema.StringAttribute{Optional: true, Computed: true, Description: "Exploration this alert watches. null for an alert on a dashboard chart.", MarkdownDescription: "Exploration this alert watches. `null` for an alert on a dashboard chart."},
+			"incident_cause":              schema.StringAttribute{Computed: true, Description: "A custom description for the incidents the alert starts, in Markdown, or null when none is set. It accepts the same template variables as incident_name, such as {{current_value}} and {{threshold_value}}.", MarkdownDescription: "A custom description for the incidents the alert starts, in Markdown, or `null` when none is set. It accepts the same template variables as `incident_name`, such as `{{current_value}}` and `{{threshold_value}}`."},
+			"incident_name":               schema.StringAttribute{Computed: true, Description: "A custom name for the incidents the alert starts, in plain text, or null when none is set. It accepts template variables such as {{alert_name}}, {{series_name}}, {{current_value}}, {{threshold_value}}, {{team_name}}, the chart's variables and the columns its query returns.", MarkdownDescription: "A custom name for the incidents the alert starts, in plain text, or `null` when none is set. It accepts template variables such as `{{alert_name}}`, `{{series_name}}`, `{{current_value}}`, `{{threshold_value}}`, `{{team_name}}`, the chart's variables and the columns its query returns."},
+			"incident_per_series":         schema.BoolAttribute{Computed: true, Description: "Whether each series that breaches the condition starts its own incident, rather than one incident for the whole alert."},
+			"metadata":                    schema.MapAttribute{Computed: true, ElementType: types.ListType{ElemType: types.StringType}, Description: "Custom incident metadata, where each key you choose holds a list of strings. A single string is accepted too and saved as a one-item list. It's added to the alert's incidents. An update replaces all of it."},
 			"name":                        schema.StringAttribute{Optional: true, Computed: true, Description: "Alert name. Renaming marks the alert as manually named, so it stops tracking the chart's name."},
-			"on_missing_data":             schema.StringAttribute{Computed: true, Description: "What to do when the query returns no data. Anomaly alerts take it from the chart, so it can't be sent for them and is `null`."},
-			"operator":                    schema.StringAttribute{Computed: true, Description: "How the value is compared. Required for threshold and relative alerts. Anomaly alerts don't use it and return `null`."},
-			"paused":                      schema.BoolAttribute{Computed: true, Description: "Whether the alert is paused. Send it as a JSON boolean: the string `\"true\"` is ignored."},
-			"paused_reason":               schema.StringAttribute{Computed: true, Description: "Why the alert is paused: `manual`, `too_complex`, `query_errors`, `sources_not_eligible`, `anomaly_training_no_data` or `chart_not_alertable`. `null` when the alert isn't paused."},
-			"push":                        schema.BoolAttribute{Computed: true, Description: "Trigger mobile push alerts."},
-			"query_period":                schema.Int64Attribute{Computed: true, Description: "Query window in seconds. Defaults to `aggregation_interval`, then `check_period`, then 60."},
-			"recovery_period":             schema.Int64Attribute{Computed: true, Description: "Seconds the value must stay recovered before the incident resolves on its own. Defaults to 60. Send `null` to never resolve it automatically."},
-			"series_names":                schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "Evaluate only these series. Can't be combined with `series_names_except`. Sending either one replaces both."},
-			"series_names_except":         schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "Evaluate every series except these. Can't be combined with `series_names`. Sending either one replaces both."},
-			"sms":                         schema.BoolAttribute{Computed: true, Description: "Trigger SMS alerts."},
-			"source_mode":                 schema.StringAttribute{Computed: true, Description: "How the sources under evaluation are selected."},
-			"source_platforms":            schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "Platforms to evaluate, for the `platforms_single_source` and `platforms_all_sources` source modes."},
-			"source_variable":             schema.StringAttribute{Computed: true, Description: "Source variable to evaluate, for example `source:table_name`. Defaults to the chart's own source."},
-			"string_value":                schema.StringAttribute{Computed: true, Description: "Threshold value for a string series, for threshold alerts only."},
+			"on_missing_data":             schema.StringAttribute{Computed: true, Description: "What a check does when the query returns no data. It can't be sent for anomaly_rrcf alerts and is left out of their responses.\n\n- treat_as_zero: Checks the missing data as if the value were 0.\n- dont_fire: Starts no incident for missing data.\n- treat_as_previous: Checks the missing data as if it had the previous value.\n- start_incident: Starts an incident when the query returns no data.", MarkdownDescription: "What a check does when the query returns no data. It can't be sent for `anomaly_rrcf` alerts and is left out of their responses.\n\n- `treat_as_zero`: Checks the missing data as if the value were 0.\n- `dont_fire`: Starts no incident for missing data.\n- `treat_as_previous`: Checks the missing data as if it had the previous value.\n- `start_incident`: Starts an incident when the query returns no data."},
+			"operator":                    schema.StringAttribute{Computed: true, Description: "How the value is compared. Required for threshold and relative alerts. anomaly_rrcf alerts don't use it, and it's left out of their responses.\n\n- equal: A threshold alert fires when the value equals value or string_value.\n- not_equal: A threshold alert fires when the value differs from value or string_value.\n- higher_than: A threshold alert fires when the value is above value.\n- higher_than_or_equal: A threshold alert fires when the value is at or above value.\n- lower_than: A threshold alert fires when the value is below value.\n- lower_than_or_equal: A threshold alert fires when the value is at or below value.\n- increases_by: A relative alert fires when the value rises by value percent or more.\n- decreases_by: A relative alert fires when the value falls by value percent or more.\n- changes_by: A relative alert fires when the value rises or falls by value percent or more.", MarkdownDescription: "How the value is compared. Required for threshold and relative alerts. `anomaly_rrcf` alerts don't use it, and it's left out of their responses.\n\n- `equal`: A `threshold` alert fires when the value equals `value` or `string_value`.\n- `not_equal`: A `threshold` alert fires when the value differs from `value` or `string_value`.\n- `higher_than`: A `threshold` alert fires when the value is above `value`.\n- `higher_than_or_equal`: A `threshold` alert fires when the value is at or above `value`.\n- `lower_than`: A `threshold` alert fires when the value is below `value`.\n- `lower_than_or_equal`: A `threshold` alert fires when the value is at or below `value`.\n- `increases_by`: A `relative` alert fires when the value rises by `value` percent or more.\n- `decreases_by`: A `relative` alert fires when the value falls by `value` percent or more.\n- `changes_by`: A `relative` alert fires when the value rises or falls by `value` percent or more."},
+			"paused":                      schema.BoolAttribute{Computed: true, Description: "Whether the alert is paused."},
+			"paused_reason":               schema.StringAttribute{Computed: true, Description: "Why the alert is paused. It's Manually paused for an alert paused by hand, or a sentence that says Better Stack paused it and why. null when the alert isn't paused.", MarkdownDescription: "Why the alert is paused. It's `Manually paused` for an alert paused by hand, or a sentence that says Better Stack paused it and why. `null` when the alert isn't paused."},
+			"push":                        schema.BoolAttribute{Computed: true, Description: "Trigger mobile push alerts. Left out of reads when the alert routes to an escalation policy. A plan without push notifications refuses true with a 422, unless the alert already has it.", MarkdownDescription: "Trigger mobile push alerts. Left out of reads when the alert routes to an escalation policy. A plan without push notifications refuses `true` with a 422, unless the alert already has it."},
+			"query_period":                schema.Int64Attribute{Computed: true, Description: "The time window of data each check looks at, in seconds."},
+			"recovery_period":             schema.Int64Attribute{Computed: true, Description: "Seconds the value must stay recovered before the incident resolves on its own, or null to never resolve it automatically.", MarkdownDescription: "Seconds the value must stay recovered before the incident resolves on its own, or `null` to never resolve it automatically."},
+			"series_names":                schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "The series the alert is limited to. An empty list means every series. Can't be combined with series_names_except.", MarkdownDescription: "The series the alert is limited to. An empty list means every series. Can't be combined with `series_names_except`."},
+			"series_names_except":         schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "The series the alert ignores while it watches every other series. Can't be combined with series_names, so it's empty when series_names is used.", MarkdownDescription: "The series the alert ignores while it watches every other series. Can't be combined with `series_names`, so it's empty when `series_names` is used."},
+			"shown_interval":              schema.Int64Attribute{Computed: true, Description: "Interval in seconds the anomaly chart shows, for anomaly_rrcf alerts only. It's one of 30, 60, 120, 300, 600, 1800, 3600, 7200, 10800, 21600, 43200 or 86400. Left out of the response on threshold and relative alerts.", MarkdownDescription: "Interval in seconds the anomaly chart shows, for `anomaly_rrcf` alerts only. It's one of 30, 60, 120, 300, 600, 1800, 3600, 7200, 10800, 21600, 43200 or 86400. Left out of the response on threshold and relative alerts."},
+			"sms":                         schema.BoolAttribute{Computed: true, Description: "Trigger SMS alerts. Left out of reads when the alert routes to an escalation policy. A plan without SMS alerts refuses true with a 422, unless the alert already has it.", MarkdownDescription: "Trigger SMS alerts. Left out of reads when the alert routes to an escalation policy. A plan without SMS alerts refuses `true` with a 422, unless the alert already has it."},
+			"source_mode":                 schema.StringAttribute{Computed: true, Description: "How the alert picks its sources.\n\n- source_variable: Runs on the sources in source_variable.\n- platforms_single_source: Runs on the one source in source_variable, limited to source_platforms.\n- platforms_all_sources: Runs on every source that matches source_platforms.", MarkdownDescription: "How the alert picks its sources.\n\n- `source_variable`: Runs on the sources in `source_variable`.\n- `platforms_single_source`: Runs on the one source in `source_variable`, limited to `source_platforms`.\n- `platforms_all_sources`: Runs on every source that matches `source_platforms`."},
+			"source_platforms":            schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "Platforms that limit the sources and services the alert runs on, for the platforms_single_source and platforms_all_sources source modes.", MarkdownDescription: "Platforms that limit the sources and services the alert runs on, for the `platforms_single_source` and `platforms_all_sources` source modes."},
+			"source_variable":             schema.StringAttribute{Computed: true, Description: "The sources the alert runs on, as source: followed by comma-separated source table names, or null when none is set. With the source_variable and platforms_single_source modes, the value must start with source:.", MarkdownDescription: "The sources the alert runs on, as `source:` followed by comma-separated source table names, or `null` when none is set. With the `source_variable` and `platforms_single_source` modes, the value must start with `source:`."},
+			"string_value":                schema.StringAttribute{Computed: true, Description: "The exact text a threshold alert compares, instead of value, with equal or not_equal only. When it's set, value isn't needed and reads back as null. Returned for threshold alerts only.", MarkdownDescription: "The exact text a `threshold` alert compares, instead of `value`, with `equal` or `not_equal` only. When it's set, `value` isn't needed and reads back as `null`. Returned for threshold alerts only."},
+			"team_id":                     schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns the alert, the team of its chart's dashboard or exploration, such as t123. Defaults to the provider's team_id. Set it to look the object up in another team.", MarkdownDescription: "Team that owns the alert, the team of its chart's dashboard or exploration, such as `t123`. Defaults to the provider's `team_id`. Set it to look the object up in another team.", Validators: []validator.String{teamIDValidator()}},
 			"updated_at":                  schema.StringAttribute{Computed: true, Description: "When the alert was last updated."},
-			"value":                       schema.Float64Attribute{Computed: true, Description: "Threshold value. Creating a threshold or relative alert needs `value` or `string_value`. `null` on anomaly alerts."},
-			"variable_values":             schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Computed: true}, "selected_label": schema.StringAttribute{Computed: true}, "values": schema.ListAttribute{Computed: true, ElementType: types.StringType}}}, Description: "Values this alert sets for the template variables of its dashboard or exploration. Each `name` must be a variable defined there. Source variables aren't accepted: use `source_mode` and `source_variable` instead."},
+			"value":                       schema.Float64Attribute{Computed: true, Description: "The threshold for threshold alerts, or the percentage change for relative alerts. 0 is a valid value. null when the alert compares string_value. Creating a threshold or relative alert needs value or string_value. Left out for anomaly_rrcf alerts.", MarkdownDescription: "The threshold for `threshold` alerts, or the percentage change for `relative` alerts. `0` is a valid value. `null` when the alert compares `string_value`. Creating a threshold or relative alert needs `value` or `string_value`. Left out for `anomaly_rrcf` alerts."},
+			"variable_values":             schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Computed: true, Description: "The name of a variable on the alert's dashboard or exploration."}, "selected_label": schema.StringAttribute{Computed: true, Description: "For a select_predefined_sql variable, the label of the filter the alert uses.", MarkdownDescription: "For a `select_predefined_sql` variable, the label of the filter the alert uses."}, "values": schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "The values the alert uses for the variable, as strings."}}}, Description: "Values this alert sets for the template variables of its dashboard or exploration. Each name must be a variable defined there. Source variables aren't accepted, so use source_mode and source_variable instead.", MarkdownDescription: "Values this alert sets for the template variables of its dashboard or exploration. Each `name` must be a variable defined there. Source variables aren't accepted, so use `source_mode` and `source_variable` instead."},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -87,11 +91,10 @@ func (d *AlertDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, data.TeamId.ValueString())
 	var out map[string]interface{}
 	if !data.Id.IsNull() && !data.Id.IsUnknown() && data.Id.ValueString() != "" {
 		vars := map[string]string{}
-		vars["dashboard_id"] = data.DashboardId.ValueString()
-		vars["chart_id"] = data.ChartId.ValueString()
 		vars["id"] = data.Id.ValueString()
 		got, found, err := d.client.GetDataSource(ctx, alertBinding, vars)
 		if err != nil {
@@ -103,6 +106,45 @@ func (d *AlertDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 			return
 		}
 		out = got
+		if !data.DashboardId.IsNull() && !data.DashboardId.IsUnknown() && data.DashboardId.ValueString() != "" {
+			matched := false
+			for _, field := range []string{"dashboard_id"} {
+				if stringifyScalar(out[field]) == data.DashboardId.ValueString() {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				resp.Diagnostics.AddError("alert lookup conflicts with id", "The selected object does not match configured dashboard_id.")
+				return
+			}
+		}
+		if !data.ChartId.IsNull() && !data.ChartId.IsUnknown() && data.ChartId.ValueString() != "" {
+			matched := false
+			for _, field := range []string{"chart_id"} {
+				if stringifyScalar(out[field]) == data.ChartId.ValueString() {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				resp.Diagnostics.AddError("alert lookup conflicts with id", "The selected object does not match configured chart_id.")
+				return
+			}
+		}
+		if !data.ExplorationId.IsNull() && !data.ExplorationId.IsUnknown() && data.ExplorationId.ValueString() != "" {
+			matched := false
+			for _, field := range []string{"exploration_id"} {
+				if stringifyScalar(out[field]) == data.ExplorationId.ValueString() {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				resp.Diagnostics.AddError("alert lookup conflicts with id", "The selected object does not match configured exploration_id.")
+				return
+			}
+		}
 		if !data.Name.IsNull() && !data.Name.IsUnknown() && data.Name.ValueString() != "" {
 			matched := false
 			for _, field := range []string{"name"} {
@@ -120,18 +162,31 @@ func (d *AlertDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		// Lookup by filter: narrow server-side with the filters the list endpoint declares, then
 		// require an exact, unambiguous client-side match.
 		vars := map[string]string{}
-		vars["dashboard_id"] = data.DashboardId.ValueString()
-		vars["chart_id"] = data.ChartId.ValueString()
 		q := url.Values{}
 		want := map[string]string{}
 		alternatives := map[string][]string{
-			"name": {"name"},
+			"dashboard_id":   {"dashboard_id"},
+			"chart_id":       {"chart_id"},
+			"exploration_id": {"exploration_id"},
+			"name":           {"name"},
+		}
+		if !data.DashboardId.IsNull() && !data.DashboardId.IsUnknown() && data.DashboardId.ValueString() != "" {
+			q.Set("dashboard_id", data.DashboardId.ValueString())
+			want["dashboard_id"] = data.DashboardId.ValueString()
+		}
+		if !data.ChartId.IsNull() && !data.ChartId.IsUnknown() && data.ChartId.ValueString() != "" {
+			q.Set("chart_id", data.ChartId.ValueString())
+			want["chart_id"] = data.ChartId.ValueString()
+		}
+		if !data.ExplorationId.IsNull() && !data.ExplorationId.IsUnknown() && data.ExplorationId.ValueString() != "" {
+			q.Set("exploration_id", data.ExplorationId.ValueString())
+			want["exploration_id"] = data.ExplorationId.ValueString()
 		}
 		if !data.Name.IsNull() && !data.Name.IsUnknown() && data.Name.ValueString() != "" {
 			want["name"] = data.Name.ValueString()
 		}
 		if len(want) == 0 {
-			resp.Diagnostics.AddError("missing alert lookup", "Set id or one of: name.")
+			resp.Diagnostics.AddError("missing alert lookup", "Set id or one of: dashboard_id, chart_id, exploration_id, name.")
 			return
 		}
 		records, err := d.client.List(ctx, alertBinding, vars, q)
@@ -172,8 +227,6 @@ func (d *AlertDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		// List endpoints may return summaries. Resolve the selected identity through the real
 		// member endpoint so computed outputs and data-source-only reads are complete.
 		memberVars := map[string]string{}
-		memberVars["dashboard_id"] = data.DashboardId.ValueString()
-		memberVars["chart_id"] = data.ChartId.ValueString()
 		memberVars["id"] = data.Id.ValueString()
 		detail, found, err := d.client.GetDataSource(ctx, alertBinding, memberVars)
 		if err != nil {

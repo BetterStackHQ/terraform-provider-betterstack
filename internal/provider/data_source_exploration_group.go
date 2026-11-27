@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -28,11 +29,13 @@ func (d *ExplorationGroupDataSource) Metadata(ctx context.Context, req datasourc
 
 func (d *ExplorationGroupDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A group that organizes related explorations together.",
+		Description:         "A group that organizes related explorations together.",
+		MarkdownDescription: "A group that organizes related explorations together.",
 		Attributes: map[string]schema.Attribute{
 			"id":         schema.StringAttribute{Optional: true, Computed: true, Description: "Look up by id, or by name."},
 			"created_at": schema.StringAttribute{Computed: true, Description: "When the group was created."},
 			"name":       schema.StringAttribute{Optional: true, Computed: true, Description: "Group name."},
+			"team_id":    schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns the group, such as t123. Defaults to the provider's team_id. Set it to look the object up in another team.", MarkdownDescription: "Team that owns the group, such as `t123`. Defaults to the provider's `team_id`. Set it to look the object up in another team.", Validators: []validator.String{teamIDValidator()}},
 			"team_name":  schema.StringAttribute{Computed: true, Description: "Name of the team that owns the group."},
 			"updated_at": schema.StringAttribute{Computed: true, Description: "When the group was last updated."},
 		},
@@ -53,6 +56,7 @@ func (d *ExplorationGroupDataSource) Read(ctx context.Context, req datasource.Re
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, data.TeamId.ValueString())
 	var out map[string]interface{}
 	if !data.Id.IsNull() && !data.Id.IsUnknown() && data.Id.ValueString() != "" {
 		vars := map[string]string{}

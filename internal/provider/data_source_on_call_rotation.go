@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -27,19 +28,21 @@ func (d *OnCallRotationDataSource) Metadata(ctx context.Context, req datasource.
 
 func (d *OnCallRotationDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "An on-call rotation: the recurring shift configuration for an on-call schedule.",
+		Description:         "An on-call schedule's rotation, the users who are on call in turn and how long each shift lasts.",
+		MarkdownDescription: "An on-call schedule's rotation, the users who are on call in turn and how long each shift lasts.",
 		Attributes: map[string]schema.Attribute{
-			"id":                  schema.StringAttribute{Required: true, Description: "Id of the on_call_rotation to look up."},
-			"apply_from":          schema.StringAttribute{Computed: true, Description: "When this change takes effect, as Apply changes from in the web app. Shifts before it are kept. Leave it out to apply the change now."},
-			"apply_from_timezone": schema.StringAttribute{Computed: true, Description: "Time zone that apply_from is read in when it has no UTC offset. The web app shows apply_from in this time zone. Defaults to UTC."},
-			"effective_timezone":  schema.StringAttribute{Computed: true, Description: "Time zone the working hours actually use."},
-			"end_rotations_at":    schema.StringAttribute{Computed: true, Description: "When the rotation schedule ends. Must be after start_rotations_at. If you leave it out, the rotation keeps running, as one set up in the web app: its shifts are generated two years ahead and kept extended."},
-			"rotation_interval":   schema.StringAttribute{Computed: true, Description: "Unit for the rotation length."},
-			"rotation_length":     schema.Int64Attribute{Computed: true, Description: "Number of intervals each shift lasts."},
+			"id":                  schema.StringAttribute{Required: true, Description: "The ID of the on-call rotation to look up."},
+			"apply_from":          schema.StringAttribute{Computed: true, Description: "When this change applies, as Apply changes from in the web app. Shifts before it are kept. Leave it out to apply the change now.", MarkdownDescription: "When this change applies, as **Apply changes from** in the web app. Shifts before it are kept. Leave it out to apply the change now."},
+			"apply_from_timezone": schema.StringAttribute{Computed: true, Description: "Time zone that apply_from is read in when it has no UTC offset. Defaults to UTC.", MarkdownDescription: "Time zone that `apply_from` is read in when it has no UTC offset. Defaults to UTC."},
+			"effective_timezone":  schema.StringAttribute{Computed: true, Description: "Time zone that working_hours actually use. It's timezone when set, else the schedule's default time zone, else UTC.", MarkdownDescription: "Time zone that `working_hours` actually use. It's `timezone` when set, else the schedule's default time zone, else `UTC`."},
+			"end_rotations_at":    schema.StringAttribute{Computed: true, Description: "When the rotation schedule ends."},
+			"rotation_interval":   schema.StringAttribute{Computed: true, Description: "Unit for rotation_length.", MarkdownDescription: "Unit for `rotation_length`."},
+			"rotation_length":     schema.Int64Attribute{Computed: true, Description: "Number of intervals each shift lasts, a whole number of at least 1.", MarkdownDescription: "Number of intervals each shift lasts, a whole number of at least `1`."},
 			"start_rotations_at":  schema.StringAttribute{Computed: true, Description: "When the rotation schedule starts."},
-			"timezone":            schema.StringAttribute{Computed: true, Description: "Time zone for working hours and for handovers across daylight saving changes. If you leave it out, the previous rotation's time zone is kept. A new rotation with working hours defaults to UTC."},
+			"team_id":             schema.StringAttribute{Optional: true, Computed: true, Description: "Team of the rotation's on-call schedule, such as t123. Defaults to the provider's team_id. Set it to look the object up in another team.", MarkdownDescription: "Team of the rotation's on-call schedule, such as `t123`. Defaults to the provider's `team_id`. Set it to look the object up in another team.", Validators: []validator.String{teamIDValidator()}},
+			"timezone":            schema.StringAttribute{Computed: true, Description: "Time zone for working_hours and for handovers across daylight saving changes. A new rotation with working_hours defaults to UTC.", MarkdownDescription: "Time zone for `working_hours` and for handovers across daylight saving changes. A new rotation with `working_hours` defaults to UTC."},
 			"users":               schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "E-mail addresses of users in the rotation, in shift order. Each must be a responder in the schedule's team."},
-			"working_hours":       schema.SetNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"day": schema.StringAttribute{Computed: true}, "start_time": schema.StringAttribute{Computed: true}, "end_time": schema.StringAttribute{Computed: true}}}, Description: "Working hours, as up to 50 windows in local time. They are returned as `HH:MM`, sorted by day. A window that ends at or before its start runs overnight, and one with the same start and end covers the whole day. Leave it out or send `[]` for none."},
+			"working_hours":       schema.SetNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"day": schema.StringAttribute{Computed: true, Description: "The day of the week the window is on."}, "start_time": schema.StringAttribute{Computed: true, Description: "When the window starts, as HH:MM in 24-hour time.", MarkdownDescription: "When the window starts, as `HH:MM` in 24-hour time."}, "end_time": schema.StringAttribute{Computed: true, Description: "When the window ends, as HH:MM in 24-hour time.", MarkdownDescription: "When the window ends, as `HH:MM` in 24-hour time."}}}, Description: "The windows in which the rotation pages anyone, as up to 50 windows in local time. They are returned as HH:MM, sorted by day. A window that ends at or before its start runs overnight, and one with the same start and end covers the whole day. Without it, or with an empty list, the rotation pages around the clock.", MarkdownDescription: "The windows in which the rotation pages anyone, as up to 50 windows in local time. They are returned as `HH:MM`, sorted by day. A window that ends at or before its start runs overnight, and one with the same start and end covers the whole day. Without it, or with an empty list, the rotation pages around the clock."},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -58,6 +61,7 @@ func (d *OnCallRotationDataSource) Read(ctx context.Context, req datasource.Read
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, data.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = data.Id.ValueString()
 	out, found, err := d.client.GetDataSource(ctx, onCallRotationBinding, vars)

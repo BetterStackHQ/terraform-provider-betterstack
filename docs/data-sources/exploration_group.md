@@ -26,16 +26,12 @@ Set `id`, or filter attributes matching exactly one record.
 - `id` (String) Look up by id.
 - `name` (String) Group name.
 
+### Optional
+
+- `team_id` (String) Team that owns the group, such as `t123`. Defaults to the provider's `team_id`. Set it to look the object up in another team.
+
 ### Read-Only
 
-- `team_name` (String) Name of the team that owns the group.
 - `created_at` (String (RFC 3339)) When the group was created.
 - `updated_at` (String (RFC 3339)) When the group was last updated.
-
-## Endpoints
-
-- `GET /api/v2/exploration-groups`
-- `GET /api/v2/exploration-groups/:id`
-- `POST /api/v2/exploration-groups`
-- `PATCH /api/v2/exploration-groups/:id`
-- `DELETE /api/v2/exploration-groups/:id`
+- `team_name` (String) Name of the team that owns the group.

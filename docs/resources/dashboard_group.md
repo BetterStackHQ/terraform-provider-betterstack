@@ -25,22 +25,31 @@ resource "betterstack_dashboard_group" "example" {
 
 - `name` (String) Group name.
 
+### Optional
+
+- `team_id` (String) Team that owns the group, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.
+
 ### Read-Only
 
-- `id` (String) The id of this dashboard_group.
-- `team_name` (String) Name of the team that owns the group.
+- `id` (String) The ID of this dashboard group.
 - `created_at` (String (RFC 3339)) When the group was created.
 - `updated_at` (String (RFC 3339)) When the group was last updated.
-
-## Endpoints
-
-- `GET /api/v2/dashboard-groups`
-- `GET /api/v2/dashboard-groups/:id`
-- `POST /api/v2/dashboard-groups`
-- `PATCH /api/v2/dashboard-groups/:id`
-- `DELETE /api/v2/dashboard-groups/:id`
+- `team_name` (String) Name of the team that owns the group.
 
 ## Import
+
+Import an existing dashboard group by its ID. Get the ID from the [`betterstack_dashboard_group` data source](../data-sources/dashboard_group.md), which finds it by `name`.
+
+With Terraform 1.5 or later, use an `import` block:
+
+```terraform
+import {
+  to = betterstack_dashboard_group.example
+  id = "12345"
+}
+```
+
+Or run `terraform import`:
 
 ```shell
 terraform import betterstack_dashboard_group.example 12345

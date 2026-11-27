@@ -9,7 +9,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/dynamicplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
@@ -23,6 +22,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 )
@@ -42,58 +42,111 @@ func NewMonitorResource() resource.Resource {
 }
 
 type MonitorModel struct {
-	Id                            types.String  `tfsdk:"id"`
-	AuthPassword                  types.String  `tfsdk:"auth_password"`
-	AuthUsername                  types.String  `tfsdk:"auth_username"`
-	Call                          types.Bool    `tfsdk:"call"`
-	CheckFrequency                types.Int64   `tfsdk:"check_frequency"`
-	ChecksVersion                 types.String  `tfsdk:"checks_version"`
-	ConfirmationPeriod            types.Int64   `tfsdk:"confirmation_period"`
-	CreatedAt                     types.String  `tfsdk:"created_at"`
-	CriticalAlert                 types.Bool    `tfsdk:"critical_alert"`
-	DomainExpiration              types.Int64   `tfsdk:"domain_expiration"`
-	EffectiveCheckFrequency       types.Int64   `tfsdk:"effective_check_frequency"`
-	EffectiveCheckFrequencyReason types.String  `tfsdk:"effective_check_frequency_reason"`
-	Email                         types.Bool    `tfsdk:"email"`
-	EnvironmentVariables          types.Dynamic `tfsdk:"environment_variables"`
-	EscalationPolicyId            types.String  `tfsdk:"escalation_policy_id"`
-	ExpectedStatusCodes           types.List    `tfsdk:"expected_status_codes"`
-	ExpirationPolicyId            types.String  `tfsdk:"expiration_policy_id"`
-	FollowRedirects               types.Bool    `tfsdk:"follow_redirects"`
-	HttpMethod                    types.String  `tfsdk:"http_method"`
-	IpVersion                     types.String  `tfsdk:"ip_version"`
-	LastCheckedAt                 types.String  `tfsdk:"last_checked_at"`
-	MaintenanceDays               types.Set     `tfsdk:"maintenance_days"`
-	MaintenanceFrom               types.String  `tfsdk:"maintenance_from"`
-	MaintenanceTimezone           types.String  `tfsdk:"maintenance_timezone"`
-	MaintenanceTo                 types.String  `tfsdk:"maintenance_to"`
-	Metadata                      types.Map     `tfsdk:"metadata"`
-	MonitorGroupId                types.String  `tfsdk:"monitor_group_id"`
-	MonitorType                   types.String  `tfsdk:"monitor_type"`
-	Paused                        types.Bool    `tfsdk:"paused"`
-	PausedAt                      types.String  `tfsdk:"paused_at"`
-	PlaywrightScript              types.String  `tfsdk:"playwright_script"`
-	Port                          types.String  `tfsdk:"port"`
-	PronounceableName             types.String  `tfsdk:"pronounceable_name"`
-	ProxyHost                     types.String  `tfsdk:"proxy_host"`
-	ProxyPort                     types.Int64   `tfsdk:"proxy_port"`
-	Push                          types.Bool    `tfsdk:"push"`
-	RecoveryPeriod                types.Int64   `tfsdk:"recovery_period"`
-	Regions                       types.List    `tfsdk:"regions"`
-	RememberCookies               types.Bool    `tfsdk:"remember_cookies"`
-	RequestBody                   types.String  `tfsdk:"request_body"`
-	RequestHeaders                types.List    `tfsdk:"request_headers"`
-	RequestTimeout                types.Int64   `tfsdk:"request_timeout"`
-	RequiredKeyword               types.String  `tfsdk:"required_keyword"`
-	ScenarioName                  types.String  `tfsdk:"scenario_name"`
-	Sms                           types.Bool    `tfsdk:"sms"`
-	SslExpiration                 types.Int64   `tfsdk:"ssl_expiration"`
-	Status                        types.String  `tfsdk:"status"`
-	TeamName                      types.String  `tfsdk:"team_name"`
-	TeamWait                      types.Int64   `tfsdk:"team_wait"`
-	UpdatedAt                     types.String  `tfsdk:"updated_at"`
-	Url                           types.String  `tfsdk:"url"`
-	VerifySsl                     types.Bool    `tfsdk:"verify_ssl"`
+	Id                            types.String `tfsdk:"id"`
+	AuthPassword                  types.String `tfsdk:"auth_password"`
+	AuthUsername                  types.String `tfsdk:"auth_username"`
+	Call                          types.Bool   `tfsdk:"call"`
+	CheckFrequency                types.Int64  `tfsdk:"check_frequency"`
+	ChecksVersion                 types.String `tfsdk:"checks_version"`
+	ConfirmationPeriod            types.Int64  `tfsdk:"confirmation_period"`
+	CreatedAt                     types.String `tfsdk:"created_at"`
+	CriticalAlert                 types.Bool   `tfsdk:"critical_alert"`
+	DeletionProtection            types.Bool   `tfsdk:"deletion_protection"`
+	DomainExpiration              types.Int64  `tfsdk:"domain_expiration"`
+	EffectiveCheckFrequency       types.Int64  `tfsdk:"effective_check_frequency"`
+	EffectiveCheckFrequencyReason types.String `tfsdk:"effective_check_frequency_reason"`
+	Email                         types.Bool   `tfsdk:"email"`
+	EnvironmentVariables          types.Map    `tfsdk:"environment_variables"`
+	EscalationPolicyId            types.String `tfsdk:"escalation_policy_id"`
+	ExpectedStatusCodes           types.List   `tfsdk:"expected_status_codes"`
+	ExpirationEscalationPolicyId  types.String `tfsdk:"expiration_escalation_policy_id"`
+	FollowRedirects               types.Bool   `tfsdk:"follow_redirects"`
+	HttpMethod                    types.String `tfsdk:"http_method"`
+	IpVersion                     types.String `tfsdk:"ip_version"`
+	LastCheckedAt                 types.String `tfsdk:"last_checked_at"`
+	MaintenanceDays               types.Set    `tfsdk:"maintenance_days"`
+	MaintenanceFrom               types.String `tfsdk:"maintenance_from"`
+	MaintenanceTimezone           types.String `tfsdk:"maintenance_timezone"`
+	MaintenanceTo                 types.String `tfsdk:"maintenance_to"`
+	Metadata                      types.Map    `tfsdk:"metadata"`
+	MonitorGroupId                types.String `tfsdk:"monitor_group_id"`
+	MonitorType                   types.String `tfsdk:"monitor_type"`
+	Paused                        types.Bool   `tfsdk:"paused"`
+	PausedAt                      types.String `tfsdk:"paused_at"`
+	PlaywrightScript              types.String `tfsdk:"playwright_script"`
+	Port                          types.String `tfsdk:"port"`
+	PronounceableName             types.String `tfsdk:"pronounceable_name"`
+	ProxyHost                     types.String `tfsdk:"proxy_host"`
+	ProxyPort                     types.Int64  `tfsdk:"proxy_port"`
+	Push                          types.Bool   `tfsdk:"push"`
+	RecoveryPeriod                types.Int64  `tfsdk:"recovery_period"`
+	Regions                       types.List   `tfsdk:"regions"`
+	RememberCookies               types.Bool   `tfsdk:"remember_cookies"`
+	RequestBody                   types.String `tfsdk:"request_body"`
+	RequestHeaders                types.List   `tfsdk:"request_headers"`
+	RequestTimeout                types.Int64  `tfsdk:"request_timeout"`
+	RequiredKeyword               types.String `tfsdk:"required_keyword"`
+	ScenarioName                  types.String `tfsdk:"scenario_name"`
+	Sms                           types.Bool   `tfsdk:"sms"`
+	SslExpiration                 types.Int64  `tfsdk:"ssl_expiration"`
+	Status                        types.String `tfsdk:"status"`
+	TeamId                        types.String `tfsdk:"team_id"`
+	TeamName                      types.String `tfsdk:"team_name"`
+	TeamWait                      types.Int64  `tfsdk:"team_wait"`
+	UpdatedAt                     types.String `tfsdk:"updated_at"`
+	Url                           types.String `tfsdk:"url"`
+	VerifySsl                     types.Bool   `tfsdk:"verify_ssl"`
+}
+
+type MonitorRequestHeadersModel struct {
+	Id    types.String `tfsdk:"id"`
+	Name  types.String `tfsdk:"name"`
+	Value types.String `tfsdk:"value"`
+}
+
+func monitorRequestHeadersAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"id":    types.StringType,
+		"name":  types.StringType,
+		"value": types.StringType,
+	}
+}
+
+// expandMonitorRequestHeaders marshals a nested MonitorRequestHeaders object into its request map.
+func expandMonitorRequestHeaders(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m MonitorRequestHeadersModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	return out
+}
+
+// flattenMonitorRequestHeaders refreshes a typed MonitorRequestHeaders object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenMonitorRequestHeaders(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m MonitorRequestHeadersModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["id"]); ok {
+		m.Id = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, monitorRequestHeadersAttrTypes(), m)
+	return obj
 }
 
 type MonitorMetadataModel struct {
@@ -211,59 +264,19 @@ func flattenMonitorMetadataValues(ctx context.Context, prior types.Object, raw m
 	if v, ok := stringFromAPI(raw["item_id"]); ok {
 		m.ItemId = types.StringValue(v)
 	}
-	if v, ok := stringFromAPI(raw["name"]); ok {
-		m.Name = types.StringValue(v)
+	if rawValue, exists := raw["name"]; exists {
+		if rawValue == nil {
+			m.Name = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["name"]); ok {
+				m.Name = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := stringFromAPI(raw["email"]); ok {
 		m.Email = types.StringValue(v)
 	}
 	obj, _ := types.ObjectValueFrom(ctx, monitorMetadataValuesAttrTypes(), m)
-	return obj
-}
-
-type MonitorRequestHeadersModel struct {
-	Name  types.String `tfsdk:"name"`
-	Value types.String `tfsdk:"value"`
-}
-
-func monitorRequestHeadersAttrTypes() map[string]attr.Type {
-	return map[string]attr.Type{
-		"name":  types.StringType,
-		"value": types.StringType,
-	}
-}
-
-// expandMonitorRequestHeaders marshals a nested MonitorRequestHeaders object into its request map.
-func expandMonitorRequestHeaders(ctx context.Context, o types.Object) map[string]interface{} {
-	if o.IsNull() || o.IsUnknown() {
-		return nil
-	}
-	var m MonitorRequestHeadersModel
-	o.As(ctx, &m, basetypes.ObjectAsOptions{})
-	out := map[string]interface{}{}
-	if !m.Name.IsNull() && !m.Name.IsUnknown() {
-		out["name"] = m.Name.ValueString()
-	}
-	if !m.Value.IsNull() && !m.Value.IsUnknown() {
-		out["value"] = m.Value.ValueString()
-	}
-	return out
-}
-
-// flattenMonitorRequestHeaders refreshes a typed MonitorRequestHeaders object from a response map,
-// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
-func flattenMonitorRequestHeaders(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
-	var m MonitorRequestHeadersModel
-	if !prior.IsNull() && !prior.IsUnknown() {
-		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
-	}
-	if v, ok := stringFromAPI(raw["name"]); ok {
-		m.Name = types.StringValue(v)
-	}
-	if v, ok := stringFromAPI(raw["value"]); ok {
-		m.Value = types.StringValue(v)
-	}
-	obj, _ := types.ObjectValueFrom(ctx, monitorRequestHeadersAttrTypes(), m)
 	return obj
 }
 
@@ -273,60 +286,63 @@ func (r *MonitorResource) Metadata(ctx context.Context, req resource.MetadataReq
 
 func (r *MonitorResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "An uptime monitor that periodically checks a URL, host, or service and alerts on failures.",
+		Description:         "An uptime monitor that periodically checks a URL, host, or service and alerts on failures.",
+		MarkdownDescription: "An uptime monitor that periodically checks a URL, host, or service and alerts on failures.",
 		Attributes: map[string]schema.Attribute{
 			"id":                               schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"auth_password":                    schema.StringAttribute{Optional: true, Computed: true, Description: "HTTP basic-auth password.", Sensitive: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"auth_username":                    schema.StringAttribute{Optional: true, Computed: true, Description: "HTTP basic-auth username.", Sensitive: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"call":                             schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Alert by phone call."},
-			"check_frequency":                  schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(180), Description: "How often to check, in seconds. The monitor can check less often than this. effective_check_frequency shows how often it actually checks."},
-			"checks_version":                   schema.StringAttribute{Computed: true, Description: "Version of the checks engine. Always `v2`."},
-			"confirmation_period":              schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(0), Description: "How long to keep confirming a failure before alerting, in seconds."},
+			"auth_password":                    schema.StringAttribute{Optional: true, Computed: true, Description: "HTTP basic-auth password. It isn't returned after it's saved.", Sensitive: true},
+			"auth_username":                    schema.StringAttribute{Optional: true, Computed: true, Description: "HTTP basic-auth username. null when none is set.", MarkdownDescription: "HTTP basic-auth username. `null` when none is set.", Sensitive: true},
+			"call":                             schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether to call the on-call person. Ignored while an escalation policy is set."},
+			"check_frequency":                  schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(180), Description: "How often to check, in seconds. It must be at least the request_timeout. A new or changed value below the plan's shortest interval is refused with a 422. A value already saved keeps saving. Its accepted values depend on monitor_type.\n\n- playwright: It accepts 60, 180, 300, 600, 900, 1800, 3600, 21600, 43200 or 86400.\n- Every other type: It accepts 30, 45, 60, 120, 180, 300, 600, 900 or 1800.", MarkdownDescription: "How often to check, in seconds. It must be at least the `request_timeout`. A new or changed value below the plan's shortest interval is refused with a 422. A value already saved keeps saving. Its accepted values depend on `monitor_type`.\n\n- `playwright`: It accepts `60`, `180`, `300`, `600`, `900`, `1800`, `3600`, `21600`, `43200` or `86400`.\n- Every other type: It accepts `30`, `45`, `60`, `120`, `180`, `300`, `600`, `900` or `1800`."},
+			"checks_version":                   schema.StringAttribute{Computed: true, Description: "Version of the checks engine. Always v2.", MarkdownDescription: "Version of the checks engine. Always `v2`."},
+			"confirmation_period":              schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(0), Description: "How long to wait after a failure before starting an incident, in seconds, from 0 to 86400.", MarkdownDescription: "How long to wait after a failure before starting an incident, in seconds, from `0` to `86400`."},
 			"created_at":                       schema.StringAttribute{Computed: true, Description: "When the monitor was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"critical_alert":                   schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Alert by a critical push notification that bypasses silent mode."},
-			"domain_expiration":                schema.Int64Attribute{Optional: true, Description: "Days before the domain expires to start alerting. `-1` turns it off."},
-			"effective_check_frequency":        schema.Int64Attribute{Computed: true, Description: "How often the monitor actually checks, in seconds. This is check_frequency, unless checks are slowed down, or raised to the request timeout or to the plan's minimum after a downgrade."},
-			"effective_check_frequency_reason": schema.StringAttribute{Computed: true, Description: "Why effective_check_frequency differs from check_frequency. `null` when they match."},
-			"email":                            schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Alert by e-mail."},
-			"environment_variables":            schema.DynamicAttribute{Optional: true, Computed: true, Description: "Environment variables for the Playwright run. An object you send replaces all of them.", Sensitive: true, PlanModifiers: []planmodifier.Dynamic{dynamicplanmodifier.UseStateForUnknown()}},
-			"escalation_policy_id":             schema.StringAttribute{Optional: true, Description: "ID of the escalation policy used for alerts. Returned as a string. You can send it as a number or a string."},
-			"expected_status_codes":            schema.ListAttribute{Optional: true, Computed: true, Default: listdefault.StaticValue(types.ListValueMust(types.Int64Type, []attr.Value{})), ElementType: types.Int64Type, Description: "Status codes that count as up, for expected_status_code monitors."},
-			"expiration_policy_id":             schema.StringAttribute{Optional: true, Description: "ID of the escalation policy for SSL certificate and domain expiration alerts."},
-			"follow_redirects":                 schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Follow HTTP redirects."},
-			"http_method":                      schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("get"), Description: "HTTP method for HTTP checks."},
-			"ip_version":                       schema.StringAttribute{Optional: true, Description: "IP version to check over.", Validators: []validator.String{stringvalidator.OneOf("ipv4", "ipv6")}},
+			"critical_alert":                   schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether to send a critical push notification that ignores the mute switch and Do Not Disturb mode. Ignored while an escalation policy is set."},
+			"deletion_protection":              schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether destroying or replacing this monitor is refused. Defaults to true. Set it to false and apply before you delete or replace it on purpose. It's kept in state and never sent to Better Stack.", MarkdownDescription: "Whether destroying or replacing this monitor is refused. Defaults to `true`. Set it to `false` and apply before you delete or replace it on purpose. It's kept in state and never sent to Better Stack."},
+			"domain_expiration":                schema.Int64Attribute{Optional: true, Description: "How many days before the domain expires we alert you. null turns the check off and is the default. Monitors of the same domain share this setting, subdomains included. For example, monitors of example.com and www.example.com share it. A value set on one monitor is copied to all of them, so set the same value on each.", MarkdownDescription: "How many days before the domain expires we alert you. `null` turns the check off and is the default. Monitors of the same domain share this setting, subdomains included. For example, monitors of `example.com` and `www.example.com` share it. A value set on one monitor is copied to all of them, so set the same value on each.", Validators: []validator.Int64{int64validator.OneOf(1, 2, 3, 7, 14, 30, 60)}},
+			"effective_check_frequency":        schema.Int64Attribute{Computed: true, Description: "How often the monitor actually checks, in seconds. effective_check_frequency_reason says why it differs from check_frequency.", MarkdownDescription: "How often the monitor actually checks, in seconds. `effective_check_frequency_reason` says why it differs from `check_frequency`."},
+			"effective_check_frequency_reason": schema.StringAttribute{Computed: true, Description: "Why effective_check_frequency differs from check_frequency. null when they're the same.\n\n- slowed_down: We check less often after repeated 429 responses or timeouts.\n- plan_minimum: Your plan's shortest interval between checks is longer than check_frequency, which was saved before the plan changed.\n- request_timeout: The monitor's request_timeout is longer than check_frequency.", MarkdownDescription: "Why `effective_check_frequency` differs from `check_frequency`. `null` when they're the same.\n\n- `slowed_down`: We check less often after repeated `429` responses or timeouts.\n- `plan_minimum`: Your plan's shortest interval between checks is longer than `check_frequency`, which was saved before the plan changed.\n- `request_timeout`: The monitor's `request_timeout` is longer than `check_frequency`."},
+			"email":                            schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether to send an e-mail to the on-call person. Ignored while an escalation policy is set."},
+			"environment_variables":            schema.MapAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Environment variables the playwright scenario can use, as name and value pairs like {\"PASSWORD\": \"passw0rd\"}.", MarkdownDescription: "Environment variables the `playwright` scenario can use, as name and value pairs like `{\"PASSWORD\": \"passw0rd\"}`.", Sensitive: true, PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()}},
+			"escalation_policy_id":             schema.StringAttribute{Optional: true, Description: "ID of the escalation policy for alerts, or null to alert the current on-call person directly.", MarkdownDescription: "ID of the escalation policy for alerts, or `null` to alert the current on-call person directly."},
+			"expected_status_codes":            schema.ListAttribute{Optional: true, Computed: true, Default: listdefault.StaticValue(types.ListValueMust(types.Int64Type, []attr.Value{})), ElementType: types.Int64Type, Description: "HTTP status codes from 100 to 599 that count as up. A 3xx code needs follow_redirects and remember_cookies set to false. Required for expected_status_code monitors.", MarkdownDescription: "HTTP status codes from `100` to `599` that count as up. A `3xx` code needs `follow_redirects` and `remember_cookies` set to `false`. Required for `expected_status_code` monitors."},
+			"expiration_escalation_policy_id":  schema.StringAttribute{Optional: true, Description: "ID of the escalation policy for alerts about expiring SSL certificates and domains. Monitors of the same domain share this setting, subdomains included. For example, monitors of example.com and www.example.com share it. A value set on one monitor is copied to all of them, so set the same value on each.", MarkdownDescription: "ID of the escalation policy for alerts about expiring SSL certificates and domains. Monitors of the same domain share this setting, subdomains included. For example, monitors of `example.com` and `www.example.com` share it. A value set on one monitor is copied to all of them, so set the same value on each."},
+			"follow_redirects":                 schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether we follow HTTP redirects."},
+			"http_method":                      schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("get"), Description: "The HTTP method of the request. It accepts get, head, post, put, patch or options. Responses return it in lowercase. head can't be used with keyword or keyword_absence monitors.", MarkdownDescription: "The HTTP method of the request. It accepts `get`, `head`, `post`, `put`, `patch` or `options`. Responses return it in lowercase. `head` can't be used with `keyword` or `keyword_absence` monitors."},
+			"ip_version":                       schema.StringAttribute{Optional: true, Description: "The IP version to check over. null checks over both IPv4 and IPv6.\n\n- ipv4: Checks over IPv4 only.\n- ipv6: Checks over IPv6 only.", MarkdownDescription: "The IP version to check over. `null` checks over both IPv4 and IPv6.\n\n- `ipv4`: Checks over IPv4 only.\n- `ipv6`: Checks over IPv6 only.", Validators: []validator.String{stringvalidator.OneOf("ipv4", "ipv6")}},
 			"last_checked_at":                  schema.StringAttribute{Computed: true, Description: "When the monitor was last checked."},
-			"maintenance_days":                 schema.SetAttribute{Optional: true, Computed: true, Default: setdefault.StaticValue(types.SetValueMust(types.StringType, []attr.Value{types.StringValue("mon"), types.StringValue("tue"), types.StringValue("wed"), types.StringValue("thu"), types.StringValue("fri"), types.StringValue("sat"), types.StringValue("sun")})), ElementType: types.StringType, Description: "Days of the week the maintenance window applies to."},
-			"maintenance_from":                 schema.StringAttribute{Optional: true, Description: "Start time of the maintenance window, as `HH:MM:SS`."},
-			"maintenance_timezone":             schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("UTC"), Description: "Time zone of the maintenance window."},
-			"maintenance_to":                   schema.StringAttribute{Optional: true, Description: "End time of the maintenance window, as `HH:MM:SS`."},
-			"metadata":                         schema.MapNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"values": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true, Description: "`String`, or the type of the referenced item."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The text of a String value."}, "item_id": schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the referenced item: a number, or for a team its ID starting with `t`, such as `t123`."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "Referenced item's name."}, "email": schema.StringAttribute{Optional: true, Computed: true, Description: "Referenced user's e-mail."}}}}}}, Description: "Custom metadata. Each key holds a list of values. A value is a string, written as `{type: \"String\", value}`, or a catalog reference, written as `{type, item_id, name, email}`. Team references are returned as team IDs such as `t123`.", PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()}},
+			"maintenance_days":                 schema.SetAttribute{Optional: true, Computed: true, Default: setdefault.StaticValue(types.SetValueMust(types.StringType, []attr.Value{types.StringValue("mon"), types.StringValue("tue"), types.StringValue("wed"), types.StringValue("thu"), types.StringValue("fri"), types.StringValue("sat"), types.StringValue("sun")})), ElementType: types.StringType, Description: "Days of the week the maintenance window applies to, any of mon, tue, wed, thu, fri, sat and sun. An overnight window belongs to the day it starts.", MarkdownDescription: "Days of the week the maintenance window applies to, any of `mon`, `tue`, `wed`, `thu`, `fri`, `sat` and `sun`. An overnight window belongs to the day it starts."},
+			"maintenance_from":                 schema.StringAttribute{Optional: true, Description: "Start of the daily maintenance window, when we don't check, as HH:MM:SS, like 01:00:00. null when no window is set.", MarkdownDescription: "Start of the daily maintenance window, when we don't check, as `HH:MM:SS`, like `01:00:00`. `null` when no window is set."},
+			"maintenance_timezone":             schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("UTC"), Description: "The time zone of the maintenance window, as a Rails time zone name like Amsterdam or its IANA ID like Europe/Amsterdam. null when it isn't set, which works as UTC.", MarkdownDescription: "The time zone of the maintenance window, as a Rails time zone name like `Amsterdam` or its IANA ID like `Europe/Amsterdam`. `null` when it isn't set, which works as UTC."},
+			"maintenance_to":                   schema.StringAttribute{Optional: true, Description: "End of the daily maintenance window, as HH:MM:SS, like 03:00:00. Required with maintenance_from. null when no window is set.", MarkdownDescription: "End of the daily maintenance window, as `HH:MM:SS`, like `03:00:00`. Required with `maintenance_from`. `null` when no window is set."},
+			"metadata":                         schema.MapNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"values": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true, Description: "String, or the type of the referenced item, which is one of User, Team, EscalationPolicy, OnCallSchedule, Monitor, SlackIntegration, LinearIntegration, JiraIntegration, MicrosoftTeamsIntegration, ZapierZap, OutgoingWebhook, PagerDutyIntegration or Source.", MarkdownDescription: "`String`, or the type of the referenced item, which is one of `User`, `Team`, `EscalationPolicy`, `OnCallSchedule`, `Monitor`, `SlackIntegration`, `LinearIntegration`, `JiraIntegration`, `MicrosoftTeamsIntegration`, `ZapierZap`, `OutgoingWebhook`, `PagerDutyIntegration` or `Source`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The text of a String value.", MarkdownDescription: "The text of a `String` value."}, "item_id": schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the referenced item. For a user it's u123 or their e-mail. For a team it's t123, and for any other item it's the item's own ID. Responses return users and teams in this form. Get a user's ID via List team members (https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via List teams (https://betterstack.com/docs/uptime/api/teams/list/).", MarkdownDescription: "ID of the referenced item. For a user it's `u123` or their e-mail. For a team it's `t123`, and for any other item it's the item's own ID. Responses return users and teams in this form. Get a user's ID via [List team members](https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via [List teams](https://betterstack.com/docs/uptime/api/teams/list/).", Validators: []validator.String{patternWhenString{Sibling: "type", Patterns: map[string]string{"User": "^(u[1-9][0-9]*|[^@/\\s]+@[^@/\\s]+)$", "Team": "^t[1-9][0-9]*$"}}}}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "Referenced item's name, or null when the item has no name or no longer exists. An item can also be found by its name instead of item_id.", MarkdownDescription: "Referenced item's name, or `null` when the item has no name or no longer exists. An item can also be found by its name instead of `item_id`."}, "email": schema.StringAttribute{Optional: true, Computed: true, Description: "Referenced user's e-mail, returned for a User. A user can also be found by e-mail."}}}}}}, Description: "Custom metadata. Each key holds a list of values. A value is a string, written as {type: \"String\", value}, or a catalog reference, written as {type, item_id, name, email}. User references are returned as u123 and team references as t123. Get a user's ID via List team members (https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via List teams (https://betterstack.com/docs/uptime/api/teams/list/). Values under one key must all be the same type and can't repeat.", MarkdownDescription: "Custom metadata. Each key holds a list of values. A value is a string, written as `{type: \"String\", value}`, or a catalog reference, written as `{type, item_id, name, email}`. User references are returned as `u123` and team references as `t123`. Get a user's ID via [List team members](https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via [List teams](https://betterstack.com/docs/uptime/api/teams/list/). Values under one key must all be the same type and can't repeat.", PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()}},
 			"monitor_group_id":                 schema.StringAttribute{Optional: true, Description: "ID of the monitor group this monitor belongs to."},
-			"monitor_type":                     schema.StringAttribute{Required: true, Description: "What kind of check to run.", Validators: []validator.String{stringvalidator.OneOf("status", "expected_status_code", "keyword", "keyword_absence", "ping", "tcp", "udp", "smtp", "pop", "imap", "dns", "playwright")}},
-			"paused":                           schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether checks are paused."},
+			"monitor_type":                     schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("status"), Description: "What the monitor checks.\n\n- status: Checks that the URL returns a 2XX status code.\n- expected_status_code: Checks that the URL returns one of expected_status_codes.\n- keyword: Checks that the page contains required_keyword.\n- keyword_absence: Checks that the page doesn't contain required_keyword.\n- ping: Pings the host in url.\n- tcp: Checks that a TCP port on the host accepts connections.\n- udp: Sends request_body to a UDP port on the host and checks that the answer contains required_keyword.\n- smtp: Checks for an SMTP server on the host at port.\n- pop: Checks for a POP3 server on the host at port.\n- imap: Checks for an IMAP server on the host at port.\n- dns: Checks that the DNS server on the host answers a query for the domain in request_body.\n- playwright: Runs the scenario in playwright_script.", MarkdownDescription: "What the monitor checks.\n\n- `status`: Checks that the URL returns a 2XX status code.\n- `expected_status_code`: Checks that the URL returns one of `expected_status_codes`.\n- `keyword`: Checks that the page contains `required_keyword`.\n- `keyword_absence`: Checks that the page doesn't contain `required_keyword`.\n- `ping`: Pings the host in `url`.\n- `tcp`: Checks that a TCP `port` on the host accepts connections.\n- `udp`: Sends `request_body` to a UDP `port` on the host and checks that the answer contains `required_keyword`.\n- `smtp`: Checks for an SMTP server on the host at `port`.\n- `pop`: Checks for a POP3 server on the host at `port`.\n- `imap`: Checks for an IMAP server on the host at `port`.\n- `dns`: Checks that the DNS server on the host answers a query for the domain in `request_body`.\n- `playwright`: Runs the scenario in `playwright_script`.", Validators: []validator.String{stringvalidator.OneOf("status", "expected_status_code", "keyword", "keyword_absence", "ping", "tcp", "udp", "smtp", "pop", "imap", "dns", "playwright")}},
+			"paused":                           schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether the monitor is paused. A paused monitor opens no incidents and sends no alerts. Set it to true to pause it or false to resume it.", MarkdownDescription: "Whether the monitor is paused. A paused monitor opens no incidents and sends no alerts. Set it to `true` to pause it or `false` to resume it."},
 			"paused_at":                        schema.StringAttribute{Computed: true, Description: "When the monitor was paused."},
-			"playwright_script":                schema.StringAttribute{Optional: true, Description: "Playwright script to run, for Playwright monitors."},
-			"port":                             schema.StringAttribute{Optional: true, Description: "Port to check, for `tcp`, `udp`, `smtp`, `pop` and `imap` monitors."},
-			"pronounceable_name":               schema.StringAttribute{Optional: true, Computed: true, Description: "Human-friendly name used in alerts.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"proxy_host":                       schema.StringAttribute{Optional: true, Description: "Proxy host to route the check through."},
-			"proxy_port":                       schema.Int64Attribute{Optional: true, Description: "Proxy port to route the check through."},
-			"push":                             schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Alert by push notification."},
-			"recovery_period":                  schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(180), Description: "How long checks must keep passing before the incident resolves, in seconds."},
-			"regions":                          schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Regions to check from: us, eu, as or au. If none are set, the monitor type's default regions are returned.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"remember_cookies":                 schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Persist cookies across redirects."},
-			"request_body":                     schema.StringAttribute{Optional: true, Description: "Request body sent with HTTP checks."},
-			"request_headers":                  schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"name": schema.StringAttribute{Optional: true, Computed: true}, "value": schema.StringAttribute{Optional: true, Computed: true}}}, Description: "Custom request headers, as a list of `{name, value}` objects. A list you send replaces all headers.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"request_timeout":                  schema.Int64Attribute{Optional: true, Computed: true, Description: "Check timeout. In seconds for HTTP and Playwright checks, and in milliseconds for `ping`, `tcp`, `udp`, `smtp`, `pop`, `imap` and `dns` monitors. A value of 0.5 is saved as 500.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
-			"required_keyword":                 schema.StringAttribute{Optional: true, Description: "Keyword that must be present, or absent for keyword_absence monitors."},
-			"scenario_name":                    schema.StringAttribute{Optional: true, Computed: true, Description: "Playwright scenario name. Playwright monitors send it instead of url. At least one of `url` or `scenario_name` must be configured.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"sms":                              schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Alert by SMS."},
-			"ssl_expiration":                   schema.Int64Attribute{Optional: true, Description: "Days before the SSL certificate expires to start alerting. `-1` turns it off."},
-			"status":                           schema.StringAttribute{Computed: true, Description: "Current monitor status."},
-			"team_name":                        schema.StringAttribute{Computed: true, Description: "Name of the team that owns this monitor."},
-			"team_wait":                        schema.Int64Attribute{Optional: true, Description: "Seconds before escalating to the whole team."},
+			"playwright_script":                schema.StringAttribute{Optional: true, Description: "The JavaScript source of the scenario, for playwright monitors.", MarkdownDescription: "The JavaScript source of the scenario, for `playwright` monitors."},
+			"port":                             schema.StringAttribute{Optional: true, Description: "The port to check. tcp and udp accept one port. smtp accepts 25, 465 or 587, pop accepts 110 or 995, and imap accepts 143 or 993, with several separated by commas like 25,465,587. Required for tcp, udp, smtp, pop and imap monitors.", MarkdownDescription: "The port to check. `tcp` and `udp` accept one port. `smtp` accepts `25`, `465` or `587`, `pop` accepts `110` or `995`, and `imap` accepts `143` or `993`, with several separated by commas like `25,465,587`. Required for `tcp`, `udp`, `smtp`, `pop` and `imap` monitors."},
+			"pronounceable_name":               schema.StringAttribute{Optional: true, Computed: true, Description: "The name of the monitor, which we use when we call you.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"proxy_host":                       schema.StringAttribute{Optional: true, Description: "The host of the proxy server we send the check through, without a protocol. It can include credentials, like user:pass@proxy.example.com. Only for status, expected_status_code, keyword and keyword_absence monitors.", MarkdownDescription: "The host of the proxy server we send the check through, without a protocol. It can include credentials, like `user:pass@proxy.example.com`. Only for `status`, `expected_status_code`, `keyword` and `keyword_absence` monitors."},
+			"proxy_port":                       schema.Int64Attribute{Optional: true, Description: "The port of the proxy server, from 1 to 65535. Requires proxy_host.", MarkdownDescription: "The port of the proxy server, from `1` to `65535`. Requires `proxy_host`."},
+			"push":                             schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether to send a push notification to the on-call person. Ignored while an escalation policy is set."},
+			"recovery_period":                  schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(180), Description: "How long checks must keep passing before the incident resolves, in seconds.", Validators: []validator.Int64{int64validator.OneOf(0, 60, 180, 300, 900, 1800, 3600, 7200)}},
+			"regions":                          schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "Regions to check from, as any combination of us, eu, as and au. When none are set, we check from all regions. Responses then list all of them.", MarkdownDescription: "Regions to check from, as any combination of `us`, `eu`, `as` and `au`. When none are set, we check from all regions. Responses then list all of them.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"remember_cookies":                 schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether we keep cookies when redirecting."},
+			"request_body":                     schema.StringAttribute{Optional: true, Description: "The body of the request. A dns monitor requires it. Set it to the domain to query. A udp monitor sends it as its content. Must be empty for get, head and options requests.", MarkdownDescription: "The body of the request. A `dns` monitor requires it. Set it to the domain to query. A `udp` monitor sends it as its content. Must be empty for `get`, `head` and `options` requests."},
+			"request_headers":                  schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true, Description: "The header's ID."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The header name, like Content-Type.", MarkdownDescription: "The header name, like `Content-Type`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The header value, like application/json.", MarkdownDescription: "The header value, like `application/json`.", Sensitive: true}}}, Description: "Custom request headers, as a list of {name, value} objects. A list replaces all headers, and an empty list removes them all.", MarkdownDescription: "Custom request headers, as a list of `{name, value}` objects. A list replaces all headers, and an empty list removes them all.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"request_timeout":                  schema.Int64Attribute{Optional: true, Computed: true, Description: "How long a check waits before it times out. Its unit and accepted values depend on monitor_type.\n\n- status, expected_status_code, keyword and keyword_absence: In seconds. It accepts 2, 3, 5, 10, 15, 30, 45, 60, 90, 120 or 180 and defaults to 30.\n- ping, tcp, udp, smtp, pop, imap and dns: In milliseconds. It accepts 500, 1000, 2000, 3000 or 5000 and defaults to 5000.\n- playwright: In seconds. It accepts 15, 30, 45, 60, 120, 180, 240, 300, 360, 480, 600 or 900 and defaults to 30.", MarkdownDescription: "How long a check waits before it times out. Its unit and accepted values depend on `monitor_type`.\n\n- `status`, `expected_status_code`, `keyword` and `keyword_absence`: In seconds. It accepts `2`, `3`, `5`, `10`, `15`, `30`, `45`, `60`, `90`, `120` or `180` and defaults to `30`.\n- `ping`, `tcp`, `udp`, `smtp`, `pop`, `imap` and `dns`: In milliseconds. It accepts `500`, `1000`, `2000`, `3000` or `5000` and defaults to `5000`.\n- `playwright`: In seconds. It accepts `15`, `30`, `45`, `60`, `120`, `180`, `240`, `300`, `360`, `480`, `600` or `900` and defaults to `30`.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
+			"required_keyword":                 schema.StringAttribute{Optional: true, Description: "The keyword to look for. Required for keyword, keyword_absence and udp monitors.", MarkdownDescription: "The keyword to look for. Required for `keyword`, `keyword_absence` and `udp` monitors."},
+			"scenario_name":                    schema.StringAttribute{Optional: true, Computed: true, Description: "The name of a playwright monitor's scenario. Required for playwright monitors, and returned only for them. At least one of url or scenario_name must be configured.", MarkdownDescription: "The name of a `playwright` monitor's scenario. Required for `playwright` monitors, and returned only for them. At least one of `url` or `scenario_name` must be configured.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"sms":                              schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether to send an SMS to the on-call person. Ignored while an escalation policy is set."},
+			"ssl_expiration":                   schema.Int64Attribute{Optional: true, Description: "How many days before the SSL certificate expires we alert you. null turns the check off and is the default. Monitors of exactly the same domain share this setting, not its subdomains. For example, monitors of example.com/a and example.com/b share it, while www.example.com has its own. A value set on one monitor is copied to all of them, so set the same value on each.", MarkdownDescription: "How many days before the SSL certificate expires we alert you. `null` turns the check off and is the default. Monitors of exactly the same domain share this setting, not its subdomains. For example, monitors of `example.com/a` and `example.com/b` share it, while `www.example.com` has its own. A value set on one monitor is copied to all of them, so set the same value on each.", Validators: []validator.Int64{int64validator.OneOf(1, 2, 3, 7, 14, 30, 60)}},
+			"status":                           schema.StringAttribute{Computed: true, Description: "The monitor's current status.\n\n- up: Checks pass.\n- down: Checks fail.\n- validating: The service seems back up, but the recovery_period hasn't passed yet.\n- paused: The monitor is paused.\n- pending: The monitor waits for its first check.\n- maintenance: The monitor is in a maintenance window.", MarkdownDescription: "The monitor's current status.\n\n- `up`: Checks pass.\n- `down`: Checks fail.\n- `validating`: The service seems back up, but the `recovery_period` hasn't passed yet.\n- `paused`: The monitor is paused.\n- `pending`: The monitor waits for its first check.\n- `maintenance`: The monitor is in a maintenance window."},
+			"team_id":                          schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns this monitor, such as t123. Defaults to the provider's team_id. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", MarkdownDescription: "Team that owns this monitor, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_monitor"}}},
+			"team_name":                        schema.StringAttribute{Computed: true, Description: "Name of the team that owns this monitor.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"team_wait":                        schema.Int64Attribute{Optional: true, Description: "Seconds to wait before escalating to the whole team. 0 alerts the whole team right away, and null never escalates to the team. Ignored while an escalation policy is set.", MarkdownDescription: "Seconds to wait before escalating to the whole team. `0` alerts the whole team right away, and `null` never escalates to the team. Ignored while an escalation policy is set."},
 			"updated_at":                       schema.StringAttribute{Computed: true, Description: "When the monitor was last updated."},
-			"url":                              schema.StringAttribute{Optional: true, Computed: true, Description: "URL or host the monitor checks. Required for every type except Playwright, which uses scenario_name. At least one of `url` or `scenario_name` must be configured.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"verify_ssl":                       schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Fail the check on an invalid TLS certificate."},
+			"url":                              schema.StringAttribute{Optional: true, Description: "The URL of your website, or the host to check for ping, tcp, udp, smtp, pop, imap and dns monitors, without a protocol. It's null on playwright monitors. Required for every type except playwright, which accepts scenario_name instead. At least one of url or scenario_name must be configured.", MarkdownDescription: "The URL of your website, or the host to check for `ping`, `tcp`, `udp`, `smtp`, `pop`, `imap` and `dns` monitors, without a protocol. It's `null` on `playwright` monitors. Required for every type except `playwright`, which accepts `scenario_name` instead. At least one of `url` or `scenario_name` must be configured."},
+			"verify_ssl":                       schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether a check fails on an invalid SSL certificate."},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -349,15 +365,6 @@ func (r *MonitorResource) Configure(ctx context.Context, req resource.ConfigureR
 // flat or wrapped; that is the binding's job, not this function's.
 func (r *MonitorResource) body(ctx context.Context, m MonitorModel) map[string]interface{} {
 	body := map[string]interface{}{}
-	if !m.Metadata.IsNull() && !m.Metadata.IsUnknown() {
-		items := make(map[string]interface{}, len(m.Metadata.Elements()))
-		for k, el := range m.Metadata.Elements() {
-			if obj, ok := el.(types.Object); ok {
-				items[k] = expandMonitorMetadata(ctx, obj)["values"]
-			}
-		}
-		body["metadata"] = items
-	}
 	if !m.Url.IsNull() && !m.Url.IsUnknown() {
 		body["url"] = m.Url.ValueString()
 	}
@@ -368,7 +375,7 @@ func (r *MonitorResource) body(ctx context.Context, m MonitorModel) map[string]i
 		body["pronounceable_name"] = m.PronounceableName.ValueString()
 	}
 	if !m.MonitorGroupId.IsNull() && !m.MonitorGroupId.IsUnknown() {
-		body["monitor_group_id"] = idToAPI(m.MonitorGroupId.ValueString())
+		body["monitor_group_id"] = m.MonitorGroupId.ValueString()
 	}
 	if !m.Paused.IsNull() && !m.Paused.IsUnknown() {
 		body["paused"] = m.Paused.ValueBool()
@@ -461,8 +468,8 @@ func (r *MonitorResource) body(ctx context.Context, m MonitorModel) map[string]i
 	if !m.EscalationPolicyId.IsNull() && !m.EscalationPolicyId.IsUnknown() {
 		body["escalation_policy_id"] = m.EscalationPolicyId.ValueString()
 	}
-	if !m.ExpirationPolicyId.IsNull() && !m.ExpirationPolicyId.IsUnknown() {
-		body["expiration_policy_id"] = idToAPI(m.ExpirationPolicyId.ValueString())
+	if !m.ExpirationEscalationPolicyId.IsNull() && !m.ExpirationEscalationPolicyId.IsUnknown() {
+		body["expiration_escalation_policy_id"] = m.ExpirationEscalationPolicyId.ValueString()
 	}
 	if !m.SslExpiration.IsNull() && !m.SslExpiration.IsUnknown() {
 		body["ssl_expiration"] = m.SslExpiration.ValueInt64()
@@ -477,7 +484,11 @@ func (r *MonitorResource) body(ctx context.Context, m MonitorModel) map[string]i
 		body["maintenance_to"] = m.MaintenanceTo.ValueString()
 	}
 	if !m.MaintenanceTimezone.IsNull() && !m.MaintenanceTimezone.IsUnknown() {
-		body["maintenance_timezone"] = m.MaintenanceTimezone.ValueString()
+		if m.MaintenanceTimezone.ValueString() == "UTC" {
+			body["maintenance_timezone"] = nil
+		} else {
+			body["maintenance_timezone"] = m.MaintenanceTimezone.ValueString()
+		}
 	}
 	if !m.MaintenanceDays.IsNull() && !m.MaintenanceDays.IsUnknown() {
 		var vals []string
@@ -490,12 +501,19 @@ func (r *MonitorResource) body(ctx context.Context, m MonitorModel) map[string]i
 	if !m.ScenarioName.IsNull() && !m.ScenarioName.IsUnknown() {
 		body["scenario_name"] = m.ScenarioName.ValueString()
 	}
-	if !m.EnvironmentVariables.IsNull() && !m.EnvironmentVariables.IsUnknown() && !m.EnvironmentVariables.IsUnderlyingValueNull() && !m.EnvironmentVariables.IsUnderlyingValueUnknown() {
-		if tv, err := m.EnvironmentVariables.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-			if av, err := tftypesToAPI(tv); err == nil {
-				body["environment_variables"] = projectAPIWrite(av, apiValueShape{})
+	if !m.EnvironmentVariables.IsNull() && !m.EnvironmentVariables.IsUnknown() {
+		vals := map[string]string{}
+		m.EnvironmentVariables.ElementsAs(ctx, &vals, false)
+		body["environment_variables"] = vals
+	}
+	if !m.Metadata.IsNull() && !m.Metadata.IsUnknown() {
+		items := make(map[string]interface{}, len(m.Metadata.Elements()))
+		for k, el := range m.Metadata.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items[k] = expandMonitorMetadata(ctx, obj)["values"]
 			}
 		}
+		body["metadata"] = items
 	}
 	return body
 }
@@ -503,6 +521,9 @@ func (r *MonitorResource) body(ctx context.Context, m MonitorModel) map[string]i
 // updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
 func (r *MonitorResource) updateBody(ctx context.Context, config, plan, state MonitorModel) map[string]interface{} {
 	body := r.body(ctx, config)
+	if !state.Url.IsNull() && !state.Url.IsUnknown() && plan.Url.IsNull() {
+		body["url"] = nil
+	}
 	if !state.MonitorGroupId.IsNull() && !state.MonitorGroupId.IsUnknown() && plan.MonitorGroupId.IsNull() {
 		body["monitor_group_id"] = nil
 	}
@@ -530,8 +551,8 @@ func (r *MonitorResource) updateBody(ctx context.Context, config, plan, state Mo
 	if !state.EscalationPolicyId.IsNull() && !state.EscalationPolicyId.IsUnknown() && plan.EscalationPolicyId.IsNull() {
 		body["escalation_policy_id"] = nil
 	}
-	if !state.ExpirationPolicyId.IsNull() && !state.ExpirationPolicyId.IsUnknown() && plan.ExpirationPolicyId.IsNull() {
-		body["expiration_policy_id"] = nil
+	if !state.ExpirationEscalationPolicyId.IsNull() && !state.ExpirationEscalationPolicyId.IsUnknown() && plan.ExpirationEscalationPolicyId.IsNull() {
+		body["expiration_escalation_policy_id"] = nil
 	}
 	if !state.SslExpiration.IsNull() && !state.SslExpiration.IsUnknown() && plan.SslExpiration.IsNull() {
 		body["ssl_expiration"] = nil
@@ -567,6 +588,7 @@ func (r *MonitorResource) Create(ctx context.Context, req resource.CreateRequest
 	request.HttpMethod = plan.HttpMethod                   // its schema default travels when unset, so removing the line resets it
 	request.MaintenanceDays = plan.MaintenanceDays         // its schema default travels when unset, so removing the line resets it
 	request.MaintenanceTimezone = plan.MaintenanceTimezone // its schema default travels when unset, so removing the line resets it
+	request.MonitorType = plan.MonitorType                 // its schema default travels when unset, so removing the line resets it
 	request.Paused = plan.Paused                           // its schema default travels when unset, so removing the line resets it
 	request.Push = plan.Push                               // its schema default travels when unset, so removing the line resets it
 	request.RecoveryPeriod = plan.RecoveryPeriod           // its schema default travels when unset, so removing the line resets it
@@ -576,8 +598,16 @@ func (r *MonitorResource) Create(ctx context.Context, req resource.CreateRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
 	out, err := r.client.Create(ctx, monitorBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating monitor", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating monitor", err, req.Plan.Raw.Type())
 		return
@@ -602,9 +632,22 @@ func (r *MonitorResource) Read(ctx context.Context, req resource.ReadRequest, re
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, monitorBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), monitorBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading monitor", err, req.State.Raw.Type())
 		return
@@ -614,6 +657,10 @@ func (r *MonitorResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 	populateMonitor(ctx, &state, out)
+	// The API never returns it: an imported object starts protected, as a created one does.
+	if state.DeletionProtection.IsNull() || state.DeletionProtection.IsUnknown() {
+		state.DeletionProtection = types.BoolValue(true)
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -623,25 +670,14 @@ func populateMonitor(ctx context.Context, m *MonitorModel, attrs map[string]inte
 	if attrs == nil {
 		return
 	}
-	if v, ok := stringFromAPI(attrs["team_name"]); ok {
-		m.TeamName = types.StringValue(v)
-	}
-	if raw, ok := attrs["metadata"].(map[string]interface{}); ok {
-		priorByKey := m.Metadata.Elements()
-		items := make(map[string]attr.Value, len(raw))
-		for k, e := range raw {
-			mp := map[string]interface{}{"values": e}
-			prior := types.ObjectNull(monitorMetadataAttrTypes())
-			if existing, ok := priorByKey[k].(types.Object); ok {
-				prior = existing
+	if rawValue, exists := attrs["url"]; exists {
+		if rawValue == nil {
+			m.Url = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["url"]); ok {
+				m.Url = types.StringValue(v)
 			}
-			items[k] = flattenMonitorMetadata(ctx, prior, mp)
 		}
-		mv, _ := types.MapValue(types.ObjectType{AttrTypes: monitorMetadataAttrTypes()}, items)
-		m.Metadata = mv
-	}
-	if v, ok := stringFromAPI(attrs["url"]); ok {
-		m.Url = types.StringValue(v)
 	}
 	if v, ok := stringFromAPI(attrs["monitor_type"]); ok {
 		m.MonitorType = types.StringValue(v)
@@ -695,7 +731,7 @@ func populateMonitor(ctx context.Context, m *MonitorModel, attrs map[string]inte
 		}
 	}
 	if v, ok := stringFromAPI(attrs["http_method"]); ok {
-		m.HttpMethod = types.StringValue(v)
+		m.HttpMethod = aliasedValue(map[string]string{"GET": "get", "HEAD": "head", "OPTIONS": "options", "PATCH": "patch", "POST": "post", "PUT": "put"}, m.HttpMethod, v)
 	}
 	if rawValue, exists := attrs["request_body"]; exists {
 		if rawValue == nil {
@@ -707,10 +743,27 @@ func populateMonitor(ctx context.Context, m *MonitorModel, attrs map[string]inte
 		}
 	}
 	if raw, ok := attrs["request_headers"].([]interface{}); ok {
+		priorByID := map[string]types.Object{}
+		for _, element := range m.RequestHeaders.Elements() {
+			if object, ok := element.(types.Object); ok && !object.IsNull() && !object.IsUnknown() {
+				if value := object.Attributes()["id"]; value != nil && !value.IsNull() && !value.IsUnknown() {
+					if tv, err := value.ToTerraformValue(ctx); err == nil {
+						if av, err := tftypesToAPI(tv); err == nil {
+							priorByID[stringifyScalar(av)] = object
+						}
+					}
+				}
+			}
+		}
 		items := make([]types.Object, 0, len(raw))
 		for _, e := range raw {
 			if mp, ok := e.(map[string]interface{}); ok {
 				prior := types.ObjectNull(monitorRequestHeadersAttrTypes())
+				if identity := stringifyScalar(mp["id"]); identity != "" {
+					if existing, ok := priorByID[identity]; ok {
+						prior = existing
+					}
+				}
 				items = append(items, flattenMonitorRequestHeaders(ctx, prior, mp))
 			}
 		}
@@ -736,11 +789,14 @@ func populateMonitor(ctx context.Context, m *MonitorModel, attrs map[string]inte
 	if v, ok := boolFromAPI(attrs["verify_ssl"]); ok {
 		m.VerifySsl = types.BoolValue(v)
 	}
-	if v, ok := stringFromAPI(attrs["auth_username"]); ok {
-		m.AuthUsername = types.StringValue(v)
-	}
-	if v, ok := stringFromAPI(attrs["auth_password"]); ok {
-		m.AuthPassword = types.StringValue(v)
+	if rawValue, exists := attrs["auth_username"]; exists {
+		if rawValue == nil {
+			m.AuthUsername = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["auth_username"]); ok {
+				m.AuthUsername = types.StringValue(v)
+			}
+		}
 	}
 	if raw, ok := attrs["regions"].([]interface{}); ok {
 		vals := make([]string, 0, len(raw))
@@ -821,12 +877,12 @@ func populateMonitor(ctx context.Context, m *MonitorModel, attrs map[string]inte
 			}
 		}
 	}
-	if rawValue, exists := attrs["expiration_policy_id"]; exists {
+	if rawValue, exists := attrs["expiration_escalation_policy_id"]; exists {
 		if rawValue == nil {
-			m.ExpirationPolicyId = types.StringNull()
+			m.ExpirationEscalationPolicyId = types.StringNull()
 		} else {
-			if v, ok := stringFromAPI(attrs["expiration_policy_id"]); ok {
-				m.ExpirationPolicyId = types.StringValue(v)
+			if v, ok := stringFromAPI(attrs["expiration_escalation_policy_id"]); ok {
+				m.ExpirationEscalationPolicyId = types.StringValue(v)
 			}
 		}
 	}
@@ -866,8 +922,14 @@ func populateMonitor(ctx context.Context, m *MonitorModel, attrs map[string]inte
 			}
 		}
 	}
-	if v, ok := stringFromAPI(attrs["maintenance_timezone"]); ok {
-		m.MaintenanceTimezone = types.StringValue(v)
+	if rawValue, exists := attrs["maintenance_timezone"]; exists {
+		if rawValue == nil {
+			m.MaintenanceTimezone = types.StringValue("UTC")
+		} else {
+			if v, ok := stringFromAPI(attrs["maintenance_timezone"]); ok {
+				m.MaintenanceTimezone = timeZoneValue(m.MaintenanceTimezone, v)
+			}
+		}
 	}
 	if raw, ok := attrs["maintenance_days"].([]interface{}); ok {
 		vals := make([]string, 0, len(raw))
@@ -891,17 +953,8 @@ func populateMonitor(ctx context.Context, m *MonitorModel, attrs map[string]inte
 	if v, ok := stringFromAPI(attrs["scenario_name"]); ok {
 		m.ScenarioName = types.StringValue(v)
 	}
-	if raw, ok := attrs["environment_variables"]; ok && raw != nil {
-		var prior interface{}
-		if !m.EnvironmentVariables.IsNull() && !m.EnvironmentVariables.IsUnknown() && !m.EnvironmentVariables.IsUnderlyingValueNull() && !m.EnvironmentVariables.IsUnderlyingValueUnknown() {
-			if tv, err := m.EnvironmentVariables.UnderlyingValue().ToTerraformValue(ctx); err == nil {
-				prior, _ = tftypesToAPI(tv)
-			}
-		}
-		raw = mergeAPIRead(raw, prior, apiValueShape{})
-		if dv, err := types.DynamicType.ValueFromTerraform(ctx, dynamicFromAPI(raw)); err == nil {
-			m.EnvironmentVariables = dv.(types.Dynamic)
-		}
+	if raw, ok := attrs["environment_variables"].(map[string]interface{}); ok {
+		m.EnvironmentVariables = mapNamesKeepingValues(m.EnvironmentVariables, raw)
 	}
 	if v, ok := stringFromAPI(attrs["status"]); ok {
 		m.Status = types.StringValue(v)
@@ -933,9 +986,40 @@ func populateMonitor(ctx context.Context, m *MonitorModel, attrs map[string]inte
 	if v, ok := stringFromAPI(attrs["updated_at"]); ok {
 		m.UpdatedAt = datetimeValue(m.UpdatedAt, v)
 	}
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(attrs["team_name"]); ok {
+		m.TeamName = types.StringValue(v)
+	}
+	if raw, ok := attrs["metadata"].(map[string]interface{}); ok {
+		priorByKey := m.Metadata.Elements()
+		items := make(map[string]attr.Value, len(raw))
+		for k, e := range raw {
+			mp := map[string]interface{}{"values": e}
+			prior := types.ObjectNull(monitorMetadataAttrTypes())
+			if existing, ok := priorByKey[k].(types.Object); ok {
+				prior = existing
+			}
+			items[k] = flattenMonitorMetadata(ctx, prior, mp)
+		}
+		mv, _ := types.MapValue(types.ObjectType{AttrTypes: monitorMetadataAttrTypes()}, items)
+		m.Metadata = mv
+	}
+}
+
+func (r *MonitorResource) mergeResponse(ctx context.Context, m MonitorModel, attrs map[string]interface{}) {
+	if raw, ok := attrs["auth_password"]; ok && !m.AuthPassword.IsNull() && !m.AuthPassword.IsUnknown() {
+		if tv, err := m.AuthPassword.ToTerraformValue(ctx); err == nil {
+			if prior, err := tftypesToAPI(tv); err == nil {
+				attrs["auth_password"] = mergeAPIRead(raw, prior, apiValueShape{WriteOnly: true})
+			}
+		}
+	}
 }
 
 func (r *MonitorResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	defer rememberConfigured(ctx, req.Config, resp.Private, monitorKeptOnRemoval, &resp.Diagnostics)
 	var plan MonitorModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -978,6 +1062,9 @@ func (r *MonitorResource) Update(ctx context.Context, req resource.UpdateRequest
 	if !plan.MaintenanceTimezone.Equal(state.MaintenanceTimezone) {
 		request.MaintenanceTimezone = plan.MaintenanceTimezone
 	}
+	if !plan.MonitorType.Equal(state.MonitorType) {
+		request.MonitorType = plan.MonitorType
+	}
 	if !plan.Paused.Equal(state.Paused) {
 		request.Paused = plan.Paused
 	}
@@ -996,6 +1083,12 @@ func (r *MonitorResource) Update(ctx context.Context, req resource.UpdateRequest
 	if !plan.VerifySsl.Equal(state.VerifySsl) {
 		request.VerifySsl = plan.VerifySsl
 	}
+	// The API recreates every item of this list under a new id when the list is sent, so an
+	// unchanged one isn't sent and its items keep their ids (ModifyPlan planned them from state).
+	if plan.RequestHeaders.Equal(state.RequestHeaders) {
+		request.RequestHeaders = types.ListNull(request.RequestHeaders.ElementType(ctx))
+	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, err := r.client.Update(ctx, monitorBinding, vars, r.updateBody(ctx, request, plan, state))
@@ -1006,15 +1099,20 @@ func (r *MonitorResource) Update(ctx context.Context, req resource.UpdateRequest
 	if out == nil {
 		out = map[string]interface{}{}
 	}
+	r.mergeResponse(ctx, state, out)
 	resp.State.Raw = stateFromPlan(req.Plan.Raw, req.State.Raw, out)
 }
 
 func (r *MonitorResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	if refuseProtectedDelete(ctx, req.State, "monitor", &resp.Diagnostics) {
+		return
+	}
 	var state MonitorModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	if err := r.client.Delete(ctx, monitorBinding, vars); err != nil {
@@ -1026,11 +1124,32 @@ func (r *MonitorResource) Delete(ctx context.Context, req resource.DeleteRequest
 var monitorKeptOnRemoval = []string{"auth_password", "auth_username", "environment_variables", "metadata", "pronounceable_name", "regions", "request_headers", "request_timeout"}
 
 func (r *MonitorResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseUnnamedTeam(ctx, req, resp, r.client, "monitor")
+	refuseProtectedDestroy(ctx, req, resp, "monitor")
 	warnKeptOnRemoval(ctx, "betterstack_monitor", req, resp, monitorKeptOnRemoval)
+	keepListItemIDs(ctx, req, resp, path.Root("request_headers"))
 }
 
 func (r *MonitorResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("monitor_type"), "status")...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("paused"), false)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("check_frequency"), 180)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("recovery_period"), 180)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("confirmation_period"), 0)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("http_method"), "get")...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("expected_status_codes"), types.ListValueMust(types.Int64Type, []attr.Value{}))...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("follow_redirects"), true)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("remember_cookies"), true)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("verify_ssl"), true)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("email"), true)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("sms"), false)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("call"), false)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("push"), false)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("critical_alert"), false)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("maintenance_timezone"), "UTC")...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("maintenance_days"), types.SetValueMust(types.StringType, []attr.Value{types.StringValue("mon"), types.StringValue("tue"), types.StringValue("wed"), types.StringValue("thu"), types.StringValue("fri"), types.StringValue("sat"), types.StringValue("sun")}))...)
 }
 
 var _ resource.ResourceWithMoveState = &MonitorResource{}
@@ -1039,6 +1158,6 @@ var _ resource.ResourceWithMoveState = &MonitorResource{}
 // betteruptime_monitor (registry.terraform.io/BetterStackHQ/better-uptime).
 func (r *MonitorResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{\"policy_id\":\"escalation_policy_id\"},\"constants\":{},\"transforms\":[{\"op\":\"sentinel_null\",\"path\":\"monitor_group_id\",\"value\":0},{\"op\":\"sentinel_null\",\"path\":\"expiration_policy_id\",\"value\":0},{\"op\":\"string_id\",\"path\":\"expiration_policy_id\"},{\"op\":\"string_id\",\"path\":\"monitor_group_id\"}],\"ignored_fields\":[\"team_name\",\"request_headers[].id\"],\"instructions\":[\"Keep every attribute: the legacy provider wrote the same fields on /api/v2/monitors, where escalation_policy_id was policy_id. Its 0 for an unset monitor_group_id or expiration_policy_id becomes null, as the API reads it. Move team_name to the provider's team_id (or a provider alias for that team). Preserve all request headers by name/value, dropping only the obsolete header row ids. Import uses the existing id.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/better-uptime\",\"source_type\":\"betteruptime_monitor\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"description\":\"Basic HTTP authentication password to include with the request.\",\"name\":\"auth_password\",\"optional\":true,\"sensitive\":true,\"type\":\"string\"},{\"description\":\"Basic HTTP authentication username to include with the request.\",\"name\":\"auth_username\",\"optional\":true,\"sensitive\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether to call when a new incident is created.\",\"name\":\"call\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"How often should we check your website? In seconds.\",\"name\":\"check_frequency\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"How long should we wait after observing a failure before we start a new incident? In seconds.\",\"name\":\"confirmation_period\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The time when this monitor was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether to send a critical push notification that ignores the mute switch and Do not Disturb mode when a new incident is created.\",\"name\":\"critical_alert\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"How many days before the domain expires do you want to be alerted? Valid values are 1, 2, 3, 7, 14, 30, and 60. Set to -1 to disable domain expiration check.\",\"name\":\"domain_expiration\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntInSlice.func24\"},{\"computed\":true,\"description\":\"Whether to send an email when a new incident is created.\",\"name\":\"email\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"For Playwright monitors, the environment variables that can be used in the scenario. Example: `{ \\\"PASSWORD\\\" = \\\"passw0rd\\\" }`.\",\"name\":\"environment_variables\",\"optional\":true,\"sensitive\":true,\"type\":\"map(string)\",\"validate_diag_func\":\"provider.init.func9\"},{\"description\":\"Required if monitor_type is set to expected_status_code. We will create a new incident if the status code returned from the server is not in the list of expected status codes.\",\"name\":\"expected_status_codes\",\"optional\":true,\"type\":\"list(int)\"},{\"description\":\"Set the expiration escalation policy for the monitor. It is used for SSL certificate and domain expiration checks. When set to null, an e-mail is sent to the entire team.\",\"name\":\"expiration_policy_id\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"Set to true for the monitor to follow redirects.\",\"name\":\"follow_redirects\",\"optional\":true,\"type\":\"bool\"},{\"default\":\"GET\",\"description\":\"HTTP Method used to make a request. Valid options: GET, HEAD, POST, PUT, PATCH\",\"diff_suppress_func\":\"provider.init.func6\",\"name\":\"http_method\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this Monitor.\",\"name\":\"id\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Valid values:\\n\\n    `ipv4` Use IPv4 only,\\n\\n    `ipv6` Use IPv6 only.\",\"name\":\"ip_version\",\"optional\":true,\"type\":\"string\",\"validate_diag_func\":\"provider.init.func8\"},{\"computed\":true,\"description\":\"When the website was last checked.\",\"name\":\"last_checked_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"An array of maintenance days to set. If a maintenance window is overnight both affected days should be set. Allowed values are [\\\"mon\\\", \\\"tue\\\", \\\"wed\\\", \\\"thu\\\", \\\"fri\\\", \\\"sat\\\", \\\"sun\\\"] or any subset of these days.\",\"name\":\"maintenance_days\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"Start of the maintenance window each day. We won't check your website during this window. Example: \\\"01:00:00\\\"\",\"name\":\"maintenance_from\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The timezone to use for the maintenance window each day. Defaults to UTC. The accepted values can be found in the Rails TimeZone documentation. https://api.rubyonrails.org/classes/ActiveSupport/TimeZone.html\",\"name\":\"maintenance_timezone\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"End of the maintenance window each day. Example: \\\"03:00:00\\\"\",\"name\":\"maintenance_to\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Set this attribute if you want to add this monitor to a monitor group.\",\"name\":\"monitor_group_id\",\"optional\":true,\"type\":\"int\"},{\"description\":\"Valid values:\\n\\n    `status` We will check your website for 2XX HTTP status code.\\n\\n\\t`expected_status_code` We will check if your website returned one of the values in expected_status_codes.\\n\\n    `keyword` We will check if your website contains the required_keyword.\\n\\n    `keyword_absence` We will check if your website doesn't contain the required_keyword.\\n\\n    `ping` We will ping your host specified in the url parameter.\\n\\n    `tcp` We will test a TCP port at your host specified in the url parameter\\n(port is required).\\n\\n    `udp` We will test a UDP port at your host specified in the url parameter\\n(port and required_keyword are required).\\n\\n    `smtp` We will check for a SMTP server at the host specified in the url parameter\\n(port is required, and can be one of 25, 465, 587, or a combination of those ports separated by comma).\\n\\n    `pop` We will check for a POP3 server at the host specified in the url parameter\\n(port is required, and can be 110, 995, or both).\\n\\n    `imap` We will check for an IMAP server at the host specified in the url parameter\\n(port is required, and can be 143, 993, or both).\\n\\n    `dns` We will check for a DNS server at the host specified in the url parameter\\n(request_body is required, and should contain the domain to query the DNS server with).\\n\\n    `playwright` We will run the scenario defined by playwright_script, identified in the UI by scenario_name\",\"name\":\"monitor_type\",\"required\":true,\"type\":\"string\",\"validate_diag_func\":\"provider.init.func4\"},{\"computed\":true,\"description\":\"Set to true to pause monitoring - we won't notify you about downtime. Set to false to resume monitoring.\",\"name\":\"paused\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"The time when this monitor was paused.\",\"name\":\"paused_at\",\"type\":\"string\"},{\"description\":\"For Playwright monitors, the JavaScript source code of the scenario.\",\"name\":\"playwright_script\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Set the escalation policy for the monitor.\",\"name\":\"policy_id\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Required if monitor_type is set to tcp, udp, smtp, pop, or imap. tcp and udp monitors accept any ports, while smtp, pop, and imap accept only the specified ports corresponding with their servers (e.g. \\\"25,465,587\\\" for smtp).\",\"name\":\"port\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Pronounceable name of the monitor. We will use this when we call you. Try to make it tongue-friendly, please?\",\"diff_suppress_func\":\"provider.init.func5\",\"name\":\"pronounceable_name\",\"optional\":true,\"type\":\"string\"},{\"description\":\"A proxy to be used for routing HTTP checks. Use user:pass@hostname format for proxy authentication.\",\"name\":\"proxy_host\",\"optional\":true,\"type\":\"string\"},{\"description\":\"The port to be used with `proxy_host`.\",\"name\":\"proxy_port\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"Whether to send a push notification when a new incident is created.\",\"name\":\"push\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"How long the monitor must be up to automatically mark an incident as resolved after being down. In seconds.\",\"name\":\"recovery_period\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"An array of regions to set. Allowed values are [\\\"us\\\", \\\"eu\\\", \\\"as\\\", \\\"au\\\"] or any subset of these regions.\",\"name\":\"regions\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"Set to true to keep cookies when redirecting.\",\"name\":\"remember_cookies\",\"optional\":true,\"type\":\"bool\"},{\"description\":\"Request body for POST, PUT, PATCH requests. Required if monitor_type is set to dns (domain to query the DNS server with).\",\"name\":\"request_body\",\"optional\":true,\"type\":\"string\"},{\"description\":\"An array of request headers, consisting of name and value pairs\",\"diff_suppress_func\":\"provider.init.func7\",\"name\":\"request_headers\",\"optional\":true,\"type\":\"list(map(string))\"},{\"computed\":true,\"description\":\"How long to wait before timing out the request?\\n  - For Server and Port monitors (types `ping`, `tcp`, `udp`, `smtp`, `pop`, `imap` and `dns`) the timeout is specified in *milliseconds*. Valid options: 500, 1000, 2000, 3000, 5000.\\n  - For Playwright monitors (type `playwright`), this determines the Playwright scenario timeout instead in *seconds*. Valid options: 15, 30, 45, 60, 120, 180, 240, 300, 360, 480, 600, 900.\\n  - For all other monitors, the timeout is specified in *seconds*. Valid options: 2, 3, 5, 10, 15, 30, 45, 60.\\n\",\"name\":\"request_timeout\",\"optional\":true,\"type\":\"int\"},{\"description\":\"Required if monitor_type is set to keyword  or udp. We will create a new incident if this keyword is missing on your page.\",\"name\":\"required_keyword\",\"optional\":true,\"type\":\"string\"},{\"description\":\"For Playwright monitors, the scenario name identifying the monitor in the UI. For Playwright monitors, either `url` or `scenario_name` must be provided.\",\"name\":\"scenario_name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether to send an SMS when a new incident is created.\",\"name\":\"sms\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"How many days before the SSL certificate expires do you want to be alerted? Valid values are 1, 2, 3, 7, 14, 30, and 60. Set to -1 to disable SSL expiration check.\",\"name\":\"ssl_expiration\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntInSlice.func23\"},{\"computed\":true,\"description\":\"The status of this website check.\",\"name\":\"status\",\"type\":\"string\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.teamNameSchema.func1\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"How long to wait before escalating the incident alert to the team. Leave blank to disable escalating to the entire team. In seconds.\",\"name\":\"team_wait\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The time when this monitor was updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"description\":\"URL of your website or the host you want to ping (see monitor_type below). Required for all monitor types except Playwright. For Playwright monitors, either `url` or `scenario_name` must be provided.\",\"name\":\"url\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Should we verify SSL certificate validity?\",\"name\":\"verify_ssl\",\"optional\":true,\"type\":\"bool\"}],\"response_projections\":[]}"),
+		legacyStateMover("{\"renames\":{\"policy_id\":\"escalation_policy_id\",\"expiration_policy_id\":\"expiration_escalation_policy_id\"},\"constants\":{},\"transforms\":[{\"op\":\"sentinel_null\",\"path\":\"monitor_group_id\",\"value\":0},{\"op\":\"sentinel_null\",\"path\":\"expiration_escalation_policy_id\",\"value\":0},{\"op\":\"string_id\",\"path\":\"expiration_escalation_policy_id\"},{\"op\":\"string_id\",\"path\":\"monitor_group_id\"}],\"ignored_fields\":[\"team_name\",\"request_headers[].id\"],\"instructions\":[\"Keep every attribute. Rename policy_id to escalation_policy_id and expiration_policy_id to expiration_escalation_policy_id. Its 0 for an unset monitor_group_id or expiration_policy_id becomes null, as Better Stack reads it back. Move team_name to the provider's team_id, or to the resource's own team_id for an object in another team. Preserve all request headers by name/value, dropping only the obsolete header row ids. Import uses the existing id.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/better-uptime\",\"source_type\":\"betteruptime_monitor\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"defaults\":{\"monitor_type\":\"status\",\"paused\":false,\"check_frequency\":180,\"recovery_period\":180,\"confirmation_period\":0,\"http_method\":\"get\",\"expected_status_codes\":[],\"follow_redirects\":true,\"remember_cookies\":true,\"verify_ssl\":true,\"email\":true,\"sms\":false,\"call\":false,\"push\":false,\"critical_alert\":false,\"maintenance_timezone\":\"UTC\",\"maintenance_days\":[\"mon\",\"tue\",\"wed\",\"thu\",\"fri\",\"sat\",\"sun\"]},\"source_attributes\":[{\"description\":\"Basic HTTP authentication password to include with the request.\",\"name\":\"auth_password\",\"optional\":true,\"sensitive\":true,\"type\":\"string\"},{\"description\":\"Basic HTTP authentication username to include with the request.\",\"name\":\"auth_username\",\"optional\":true,\"sensitive\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether to call when a new incident is created.\",\"name\":\"call\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"How often should we check your website? In seconds.\",\"name\":\"check_frequency\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"How long should we wait after observing a failure before we start a new incident? In seconds.\",\"name\":\"confirmation_period\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The time when this monitor was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether to send a critical push notification that ignores the mute switch and Do not Disturb mode when a new incident is created.\",\"name\":\"critical_alert\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"How many days before the domain expires do you want to be alerted? Valid values are 1, 2, 3, 7, 14, 30, and 60. Set to -1 to disable domain expiration check.\",\"name\":\"domain_expiration\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntInSlice.func24\"},{\"computed\":true,\"description\":\"Whether to send an email when a new incident is created.\",\"name\":\"email\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"For Playwright monitors, the environment variables that can be used in the scenario. Example: `{ \\\"PASSWORD\\\" = \\\"passw0rd\\\" }`.\",\"name\":\"environment_variables\",\"optional\":true,\"sensitive\":true,\"type\":\"map(string)\",\"validate_diag_func\":\"provider.init.func9\"},{\"description\":\"Required if monitor_type is set to expected_status_code. We will create a new incident if the status code returned from the server is not in the list of expected status codes.\",\"name\":\"expected_status_codes\",\"optional\":true,\"type\":\"list(int)\"},{\"description\":\"Set the expiration escalation policy for the monitor. It is used for SSL certificate and domain expiration checks. When set to null, an e-mail is sent to the entire team.\",\"name\":\"expiration_policy_id\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"Set to true for the monitor to follow redirects.\",\"name\":\"follow_redirects\",\"optional\":true,\"type\":\"bool\"},{\"default\":\"GET\",\"description\":\"HTTP Method used to make a request. Valid options: GET, HEAD, POST, PUT, PATCH\",\"diff_suppress_func\":\"provider.init.func6\",\"name\":\"http_method\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The ID of this Monitor.\",\"name\":\"id\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Valid values:\\n\\n    `ipv4` Use IPv4 only,\\n\\n    `ipv6` Use IPv6 only.\",\"name\":\"ip_version\",\"optional\":true,\"type\":\"string\",\"validate_diag_func\":\"provider.init.func8\"},{\"computed\":true,\"description\":\"When the website was last checked.\",\"name\":\"last_checked_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"An array of maintenance days to set. If a maintenance window is overnight both affected days should be set. Allowed values are [\\\"mon\\\", \\\"tue\\\", \\\"wed\\\", \\\"thu\\\", \\\"fri\\\", \\\"sat\\\", \\\"sun\\\"] or any subset of these days.\",\"name\":\"maintenance_days\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"Start of the maintenance window each day. We won't check your website during this window. Example: \\\"01:00:00\\\"\",\"name\":\"maintenance_from\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The timezone to use for the maintenance window each day. Defaults to UTC. The accepted values can be found in the Rails TimeZone documentation. https://api.rubyonrails.org/classes/ActiveSupport/TimeZone.html\",\"name\":\"maintenance_timezone\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"End of the maintenance window each day. Example: \\\"03:00:00\\\"\",\"name\":\"maintenance_to\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Set this attribute if you want to add this monitor to a monitor group.\",\"name\":\"monitor_group_id\",\"optional\":true,\"type\":\"int\"},{\"description\":\"Valid values:\\n\\n    `status` We will check your website for 2XX HTTP status code.\\n\\n\\t`expected_status_code` We will check if your website returned one of the values in expected_status_codes.\\n\\n    `keyword` We will check if your website contains the required_keyword.\\n\\n    `keyword_absence` We will check if your website doesn't contain the required_keyword.\\n\\n    `ping` We will ping your host specified in the url parameter.\\n\\n    `tcp` We will test a TCP port at your host specified in the url parameter\\n(port is required).\\n\\n    `udp` We will test a UDP port at your host specified in the url parameter\\n(port and required_keyword are required).\\n\\n    `smtp` We will check for a SMTP server at the host specified in the url parameter\\n(port is required, and can be one of 25, 465, 587, or a combination of those ports separated by comma).\\n\\n    `pop` We will check for a POP3 server at the host specified in the url parameter\\n(port is required, and can be 110, 995, or both).\\n\\n    `imap` We will check for an IMAP server at the host specified in the url parameter\\n(port is required, and can be 143, 993, or both).\\n\\n    `dns` We will check for a DNS server at the host specified in the url parameter\\n(request_body is required, and should contain the domain to query the DNS server with).\\n\\n    `playwright` We will run the scenario defined by playwright_script, identified in the UI by scenario_name\",\"name\":\"monitor_type\",\"required\":true,\"type\":\"string\",\"validate_diag_func\":\"provider.init.func4\"},{\"computed\":true,\"description\":\"Set to true to pause monitoring - we won't notify you about downtime. Set to false to resume monitoring.\",\"name\":\"paused\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"The time when this monitor was paused.\",\"name\":\"paused_at\",\"type\":\"string\"},{\"description\":\"For Playwright monitors, the JavaScript source code of the scenario.\",\"name\":\"playwright_script\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Set the escalation policy for the monitor.\",\"name\":\"policy_id\",\"optional\":true,\"type\":\"string\"},{\"description\":\"Required if monitor_type is set to tcp, udp, smtp, pop, or imap. tcp and udp monitors accept any ports, while smtp, pop, and imap accept only the specified ports corresponding with their servers (e.g. \\\"25,465,587\\\" for smtp).\",\"name\":\"port\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Pronounceable name of the monitor. We will use this when we call you. Try to make it tongue-friendly, please?\",\"diff_suppress_func\":\"provider.init.func5\",\"name\":\"pronounceable_name\",\"optional\":true,\"type\":\"string\"},{\"description\":\"A proxy to be used for routing HTTP checks. Use user:pass@hostname format for proxy authentication.\",\"name\":\"proxy_host\",\"optional\":true,\"type\":\"string\"},{\"description\":\"The port to be used with `proxy_host`.\",\"name\":\"proxy_port\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"Whether to send a push notification when a new incident is created.\",\"name\":\"push\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"How long the monitor must be up to automatically mark an incident as resolved after being down. In seconds.\",\"name\":\"recovery_period\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"An array of regions to set. Allowed values are [\\\"us\\\", \\\"eu\\\", \\\"as\\\", \\\"au\\\"] or any subset of these regions.\",\"name\":\"regions\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"Set to true to keep cookies when redirecting.\",\"name\":\"remember_cookies\",\"optional\":true,\"type\":\"bool\"},{\"description\":\"Request body for POST, PUT, PATCH requests. Required if monitor_type is set to dns (domain to query the DNS server with).\",\"name\":\"request_body\",\"optional\":true,\"type\":\"string\"},{\"description\":\"An array of request headers, consisting of name and value pairs\",\"diff_suppress_func\":\"provider.init.func7\",\"name\":\"request_headers\",\"optional\":true,\"type\":\"list(map(string))\"},{\"computed\":true,\"description\":\"How long to wait before timing out the request?\\n  - For Server and Port monitors (types `ping`, `tcp`, `udp`, `smtp`, `pop`, `imap` and `dns`) the timeout is specified in *milliseconds*. Valid options: 500, 1000, 2000, 3000, 5000.\\n  - For Playwright monitors (type `playwright`), this determines the Playwright scenario timeout instead in *seconds*. Valid options: 15, 30, 45, 60, 120, 180, 240, 300, 360, 480, 600, 900.\\n  - For all other monitors, the timeout is specified in *seconds*. Valid options: 2, 3, 5, 10, 15, 30, 45, 60.\\n\",\"name\":\"request_timeout\",\"optional\":true,\"type\":\"int\"},{\"description\":\"Required if monitor_type is set to keyword  or udp. We will create a new incident if this keyword is missing on your page.\",\"name\":\"required_keyword\",\"optional\":true,\"type\":\"string\"},{\"description\":\"For Playwright monitors, the scenario name identifying the monitor in the UI. For Playwright monitors, either `url` or `scenario_name` must be provided.\",\"name\":\"scenario_name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether to send an SMS when a new incident is created.\",\"name\":\"sms\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"How many days before the SSL certificate expires do you want to be alerted? Valid values are 1, 2, 3, 7, 14, 30, and 60. Set to -1 to disable SSL expiration check.\",\"name\":\"ssl_expiration\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.IntInSlice.func23\"},{\"computed\":true,\"description\":\"The status of this website check.\",\"name\":\"status\",\"type\":\"string\"},{\"description\":\"Used to specify the team the resource should be created in when using global tokens. You can't update this value later.\",\"diff_suppress_func\":\"provider.teamNameSchema.func1\",\"name\":\"team_name\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"How long to wait before escalating the incident alert to the team. Leave blank to disable escalating to the entire team. In seconds.\",\"name\":\"team_wait\",\"optional\":true,\"type\":\"int\"},{\"computed\":true,\"description\":\"The time when this monitor was updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"description\":\"URL of your website or the host you want to ping (see monitor_type below). Required for all monitor types except Playwright. For Playwright monitors, either `url` or `scenario_name` must be provided.\",\"name\":\"url\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Should we verify SSL certificate validity?\",\"name\":\"verify_ssl\",\"optional\":true,\"type\":\"bool\"}],\"response_projections\":[]}"),
 	}
 }

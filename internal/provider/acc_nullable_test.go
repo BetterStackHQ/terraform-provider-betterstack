@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
 func TestAccOmittedComputedCreateOnlyFieldsDoNotReplace(t *testing.T) {
@@ -49,7 +50,7 @@ func TestAccExplorationGroupCanBeClearedByRemovingTheAttribute(t *testing.T) {
 			return
 		}
 		switch {
-		case r.Method == http.MethodPost && r.URL.Path == "/api/v2/explorations":
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v3/explorations":
 			var body map[string]interface{}
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				http.Error(w, "invalid create body", http.StatusBadRequest)
@@ -60,7 +61,7 @@ func TestAccExplorationGroupCanBeClearedByRemovingTheAttribute(t *testing.T) {
 				return
 			}
 			attrs = body
-		case r.Method == http.MethodPatch && r.URL.Path == "/api/v2/explorations/41":
+		case r.Method == http.MethodPatch && r.URL.Path == "/api/v3/explorations/41":
 			var body map[string]interface{}
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				http.Error(w, "invalid update body", http.StatusBadRequest)
@@ -76,8 +77,8 @@ func TestAccExplorationGroupCanBeClearedByRemovingTheAttribute(t *testing.T) {
 			for key, value := range update {
 				attrs[key] = value
 			}
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v2/explorations/41":
-		case r.Method == http.MethodDelete && r.URL.Path == "/api/v2/explorations/41":
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v3/explorations/41":
+		case r.Method == http.MethodDelete && r.URL.Path == "/api/v3/explorations/41":
 			w.WriteHeader(http.StatusNoContent)
 			return
 		default:
@@ -205,7 +206,7 @@ func TestAccAdoptionAndRegistrationRetainRemoteObjects(t *testing.T) {
   endpoint = %q
   api_rate_limit = 0
 }
-resource "betterstack_jira_integration" "adopted" {
+resource "betterstack_incidents_jira_integration" "adopted" {
   id = "77"
   name = "managed"
 }
@@ -219,8 +220,8 @@ resource "betterstack_release" "registered" {
 		ProtoV6ProviderFactories: testProviderFactories,
 		Steps: []resource.TestStep{
 			{Config: config, Check: resource.ComposeTestCheckFunc(
-				resource.TestCheckResourceAttr("betterstack_jira_integration.adopted", "id", "77"),
-				resource.TestCheckResourceAttr("betterstack_jira_integration.adopted", "name", "managed"),
+				resource.TestCheckResourceAttr("betterstack_incidents_jira_integration.adopted", "id", "77"),
+				resource.TestCheckResourceAttr("betterstack_incidents_jira_integration.adopted", "name", "managed"),
 				resource.TestCheckResourceAttr("betterstack_release.registered", "id", "5"),
 				resource.TestCheckResourceAttr("betterstack_release.registered", "application_id", "7"),
 				resource.TestCheckResourceAttr("betterstack_release.registered", "environment.#", "1"),
@@ -233,4 +234,89 @@ resource "betterstack_release" "registered" {
 	if patches != 1 || registrations != 1 {
 		t.Fatalf("unexpected lifecycle mutations: PATCH=%d registration=%d", patches, registrations)
 	}
+}
+
+// A server-filled field can change with the fields it depends on: switching an alert to anomaly_rrcf
+// gives it the server's shown_interval. The update reads it back, so state and outputs are current
+// and the next plan is empty.
+func TestAccServerFilledFieldReadsBackAfterUpdate(t *testing.T) {
+	var mu sync.Mutex
+	attrs := map[string]interface{}{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v3/alerts":
+			attrs = map[string]interface{}{}
+			fallthrough
+		case r.Method == http.MethodPatch && r.URL.Path == "/api/v3/alerts/51":
+			var body map[string]interface{}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, "invalid body", http.StatusBadRequest)
+				return
+			}
+			for key, value := range body {
+				attrs[key] = value
+			}
+			if attrs["alert_type"] == "anomaly_rrcf" {
+				delete(attrs, "on_missing_data") // anomaly alerts don't take it
+				if attrs["shown_interval"] == nil {
+					attrs["shown_interval"] = 10800
+				}
+			}
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v3/alerts/51":
+		case r.Method == http.MethodDelete && r.URL.Path == "/api/v3/alerts/51":
+			w.WriteHeader(http.StatusNoContent)
+			return
+		default:
+			http.Error(w, "unexpected alert route", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPost {
+			w.WriteHeader(http.StatusCreated)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": map[string]interface{}{"id": "51", "type": "alert", "attributes": attrs},
+		})
+	}))
+	defer srv.Close()
+
+	config := func(alertType string) string {
+		return fmt.Sprintf(`provider "betterstack" {
+  api_token = "test-token"
+  endpoint  = %q
+  team_id   = "t123"
+}
+
+resource "betterstack_alert" "test" {
+  name           = "server-filled"
+  alert_type     = %q
+  exploration_id = "7"
+}
+
+output "shown_interval" {
+  value = betterstack_alert.test.shown_interval
+}
+`, srv.URL, alertType)
+	}
+	addr := "betterstack_alert.test"
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: config("relative"), Check: resource.TestCheckNoResourceAttr(addr, "shown_interval")},
+			{
+				Config: config("anomaly_rrcf"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{
+					plancheck.ExpectResourceAction(addr, plancheck.ResourceActionUpdate),
+					plancheck.ExpectUnknownValue(addr, tfjsonpath.New("shown_interval")),
+				}},
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(addr, "shown_interval", "10800"),
+					resource.TestCheckOutput("shown_interval", "10800"),
+				),
+			},
+			{Config: config("anomaly_rrcf"), PlanOnly: true, ExpectNonEmptyPlan: false},
+		},
+	})
 }

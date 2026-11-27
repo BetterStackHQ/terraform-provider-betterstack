@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
@@ -18,6 +19,7 @@ import (
 var _ resource.Resource = &OnCallScheduleResource{}
 var _ resource.ResourceWithConfigure = &OnCallScheduleResource{}
 var _ resource.ResourceWithImportState = &OnCallScheduleResource{}
+var _ resource.ResourceWithModifyPlan = &OnCallScheduleResource{}
 
 type OnCallScheduleResource struct {
 	client *Client
@@ -32,8 +34,10 @@ type OnCallScheduleModel struct {
 	DefaultSchedule       types.Bool   `tfsdk:"default_schedule"`
 	Name                  types.String `tfsdk:"name"`
 	OnCallUsers           types.List   `tfsdk:"on_call_users"`
+	Shifts                types.List   `tfsdk:"shifts"`
 	SlackGroupHandle      types.String `tfsdk:"slack_group_handle"`
 	SlackGroups           types.List   `tfsdk:"slack_groups"`
+	TeamId                types.String `tfsdk:"team_id"`
 	TeamName              types.String `tfsdk:"team_name"`
 	UseExistingSlackGroup types.Bool   `tfsdk:"use_existing_slack_group"`
 }
@@ -197,11 +201,23 @@ func flattenOnCallScheduleSlackGroupsUnconnectedUsers(ctx context.Context, prior
 	if v, ok := stringFromAPI(raw["id"]); ok {
 		m.Id = types.StringValue(v)
 	}
-	if v, ok := stringFromAPI(raw["first_name"]); ok {
-		m.FirstName = types.StringValue(v)
+	if rawValue, exists := raw["first_name"]; exists {
+		if rawValue == nil {
+			m.FirstName = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["first_name"]); ok {
+				m.FirstName = types.StringValue(v)
+			}
+		}
 	}
-	if v, ok := stringFromAPI(raw["last_name"]); ok {
-		m.LastName = types.StringValue(v)
+	if rawValue, exists := raw["last_name"]; exists {
+		if rawValue == nil {
+			m.LastName = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["last_name"]); ok {
+				m.LastName = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := stringFromAPI(raw["email"]); ok {
 		m.Email = types.StringValue(v)
@@ -269,11 +285,23 @@ func flattenOnCallScheduleOnCallUsers(ctx context.Context, prior types.Object, r
 	if v, ok := stringFromAPI(raw["id"]); ok {
 		m.Id = types.StringValue(v)
 	}
-	if v, ok := stringFromAPI(raw["first_name"]); ok {
-		m.FirstName = types.StringValue(v)
+	if rawValue, exists := raw["first_name"]; exists {
+		if rawValue == nil {
+			m.FirstName = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["first_name"]); ok {
+				m.FirstName = types.StringValue(v)
+			}
+		}
 	}
-	if v, ok := stringFromAPI(raw["last_name"]); ok {
-		m.LastName = types.StringValue(v)
+	if rawValue, exists := raw["last_name"]; exists {
+		if rawValue == nil {
+			m.LastName = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["last_name"]); ok {
+				m.LastName = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := stringFromAPI(raw["email"]); ok {
 		m.Email = types.StringValue(v)
@@ -292,22 +320,251 @@ func flattenOnCallScheduleOnCallUsers(ctx context.Context, prior types.Object, r
 	return obj
 }
 
+type OnCallScheduleShiftsModel struct {
+	StartsAt   types.String `tfsdk:"starts_at"`
+	EndsAt     types.String `tfsdk:"ends_at"`
+	Override   types.Bool   `tfsdk:"override"`
+	OverrideId types.String `tfsdk:"override_id"`
+	Users      types.List   `tfsdk:"users"`
+}
+
+func onCallScheduleShiftsAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"starts_at":   types.StringType,
+		"ends_at":     types.StringType,
+		"override":    types.BoolType,
+		"override_id": types.StringType,
+		"users":       types.ListType{ElemType: types.ObjectType{AttrTypes: onCallScheduleShiftsUsersAttrTypes()}},
+	}
+}
+
+// expandOnCallScheduleShifts marshals a nested OnCallScheduleShifts object into its request map.
+func expandOnCallScheduleShifts(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m OnCallScheduleShiftsModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.StartsAt.IsNull() && !m.StartsAt.IsUnknown() {
+		out["starts_at"] = m.StartsAt.ValueString()
+	}
+	if !m.EndsAt.IsNull() && !m.EndsAt.IsUnknown() {
+		out["ends_at"] = m.EndsAt.ValueString()
+	}
+	if !m.Override.IsNull() && !m.Override.IsUnknown() {
+		out["override"] = m.Override.ValueBool()
+	}
+	if !m.OverrideId.IsNull() && !m.OverrideId.IsUnknown() {
+		out["override_id"] = m.OverrideId.ValueString()
+	}
+	if !m.Users.IsNull() && !m.Users.IsUnknown() {
+		items := make([]map[string]interface{}, 0, len(m.Users.Elements()))
+		for _, el := range m.Users.Elements() {
+			if obj, ok := el.(types.Object); ok {
+				items = append(items, expandOnCallScheduleShiftsUsers(ctx, obj))
+			}
+		}
+		out["users"] = items
+	}
+	return out
+}
+
+// flattenOnCallScheduleShifts refreshes a typed OnCallScheduleShifts object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenOnCallScheduleShifts(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m OnCallScheduleShiftsModel
+	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
+	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
+	m.Users = types.ListNull(types.ObjectType{AttrTypes: onCallScheduleShiftsUsersAttrTypes()})
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["starts_at"]); ok {
+		m.StartsAt = datetimeValue(m.StartsAt, v)
+	}
+	if v, ok := stringFromAPI(raw["ends_at"]); ok {
+		m.EndsAt = datetimeValue(m.EndsAt, v)
+	}
+	if v, ok := boolFromAPI(raw["override"]); ok {
+		m.Override = types.BoolValue(v)
+	}
+	if rawValue, exists := raw["override_id"]; exists {
+		if rawValue == nil {
+			m.OverrideId = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["override_id"]); ok {
+				m.OverrideId = types.StringValue(v)
+			}
+		}
+	}
+	if raw, ok := raw["users"].([]interface{}); ok {
+		priorByID := map[string]types.Object{}
+		for _, element := range m.Users.Elements() {
+			if object, ok := element.(types.Object); ok && !object.IsNull() && !object.IsUnknown() {
+				if value := object.Attributes()["id"]; value != nil && !value.IsNull() && !value.IsUnknown() {
+					if tv, err := value.ToTerraformValue(ctx); err == nil {
+						if av, err := tftypesToAPI(tv); err == nil {
+							priorByID[stringifyScalar(av)] = object
+						}
+					}
+				}
+			}
+		}
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(onCallScheduleShiftsUsersAttrTypes())
+				if identity := stringifyScalar(mp["id"]); identity != "" {
+					if existing, ok := priorByID[identity]; ok {
+						prior = existing
+					}
+				}
+				items = append(items, flattenOnCallScheduleShiftsUsers(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: onCallScheduleShiftsUsersAttrTypes()}, items)
+		m.Users = lv
+	}
+	obj, _ := types.ObjectValueFrom(ctx, onCallScheduleShiftsAttrTypes(), m)
+	return obj
+}
+
+type OnCallScheduleShiftsUsersModel struct {
+	Id            types.String `tfsdk:"id"`
+	FirstName     types.String `tfsdk:"first_name"`
+	LastName      types.String `tfsdk:"last_name"`
+	Email         types.String `tfsdk:"email"`
+	PhoneNumbers  types.List   `tfsdk:"phone_numbers"`
+	OnHoliday     types.Bool   `tfsdk:"on_holiday"`
+	HolidayEndsAt types.String `tfsdk:"holiday_ends_at"`
+}
+
+func onCallScheduleShiftsUsersAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"id":              types.StringType,
+		"first_name":      types.StringType,
+		"last_name":       types.StringType,
+		"email":           types.StringType,
+		"phone_numbers":   types.ListType{ElemType: types.StringType},
+		"on_holiday":      types.BoolType,
+		"holiday_ends_at": types.StringType,
+	}
+}
+
+// expandOnCallScheduleShiftsUsers marshals a nested OnCallScheduleShiftsUsers object into its request map.
+func expandOnCallScheduleShiftsUsers(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m OnCallScheduleShiftsUsersModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Id.IsNull() && !m.Id.IsUnknown() {
+		out["id"] = m.Id.ValueString()
+	}
+	if !m.FirstName.IsNull() && !m.FirstName.IsUnknown() {
+		out["first_name"] = m.FirstName.ValueString()
+	}
+	if !m.LastName.IsNull() && !m.LastName.IsUnknown() {
+		out["last_name"] = m.LastName.ValueString()
+	}
+	if !m.Email.IsNull() && !m.Email.IsUnknown() {
+		out["email"] = m.Email.ValueString()
+	}
+	if !m.PhoneNumbers.IsNull() && !m.PhoneNumbers.IsUnknown() {
+		var vals []string
+		m.PhoneNumbers.ElementsAs(ctx, &vals, false)
+		out["phone_numbers"] = vals
+	}
+	if !m.OnHoliday.IsNull() && !m.OnHoliday.IsUnknown() {
+		out["on_holiday"] = m.OnHoliday.ValueBool()
+	}
+	if !m.HolidayEndsAt.IsNull() && !m.HolidayEndsAt.IsUnknown() {
+		out["holiday_ends_at"] = m.HolidayEndsAt.ValueString()
+	}
+	return out
+}
+
+// flattenOnCallScheduleShiftsUsers refreshes a typed OnCallScheduleShiftsUsers object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenOnCallScheduleShiftsUsers(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m OnCallScheduleShiftsUsersModel
+	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
+	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
+	m.PhoneNumbers = types.ListNull(types.StringType)
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["id"]); ok {
+		m.Id = types.StringValue(v)
+	}
+	if rawValue, exists := raw["first_name"]; exists {
+		if rawValue == nil {
+			m.FirstName = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["first_name"]); ok {
+				m.FirstName = types.StringValue(v)
+			}
+		}
+	}
+	if rawValue, exists := raw["last_name"]; exists {
+		if rawValue == nil {
+			m.LastName = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["last_name"]); ok {
+				m.LastName = types.StringValue(v)
+			}
+		}
+	}
+	if v, ok := stringFromAPI(raw["email"]); ok {
+		m.Email = types.StringValue(v)
+	}
+	if raw, ok := raw["phone_numbers"].([]interface{}); ok {
+		vals := make([]string, 0, len(raw))
+		for _, e := range raw {
+			if ev, ok := stringFromAPI(e); ok {
+				vals = append(vals, ev)
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.StringType, vals)
+		m.PhoneNumbers = lv
+	}
+	if v, ok := boolFromAPI(raw["on_holiday"]); ok {
+		m.OnHoliday = types.BoolValue(v)
+	}
+	if rawValue, exists := raw["holiday_ends_at"]; exists {
+		if rawValue == nil {
+			m.HolidayEndsAt = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["holiday_ends_at"]); ok {
+				m.HolidayEndsAt = datetimeValue(m.HolidayEndsAt, v)
+			}
+		}
+	}
+	obj, _ := types.ObjectValueFrom(ctx, onCallScheduleShiftsUsersAttrTypes(), m)
+	return obj
+}
+
 func (r *OnCallScheduleResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_on_call_schedule"
 }
 
 func (r *OnCallScheduleResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "An on-call schedule: who is on call and when.",
+		Description:         "An on-call schedule the team sets up, made of a rotation and its shifts and overrides.",
+		MarkdownDescription: "An on-call schedule the team sets up, made of a rotation and its shifts and overrides.",
 		Attributes: map[string]schema.Attribute{
 			"id":                       schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"default_schedule":         schema.BoolAttribute{Computed: true, Description: "Whether this is the team's default on-call schedule."},
-			"name":                     schema.StringAttribute{Required: true, Description: "Schedule name."},
-			"on_call_users":            schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true}, "first_name": schema.StringAttribute{Computed: true}, "last_name": schema.StringAttribute{Computed: true}, "email": schema.StringAttribute{Computed: true}, "phone_numbers": schema.ListAttribute{Computed: true, ElementType: types.StringType}}}, Description: "Users on call now, with their id, name, e-mail and phone numbers. When getting a single schedule, date picks another time. Each user's entry under relationships also has meta with email, on_holiday and holiday_ends_at."},
-			"slack_group_handle":       schema.StringAttribute{Optional: true, Description: "Handle of the Slack user group that follows who is on call, without the @. Null when none."},
-			"slack_groups":             schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"slack_workspace_id": schema.StringAttribute{Computed: true}, "slack_workspace_name": schema.StringAttribute{Computed: true}, "status": schema.StringAttribute{Computed: true}, "error": schema.StringAttribute{Computed: true}, "unconnected_users": schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true}, "first_name": schema.StringAttribute{Computed: true}, "last_name": schema.StringAttribute{Computed: true}, "email": schema.StringAttribute{Computed: true}}}}}}, Description: "How each connected Slack workspace took the handle. status is pending while Better Stack sets the group up, then shows the state of the link, or reinstall_required. error explains a failure. unconnected_users lists the on-call users the group doesn't include, and only appears when getting a single schedule."},
-			"team_name":                schema.StringAttribute{Computed: true, Description: "Name of the team that owns the schedule."},
-			"use_existing_slack_group": schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether slack_group_handle names an existing Slack user group to take over instead of one created for the schedule. Sending `null` or leaving it out keeps the current setting."},
+			"name":                     schema.StringAttribute{Required: true, Description: "Schedule name. It's null only on a primary schedule without a name of its own. Required on create.", MarkdownDescription: "Schedule name. It's `null` only on a primary schedule without a name of its own. Required on create."},
+			"on_call_users":            schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true, Description: "The person's ID as u123.", MarkdownDescription: "The person's ID as `u123`."}, "first_name": schema.StringAttribute{Computed: true, Description: "The person's first name, or null when it isn't set.", MarkdownDescription: "The person's first name, or `null` when it isn't set."}, "last_name": schema.StringAttribute{Computed: true, Description: "The person's last name, or null when it isn't set.", MarkdownDescription: "The person's last name, or `null` when it isn't set."}, "email": schema.StringAttribute{Computed: true, Description: "The person's e-mail address."}, "phone_numbers": schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "The person's phone numbers, such as +420737123456, sorted.", MarkdownDescription: "The person's phone numbers, such as `+420737123456`, sorted."}}}, Description: "Users on call now, or at from when you get or list schedules with it. Each user's entry under relationships also has meta with email, on_holiday and holiday_ends_at.", MarkdownDescription: "Users on call now, or at `from` when you get or list schedules with it. Each user's entry under relationships also has `meta` with `email`, `on_holiday` and `holiday_ends_at`."},
+			"shifts":                   schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"starts_at": schema.StringAttribute{Computed: true, Description: "When this part of the shift starts. It can be before from.", MarkdownDescription: "When this part of the shift starts. It can be before `from`."}, "ends_at": schema.StringAttribute{Computed: true, Description: "When this part of the shift ends. It can be after to.", MarkdownDescription: "When this part of the shift ends. It can be after `to`."}, "override": schema.BoolAttribute{Computed: true, Description: "Whether an override puts these people on call instead of the rotation."}, "override_id": schema.StringAttribute{Computed: true, Description: "The override's on-call event ID, which Delete an on-call event (https://betterstack.com/docs/uptime/api/delete-on-call-calendar-event/) accepts, or null for the rotation's own shift.", MarkdownDescription: "The override's on-call event ID, which [Delete an on-call event](https://betterstack.com/docs/uptime/api/delete-on-call-calendar-event/) accepts, or `null` for the rotation's own shift."}, "users": schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true, Description: "The person's ID as u123.", MarkdownDescription: "The person's ID as `u123`."}, "first_name": schema.StringAttribute{Computed: true, Description: "The person's first name, or null when it isn't set.", MarkdownDescription: "The person's first name, or `null` when it isn't set."}, "last_name": schema.StringAttribute{Computed: true, Description: "The person's last name, or null when it isn't set.", MarkdownDescription: "The person's last name, or `null` when it isn't set."}, "email": schema.StringAttribute{Computed: true, Description: "The person's e-mail address."}, "phone_numbers": schema.ListAttribute{Computed: true, ElementType: types.StringType, Description: "The person's phone numbers, sorted."}, "on_holiday": schema.BoolAttribute{Computed: true, Description: "Whether a holiday of theirs covers part of this shift, or of what is left of it while it runs. Escalations skip someone on holiday."}, "holiday_ends_at": schema.StringAttribute{Computed: true, Description: "When that holiday ends, or null.", MarkdownDescription: "When that holiday ends, or `null`."}}}, Description: "The people on call."}}}, Description: "Who is on call from from to to, oldest first. Each entry is a part of a shift with its people, and an override replaces the part of a shift it covers. Without from and to, it holds the shift running now. Returned when you get or list schedules.", MarkdownDescription: "Who is on call from `from` to `to`, oldest first. Each entry is a part of a shift with its people, and an override replaces the part of a shift it covers. Without `from` and `to`, it holds the shift running now. Returned when you get or list schedules."},
+			"slack_group_handle":       schema.StringAttribute{Optional: true, Description: "The handle of the Slack user group that follows who is on call, without the @, or null when there's none. A group Better Stack creates can have up to 80 characters. Slack can still refuse a handle after the save, which shows in slack_groups. It accepts lowercase letters, digits, ., _ and -, or letters outside ASCII. An on-call schedule in another team can't already use it. Remove the argument or set it to an empty string to stop tagging who is on call.", MarkdownDescription: "The handle of the Slack user group that follows who is on call, without the @, or `null` when there's none. A group Better Stack creates can have up to 80 characters. Slack can still refuse a handle after the save, which shows in `slack_groups`. It accepts lowercase letters, digits, `.`, `_` and `-`, or letters outside ASCII. An on-call schedule in another team can't already use it. Remove the argument or set it to an empty string to stop tagging who is on call."},
+			"slack_groups":             schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"slack_workspace_id": schema.StringAttribute{Computed: true, Description: "ID of the Slack workspace."}, "slack_workspace_name": schema.StringAttribute{Computed: true, Description: "Name of the Slack workspace."}, "status": schema.StringAttribute{Computed: true, Description: "The group's state in the workspace. When the group doesn't follow who's on call, error says why.\n\n- pending: Better Stack is setting the group up.\n- active: The group follows who's on call.\n- permission_denied: The Slack workspace lets only admins manage user groups.\n- plan_required: User groups need a paid Slack plan.\n- name_conflict: Another Slack user group already uses the handle.\n- failed: Better Stack couldn't sync the group with Slack.\n- no_slack_users: Nobody on call has connected Slack, so the group tags nobody from this schedule.\n- reinstall_required: The Slack integration was connected before Better Stack could manage user groups. Reinstall it to set the group up.", MarkdownDescription: "The group's state in the workspace. When the group doesn't follow who's on call, `error` says why.\n\n- `pending`: Better Stack is setting the group up.\n- `active`: The group follows who's on call.\n- `permission_denied`: The Slack workspace lets only admins manage user groups.\n- `plan_required`: User groups need a paid Slack plan.\n- `name_conflict`: Another Slack user group already uses the handle.\n- `failed`: Better Stack couldn't sync the group with Slack.\n- `no_slack_users`: Nobody on call has connected Slack, so the group tags nobody from this schedule.\n- `reinstall_required`: The Slack integration was connected before Better Stack could manage user groups. Reinstall it to set the group up."}, "error": schema.StringAttribute{Computed: true, Description: "What's wrong and what to do about it, in the dashboard's words. null when status is active or pending.", MarkdownDescription: "What's wrong and what to do about it, in the dashboard's words. `null` when status is `active` or `pending`."}, "unconnected_users": schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Computed: true, Description: "The user's ID as u123.", MarkdownDescription: "The user's ID as `u123`."}, "first_name": schema.StringAttribute{Computed: true, Description: "The user's first name, or null when it isn't set.", MarkdownDescription: "The user's first name, or `null` when it isn't set."}, "last_name": schema.StringAttribute{Computed: true, Description: "The user's last name, or null when it isn't set.", MarkdownDescription: "The user's last name, or `null` when it isn't set."}, "email": schema.StringAttribute{Computed: true, Description: "The user's e-mail address."}}}, Description: "The on-call users the group doesn't include. Present only when you get a single schedule."}}}, Description: "The state of the handle's user group in each connected Slack workspace."},
+			"team_id":                  schema.StringAttribute{Optional: true, Computed: true, Description: "Team that owns the schedule, such as t123. Defaults to the provider's team_id. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", MarkdownDescription: "Team that owns the schedule, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.", Validators: []validator.String{teamIDValidator()}, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_on_call_schedule"}}},
+			"team_name":                schema.StringAttribute{Computed: true, Description: "Name of the team that owns the schedule.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"use_existing_slack_group": schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether slack_group_handle names a user group that already existed in the connected Slack workspace, rather than one Better Stack created. An existing group keeps its other members. A handle one of your Slack user groups already uses is refused unless this is true. A handle no user group uses is refused when it's true. Sent without slack_group_handle, it applies to the current handle.", MarkdownDescription: "Whether `slack_group_handle` names a user group that already existed in the connected Slack workspace, rather than one Better Stack created. An existing group keeps its other members. A handle one of your Slack user groups already uses is refused unless this is `true`. A handle no user group uses is refused when it's `true`. Sent without `slack_group_handle`, it applies to the current handle."},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -339,6 +596,9 @@ func (r *OnCallScheduleResource) body(ctx context.Context, m OnCallScheduleModel
 // updateBody turns removal of a previously configured nullable attribute into an explicit JSON null.
 func (r *OnCallScheduleResource) updateBody(ctx context.Context, config, plan, state OnCallScheduleModel) map[string]interface{} {
 	body := r.body(ctx, config)
+	if !state.Name.IsNull() && !state.Name.IsUnknown() && plan.Name.IsNull() {
+		body["name"] = nil
+	}
 	if !state.SlackGroupHandle.IsNull() && !state.SlackGroupHandle.IsUnknown() && plan.SlackGroupHandle.IsNull() {
 		body["slack_group_handle"] = nil
 	}
@@ -354,8 +614,16 @@ func (r *OnCallScheduleResource) Create(ctx context.Context, req resource.Create
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inTeam(ctx, plan.TeamId.ValueString())
 	vars := map[string]string{}
 	out, err := r.client.Create(ctx, onCallScheduleBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating on_call_schedule", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating on_call_schedule", err, req.Plan.Raw.Type())
 		return
@@ -380,9 +648,22 @@ func (r *OnCallScheduleResource) Read(ctx context.Context, req resource.ReadRequ
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	out, found, err := r.client.Get(ctx, onCallScheduleBinding, vars)
+	if err == nil && !found && state.TeamId.ValueString() == "" {
+		// A moved or imported object doesn't know its team yet, and may be in another team than the
+		// provider's team_id: read it by ID in whichever team the token reaches.
+		// An API that refuses a read with no team (one for a token that reaches several teams) leaves
+		// the first read's answer: not found under the provider's team. Any other failure is reported,
+		// never taken for not found, so a passing outage doesn't drop the object from state.
+		if retried, again, retryErr := r.client.Get(inNoTeam(ctx), onCallScheduleBinding, vars); retryErr == nil {
+			out, found = retried, again
+		} else if !refusedWithoutTeam(retryErr) {
+			err = retryErr
+		}
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "reading on_call_schedule", err, req.State.Raw.Type())
 		return
@@ -401,14 +682,17 @@ func populateOnCallSchedule(ctx context.Context, m *OnCallScheduleModel, attrs m
 	if attrs == nil {
 		return
 	}
-	if v, ok := stringFromAPI(attrs["name"]); ok {
-		m.Name = types.StringValue(v)
+	if rawValue, exists := attrs["name"]; exists {
+		if rawValue == nil {
+			m.Name = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["name"]); ok {
+				m.Name = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := boolFromAPI(attrs["default_schedule"]); ok {
 		m.DefaultSchedule = types.BoolValue(v)
-	}
-	if v, ok := stringFromAPI(attrs["team_name"]); ok {
-		m.TeamName = types.StringValue(v)
 	}
 	if rawValue, exists := attrs["slack_group_handle"]; exists {
 		if rawValue == nil {
@@ -461,9 +745,27 @@ func populateOnCallSchedule(ctx context.Context, m *OnCallScheduleModel, attrs m
 		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: onCallScheduleOnCallUsersAttrTypes()}, items)
 		m.OnCallUsers = lv
 	}
+	if raw, ok := attrs["shifts"].([]interface{}); ok {
+		items := make([]types.Object, 0, len(raw))
+		for _, e := range raw {
+			if mp, ok := e.(map[string]interface{}); ok {
+				prior := types.ObjectNull(onCallScheduleShiftsAttrTypes())
+				items = append(items, flattenOnCallScheduleShifts(ctx, prior, mp))
+			}
+		}
+		lv, _ := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: onCallScheduleShiftsAttrTypes()}, items)
+		m.Shifts = lv
+	}
+	if v, ok := stringFromAPI(attrs["team_id"]); ok {
+		m.TeamId = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(attrs["team_name"]); ok {
+		m.TeamName = types.StringValue(v)
+	}
 }
 
 func (r *OnCallScheduleResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	var plan OnCallScheduleModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request OnCallScheduleModel
@@ -478,6 +780,7 @@ func (r *OnCallScheduleResource) Update(ctx context.Context, req resource.Update
 	if !plan.UseExistingSlackGroup.Equal(state.UseExistingSlackGroup) {
 		request.UseExistingSlackGroup = plan.UseExistingSlackGroup
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString()) // team_id changes replace, so it is the plan's too
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
 	out, err := r.client.Update(ctx, onCallScheduleBinding, vars, r.updateBody(ctx, request, plan, state))
@@ -497,6 +800,7 @@ func (r *OnCallScheduleResource) Delete(ctx context.Context, req resource.Delete
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = inStateTeam(ctx, state.TeamId.ValueString())
 	vars := map[string]string{}
 	vars["id"] = state.Id.ValueString()
 	if err := r.client.Delete(ctx, onCallScheduleBinding, vars); err != nil {
@@ -504,6 +808,12 @@ func (r *OnCallScheduleResource) Delete(ctx context.Context, req resource.Delete
 	}
 }
 
+func (r *OnCallScheduleResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseUnnamedTeam(ctx, req, resp, r.client, "on call schedule")
+}
+
 func (r *OnCallScheduleResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("use_existing_slack_group"), false)...)
 }

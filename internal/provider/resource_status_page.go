@@ -35,45 +35,50 @@ func NewStatusPageResource() resource.Resource {
 }
 
 type StatusPageModel struct {
-	Id                       types.String `tfsdk:"id"`
-	AggregateState           types.String `tfsdk:"aggregate_state"`
-	Announcement             types.String `tfsdk:"announcement"`
-	AnnouncementEmbedCss     types.String `tfsdk:"announcement_embed_css"`
-	AnnouncementEmbedLink    types.String `tfsdk:"announcement_embed_link"`
-	AnnouncementEmbedVisible types.Bool   `tfsdk:"announcement_embed_visible"`
-	AutomaticReports         types.Bool   `tfsdk:"automatic_reports"`
-	CompanyName              types.String `tfsdk:"company_name"`
-	CompanyUrl               types.String `tfsdk:"company_url"`
-	ContactUrl               types.String `tfsdk:"contact_url"`
-	CreatedAt                types.String `tfsdk:"created_at"`
-	CustomCss                types.String `tfsdk:"custom_css"`
-	CustomDomain             types.String `tfsdk:"custom_domain"`
-	CustomJavascript         types.String `tfsdk:"custom_javascript"`
-	DarkLogoRemoteUrl        types.String `tfsdk:"dark_logo_remote_url"`
-	DarkLogoUrl              types.String `tfsdk:"dark_logo_url"`
-	Design                   types.String `tfsdk:"design"`
-	GoogleAnalyticsId        types.String `tfsdk:"google_analytics_id"`
-	HideFromSearchEngines    types.Bool   `tfsdk:"hide_from_search_engines"`
-	History                  types.Int64  `tfsdk:"history"`
-	IpAllowlist              types.List   `tfsdk:"ip_allowlist"`
-	Layout                   types.String `tfsdk:"layout"`
-	LogoRemoteUrl            types.String `tfsdk:"logo_remote_url"`
-	LogoUrl                  types.String `tfsdk:"logo_url"`
-	MinIncidentLength        types.Int64  `tfsdk:"min_incident_length"`
-	NavigationLinks          types.List   `tfsdk:"navigation_links"`
-	OrganizationId           types.String `tfsdk:"organization_id"`
-	Password                 types.String `tfsdk:"password"`
-	PasswordEnabled          types.Bool   `tfsdk:"password_enabled"`
-	Published                types.Bool   `tfsdk:"published"`
-	RequireSso               types.Bool   `tfsdk:"require_sso"`
-	Sections                 types.List   `tfsdk:"sections"`
-	StatusPageGroupId        types.String `tfsdk:"status_page_group_id"`
-	Subdomain                types.String `tfsdk:"subdomain"`
-	Subscribable             types.Bool   `tfsdk:"subscribable"`
-	Theme                    types.String `tfsdk:"theme"`
-	Timezone                 types.String `tfsdk:"timezone"`
-	UpdatedAt                types.String `tfsdk:"updated_at"`
-	Whitelabeled             types.Bool   `tfsdk:"whitelabeled"`
+	Id                             types.String `tfsdk:"id"`
+	AggregateState                 types.String `tfsdk:"aggregate_state"`
+	Announcement                   types.String `tfsdk:"announcement"`
+	AnnouncementEmbedCss           types.String `tfsdk:"announcement_embed_css"`
+	AnnouncementEmbedLink          types.String `tfsdk:"announcement_embed_link"`
+	AnnouncementEmbedVisible       types.Bool   `tfsdk:"announcement_embed_visible"`
+	AutomaticReports               types.Bool   `tfsdk:"automatic_reports"`
+	CompanyName                    types.String `tfsdk:"company_name"`
+	CompanyUrl                     types.String `tfsdk:"company_url"`
+	ContactUrl                     types.String `tfsdk:"contact_url"`
+	CreatedAt                      types.String `tfsdk:"created_at"`
+	CustomCss                      types.String `tfsdk:"custom_css"`
+	CustomDomain                   types.String `tfsdk:"custom_domain"`
+	CustomJavascript               types.String `tfsdk:"custom_javascript"`
+	DarkLogoRemoteUrl              types.String `tfsdk:"dark_logo_remote_url"`
+	DarkLogoUrl                    types.String `tfsdk:"dark_logo_url"`
+	DeletionProtection             types.Bool   `tfsdk:"deletion_protection"`
+	Design                         types.String `tfsdk:"design"`
+	FaviconRemoteUrl               types.String `tfsdk:"favicon_remote_url"`
+	FaviconUrl                     types.String `tfsdk:"favicon_url"`
+	GoogleAnalyticsId              types.String `tfsdk:"google_analytics_id"`
+	HideFromSearchEngines          types.Bool   `tfsdk:"hide_from_search_engines"`
+	History                        types.Int64  `tfsdk:"history"`
+	IpAllowlist                    types.List   `tfsdk:"ip_allowlist"`
+	Layout                         types.String `tfsdk:"layout"`
+	LogoRemoteUrl                  types.String `tfsdk:"logo_remote_url"`
+	LogoUrl                        types.String `tfsdk:"logo_url"`
+	MinIncidentLength              types.Int64  `tfsdk:"min_incident_length"`
+	NavigationLinks                types.List   `tfsdk:"navigation_links"`
+	OrganizationId                 types.String `tfsdk:"organization_id"`
+	Password                       types.String `tfsdk:"password"`
+	PasswordEnabled                types.Bool   `tfsdk:"password_enabled"`
+	PublicUrl                      types.String `tfsdk:"public_url"`
+	Published                      types.Bool   `tfsdk:"published"`
+	RequireSso                     types.Bool   `tfsdk:"require_sso"`
+	Sections                       types.List   `tfsdk:"sections"`
+	StatusPageGroupId              types.String `tfsdk:"status_page_group_id"`
+	Subdomain                      types.String `tfsdk:"subdomain"`
+	Subscribable                   types.Bool   `tfsdk:"subscribable"`
+	Theme                          types.String `tfsdk:"theme"`
+	Timezone                       types.String `tfsdk:"timezone"`
+	TreatNotMonitoredAsOperational types.Bool   `tfsdk:"treat_not_monitored_as_operational"`
+	UpdatedAt                      types.String `tfsdk:"updated_at"`
+	Whitelabeled                   types.Bool   `tfsdk:"whitelabeled"`
 }
 
 type StatusPageNavigationLinksModel struct {
@@ -220,6 +225,8 @@ type StatusPageSectionsResourcesModel struct {
 	Id                         types.String `tfsdk:"id"`
 	ResourceType               types.String `tfsdk:"resource_type"`
 	ResourceId                 types.String `tfsdk:"resource_id"`
+	CatalogReference           types.Object `tfsdk:"catalog_reference"`
+	ChartId                    types.String `tfsdk:"chart_id"`
 	PublicName                 types.String `tfsdk:"public_name"`
 	Explanation                types.String `tfsdk:"explanation"`
 	WidgetType                 types.String `tfsdk:"widget_type"`
@@ -234,6 +241,8 @@ func statusPageSectionsResourcesAttrTypes() map[string]attr.Type {
 		"id":                             types.StringType,
 		"resource_type":                  types.StringType,
 		"resource_id":                    types.StringType,
+		"catalog_reference":              types.ObjectType{AttrTypes: statusPageSectionsResourcesCatalogReferenceAttrTypes()},
+		"chart_id":                       types.StringType,
 		"public_name":                    types.StringType,
 		"explanation":                    types.StringType,
 		"widget_type":                    types.StringType,
@@ -259,7 +268,13 @@ func expandStatusPageSectionsResources(ctx context.Context, o types.Object) map[
 		out["resource_type"] = m.ResourceType.ValueString()
 	}
 	if !m.ResourceId.IsNull() && !m.ResourceId.IsUnknown() {
-		out["resource_id"] = idToAPI(m.ResourceId.ValueString())
+		out["resource_id"] = m.ResourceId.ValueString()
+	}
+	if !m.CatalogReference.IsNull() && !m.CatalogReference.IsUnknown() {
+		out["catalog_reference"] = expandStatusPageSectionsResourcesCatalogReference(ctx, m.CatalogReference)
+	}
+	if !m.ChartId.IsNull() && !m.ChartId.IsUnknown() {
+		out["chart_id"] = m.ChartId.ValueString()
 	}
 	if !m.PublicName.IsNull() && !m.PublicName.IsUnknown() {
 		out["public_name"] = m.PublicName.ValueString()
@@ -291,6 +306,7 @@ func flattenStatusPageSectionsResources(ctx context.Context, prior types.Object,
 	var m StatusPageSectionsResourcesModel
 	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
 	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
+	m.CatalogReference = types.ObjectNull(statusPageSectionsResourcesCatalogReferenceAttrTypes())
 	m.MarkAsDownMetadataRule = types.ObjectNull(statusPageSectionsResourcesMarkAsDownMetadataRuleAttrTypes())
 	m.MarkAsDegradedMetadataRule = types.ObjectNull(statusPageSectionsResourcesMarkAsDegradedMetadataRuleAttrTypes())
 	if !prior.IsNull() && !prior.IsUnknown() {
@@ -304,6 +320,24 @@ func flattenStatusPageSectionsResources(ctx context.Context, prior types.Object,
 	}
 	if v, ok := stringFromAPI(raw["resource_id"]); ok {
 		m.ResourceId = types.StringValue(v)
+	}
+	if rawValue, exists := raw["catalog_reference"]; exists {
+		if rawValue == nil {
+			m.CatalogReference = types.ObjectNull(statusPageSectionsResourcesCatalogReferenceAttrTypes())
+		} else {
+			if raw, ok := raw["catalog_reference"].(map[string]interface{}); ok {
+				m.CatalogReference = flattenStatusPageSectionsResourcesCatalogReference(ctx, m.CatalogReference, raw)
+			}
+		}
+	}
+	if rawValue, exists := raw["chart_id"]; exists {
+		if rawValue == nil {
+			m.ChartId = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(raw["chart_id"]); ok {
+				m.ChartId = types.StringValue(v)
+			}
+		}
 	}
 	if v, ok := stringFromAPI(raw["public_name"]); ok {
 		m.PublicName = types.StringValue(v)
@@ -333,6 +367,125 @@ func flattenStatusPageSectionsResources(ctx context.Context, prior types.Object,
 		m.MarkAsDegradedMetadataRule = flattenStatusPageSectionsResourcesMarkAsDegradedMetadataRule(ctx, m.MarkAsDegradedMetadataRule, raw)
 	}
 	obj, _ := types.ObjectValueFrom(ctx, statusPageSectionsResourcesAttrTypes(), m)
+	return obj
+}
+
+type StatusPageSectionsResourcesCatalogReferenceModel struct {
+	Key   types.String `tfsdk:"key"`
+	Value types.Object `tfsdk:"value"`
+}
+
+func statusPageSectionsResourcesCatalogReferenceAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"key":   types.StringType,
+		"value": types.ObjectType{AttrTypes: statusPageSectionsResourcesCatalogReferenceValueAttrTypes()},
+	}
+}
+
+// expandStatusPageSectionsResourcesCatalogReference marshals a nested StatusPageSectionsResourcesCatalogReference object into its request map.
+func expandStatusPageSectionsResourcesCatalogReference(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m StatusPageSectionsResourcesCatalogReferenceModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Key.IsNull() && !m.Key.IsUnknown() {
+		out["key"] = m.Key.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = expandStatusPageSectionsResourcesCatalogReferenceValue(ctx, m.Value)
+	}
+	return out
+}
+
+// flattenStatusPageSectionsResourcesCatalogReference refreshes a typed StatusPageSectionsResourcesCatalogReference object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenStatusPageSectionsResourcesCatalogReference(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m StatusPageSectionsResourcesCatalogReferenceModel
+	// Container fields need typed nulls: a zero-value types.Object/List/Map carries no element
+	// types, and ObjectValueFrom turns one into an unknown, which is poison in a refresh result.
+	m.Value = types.ObjectNull(statusPageSectionsResourcesCatalogReferenceValueAttrTypes())
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["key"]); ok {
+		m.Key = types.StringValue(v)
+	}
+	if raw, ok := raw["value"].(map[string]interface{}); ok {
+		m.Value = flattenStatusPageSectionsResourcesCatalogReferenceValue(ctx, m.Value, raw)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, statusPageSectionsResourcesCatalogReferenceAttrTypes(), m)
+	return obj
+}
+
+type StatusPageSectionsResourcesCatalogReferenceValueModel struct {
+	Type   types.String `tfsdk:"type"`
+	Value  types.String `tfsdk:"value"`
+	ItemId types.String `tfsdk:"item_id"`
+	Name   types.String `tfsdk:"name"`
+	Email  types.String `tfsdk:"email"`
+}
+
+func statusPageSectionsResourcesCatalogReferenceValueAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"type":    types.StringType,
+		"value":   types.StringType,
+		"item_id": types.StringType,
+		"name":    types.StringType,
+		"email":   types.StringType,
+	}
+}
+
+// expandStatusPageSectionsResourcesCatalogReferenceValue marshals a nested StatusPageSectionsResourcesCatalogReferenceValue object into its request map.
+func expandStatusPageSectionsResourcesCatalogReferenceValue(ctx context.Context, o types.Object) map[string]interface{} {
+	if o.IsNull() || o.IsUnknown() {
+		return nil
+	}
+	var m StatusPageSectionsResourcesCatalogReferenceValueModel
+	o.As(ctx, &m, basetypes.ObjectAsOptions{})
+	out := map[string]interface{}{}
+	if !m.Type.IsNull() && !m.Type.IsUnknown() {
+		out["type"] = m.Type.ValueString()
+	}
+	if !m.Value.IsNull() && !m.Value.IsUnknown() {
+		out["value"] = m.Value.ValueString()
+	}
+	if !m.ItemId.IsNull() && !m.ItemId.IsUnknown() {
+		out["item_id"] = m.ItemId.ValueString()
+	}
+	if !m.Name.IsNull() && !m.Name.IsUnknown() {
+		out["name"] = m.Name.ValueString()
+	}
+	if !m.Email.IsNull() && !m.Email.IsUnknown() {
+		out["email"] = m.Email.ValueString()
+	}
+	return out
+}
+
+// flattenStatusPageSectionsResourcesCatalogReferenceValue refreshes a typed StatusPageSectionsResourcesCatalogReferenceValue object from a response map,
+// merging into the prior value so write-only sub-keys (e.g. secrets) survive a refresh.
+func flattenStatusPageSectionsResourcesCatalogReferenceValue(ctx context.Context, prior types.Object, raw map[string]interface{}) types.Object {
+	var m StatusPageSectionsResourcesCatalogReferenceValueModel
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &m, basetypes.ObjectAsOptions{})
+	}
+	if v, ok := stringFromAPI(raw["type"]); ok {
+		m.Type = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["value"]); ok {
+		m.Value = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["item_id"]); ok {
+		m.ItemId = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["name"]); ok {
+		m.Name = types.StringValue(v)
+	}
+	if v, ok := stringFromAPI(raw["email"]); ok {
+		m.Email = types.StringValue(v)
+	}
+	obj, _ := types.ObjectValueFrom(ctx, statusPageSectionsResourcesCatalogReferenceValueAttrTypes(), m)
 	return obj
 }
 
@@ -608,47 +761,53 @@ func (r *StatusPageResource) Metadata(ctx context.Context, req resource.Metadata
 
 func (r *StatusPageResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A public or private status page that communicates service health to your users.",
+		Description:         "A public or private status page that communicates service health to your users.",
+		MarkdownDescription: "A public or private status page that communicates service health to your users.",
 		Attributes: map[string]schema.Attribute{
-			"id":                         schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"aggregate_state":            schema.StringAttribute{Computed: true, Description: "The page's overall status: `operational`, `degraded`, `downtime` or `maintenance`."},
-			"announcement":               schema.StringAttribute{Optional: true, Description: "Announcement banner text."},
-			"announcement_embed_css":     schema.StringAttribute{Optional: true, Description: "Custom CSS for the announcement on the embeddable widget."},
-			"announcement_embed_link":    schema.StringAttribute{Optional: true, Description: "Link the announcement points to on the embeddable widget."},
-			"announcement_embed_visible": schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether the embeddable widget shows the announcement."},
-			"automatic_reports":          schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether maintenance reports are created automatically."},
-			"company_name":               schema.StringAttribute{Required: true, Description: "Company name shown on the page."},
-			"company_url":                schema.StringAttribute{Optional: true, Description: "Company website URL."},
-			"contact_url":                schema.StringAttribute{Optional: true, Description: "Contact URL shown on the page."},
-			"created_at":                 schema.StringAttribute{Computed: true, Description: "When the status page was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"custom_css":                 schema.StringAttribute{Optional: true, Description: "Custom CSS added to the page."},
-			"custom_domain":              schema.StringAttribute{Optional: true, Description: "Custom domain for the page."},
-			"custom_javascript":          schema.StringAttribute{Optional: true, Description: "Custom JavaScript added to the page."},
-			"dark_logo_remote_url":       schema.StringAttribute{Optional: true, Description: "The URL the dark mode logo was fetched from. Send `null` to remove the logo. When both are sent, `dark_logo_url` wins."},
-			"dark_logo_url":              schema.StringAttribute{Optional: true, Description: "The logo shown in dark mode. Send an image URL and the logo is fetched from it. Responses return the URL of the stored logo. Send `null` to remove the logo."},
-			"design":                     schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("v1"), Description: "Page design: `v1` for the classic look or `v2` for the modern one.", Validators: []validator.String{stringvalidator.OneOf("v1", "v2")}},
-			"google_analytics_id":        schema.StringAttribute{Optional: true, Description: "Google Analytics measurement ID."},
-			"hide_from_search_engines":   schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether to hide the page from search engines with a `noindex` tag."},
-			"history":                    schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(90), Description: "Number of days of history the page shows, from 7 to 365."},
-			"ip_allowlist":               schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "IP addresses or CIDR ranges allowed to view the page. Send `[]` to remove them all.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"layout":                     schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("vertical"), Description: "How resources are laid out on the page.", Validators: []validator.String{stringvalidator.OneOf("vertical", "horizontal")}},
-			"logo_remote_url":            schema.StringAttribute{Optional: true, Description: "The URL the light mode logo was fetched from. Send `null` to remove the logo. When both are sent, `logo_url` wins."},
-			"logo_url":                   schema.StringAttribute{Optional: true, Description: "The logo shown in light mode. Send an image URL and the logo is fetched from it. Responses return the URL of the stored logo. Send `null` to remove the logo."},
-			"min_incident_length":        schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(0), Description: "Shortest incident the page shows, in seconds. Must be less than a year."},
-			"navigation_links":           schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"text": schema.StringAttribute{Optional: true, Computed: true}, "href": schema.StringAttribute{Optional: true, Computed: true}}}, Description: "Up to four links in the page's navigation, each with `text` and `href`. Only the `v2` design shows them. Send `[]` to remove them all.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"organization_id":            schema.StringAttribute{Optional: true, Computed: true, Description: "Organization the page belongs to, as its Better Stack organization id. Defaults to the first organization the token can access. An organization the token can't access returns a 422 error that lists the ones it can. Ignored on update.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_status_page"}}},
-			"password":                   schema.StringAttribute{Optional: true, Description: "Password visitors enter to view the page. Never returned. Setting a password also turns on `password_enabled`, unless you send `password_enabled` too. An empty password removes the password and turns protection off.", Sensitive: true},
-			"password_enabled":           schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether visitors need a password to view the page."},
-			"published":                  schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether the page is published and publicly visible. An unpublished page is a draft. Publishing a draft fails when the organization already has as many published status pages as its plan allows."},
-			"require_sso":                schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether visitors must sign in with SSO to view the page."},
-			"sections":                   schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Optional: true, Computed: true, Description: "Section id. Leave it out for a new section. An id keeps the section, even when it moves."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "Section name."}, "resources": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Optional: true, Computed: true, Description: "Resource id. Leave it out for a new resource. An id keeps the resource and its subscribers, even when it moves to another section."}, "resource_type": schema.StringAttribute{Optional: true, Computed: true, Description: "Type of the underlying resource. Required for a new resource. ThirdPartyService is added in the web app only: an item read back keeps its type and services when listed by id.", Validators: []validator.String{stringvalidator.OneOf("Monitor", "MonitorGroup", "Heartbeat", "HeartbeatGroup", "WebhookIntegration", "EmailIntegration", "IncomingWebhook", "AmazonSnsIntegration", "ManuallyTrackedItem", "LogsChart", "CatalogReference", "ThirdPartyService")}}, "resource_id": schema.StringAttribute{Optional: true, Computed: true, Description: "Id of the underlying monitor, heartbeat, group or other record. Required for a new resource, unless resource_type is ManuallyTrackedItem, which creates its backing record."}, "public_name": schema.StringAttribute{Optional: true, Computed: true, Description: "Name shown publicly. Required for a new resource."}, "explanation": schema.StringAttribute{Optional: true, Computed: true, Description: "Tooltip explanation shown to visitors."}, "widget_type": schema.StringAttribute{Optional: true, Computed: true, Description: "How this resource is rendered.", Validators: []validator.String{stringvalidator.OneOf("plain", "history", "intraday_history", "response_times", "intraday_response_times", "chart_only")}}, "mark_as_down_for": schema.StringAttribute{Optional: true, Computed: true, Description: "When an incident marks this resource as down.", Validators: []validator.String{stringvalidator.OneOf("no_incident", "any_incident", "incident_matching_metadata")}}, "mark_as_down_metadata_rule": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"key": schema.StringAttribute{Optional: true, Computed: true}, "values": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true}, "value": schema.StringAttribute{Optional: true, Computed: true}, "item_id": schema.StringAttribute{Optional: true, Computed: true}, "name": schema.StringAttribute{Optional: true, Computed: true}, "email": schema.StringAttribute{Optional: true, Computed: true}}}}}, Description: "Metadata rule used when mark_as_down_for is incident_matching_metadata, as on a status page resource."}, "mark_as_degraded_for": schema.StringAttribute{Optional: true, Computed: true, Description: "When an incident marks this resource as degraded.", Validators: []validator.String{stringvalidator.OneOf("no_incident", "any_incident", "incident_matching_metadata")}}, "mark_as_degraded_metadata_rule": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"key": schema.StringAttribute{Optional: true, Computed: true}, "values": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true}, "value": schema.StringAttribute{Optional: true, Computed: true}, "item_id": schema.StringAttribute{Optional: true, Computed: true}, "name": schema.StringAttribute{Optional: true, Computed: true}, "email": schema.StringAttribute{Optional: true, Computed: true}}}}}, Description: "Metadata rule used when mark_as_degraded_for is incident_matching_metadata, in the shape of mark_as_down_metadata_rule."}}}, Description: "The section's resources, in display order. Left out, the section keeps its resources as they are, and a new section starts empty. In Terraform, an item without an id keeps the id of the existing item with the same `resource_type` and `resource_id`, or else the same `resource_type` and `public_name`, so a reorder or a move updates it in place."}}}, Description: "The page's sections in display order, each with its resources in display order. Sent, the list replaces the page's whole structure: sections and resources are matched by id, ones without an id are created, and ones left out are removed from the page. The monitors and other records behind them aren't affected. An attribute a resource leaves out keeps its value. Left out, the structure stays as it is. Writable on update only, so a new page gets its sections in a follow-up update. In Terraform, an item without an id keeps the id of the existing item with the same `name`, so a reorder or a move updates it in place.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
-			"status_page_group_id":       schema.StringAttribute{Optional: true, Description: "Status page group the page belongs to."},
-			"subdomain":                  schema.StringAttribute{Required: true, Description: "betterstack.com subdomain for the page."},
-			"subscribable":               schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether visitors can subscribe to updates."},
-			"theme":                      schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("light"), Description: "Color theme.", Validators: []validator.String{stringvalidator.OneOf("light", "dark", "system")}},
-			"timezone":                   schema.StringAttribute{Required: true, Description: "Timezone for displayed times."},
-			"updated_at":                 schema.StringAttribute{Computed: true, Description: "When the status page was last updated."},
-			"whitelabeled":               schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether to remove Better Stack branding from the page."},
+			"id":                                 schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"aggregate_state":                    schema.StringAttribute{Computed: true, Description: "The page's overall status.\n\n- operational: No resource on the page is down, degraded or in maintenance.\n- degraded: A resource is degraded and none is down.\n- downtime: A resource is down.\n- maintenance: A resource is in maintenance and none is down or degraded.", MarkdownDescription: "The page's overall status.\n\n- `operational`: No resource on the page is down, degraded or in maintenance.\n- `degraded`: A resource is degraded and none is down.\n- `downtime`: A resource is down.\n- `maintenance`: A resource is in maintenance and none is down or degraded."},
+			"announcement":                       schema.StringAttribute{Optional: true, Description: "Announcement banner text."},
+			"announcement_embed_css":             schema.StringAttribute{Optional: true, Description: "Your own CSS for the announcement on the embeddable widget."},
+			"announcement_embed_link":            schema.StringAttribute{Optional: true, Description: "Link the announcement points to on the embeddable widget. Defaults to the status page."},
+			"announcement_embed_visible":         schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether the embeddable widget shows the announcement."},
+			"automatic_reports":                  schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether status page reports are created automatically for new incidents."},
+			"company_name":                       schema.StringAttribute{Required: true, Description: "Company name shown on the page."},
+			"company_url":                        schema.StringAttribute{Optional: true, Description: "Company website URL."},
+			"contact_url":                        schema.StringAttribute{Optional: true, Description: "URL visitors can use to get in touch, such as a support page or a mailto: address like mailto:support@example.com.", MarkdownDescription: "URL visitors can use to get in touch, such as a support page or a `mailto:` address like `mailto:support@example.com`."},
+			"created_at":                         schema.StringAttribute{Computed: true, Description: "When the status page was created.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"custom_css":                         schema.StringAttribute{Optional: true, Description: "Custom CSS added to the page."},
+			"custom_domain":                      schema.StringAttribute{Optional: true, Description: "A host name you own to serve the page from, such as status.example.com. Point its CNAME record to statuspage.betteruptime.com.", MarkdownDescription: "A host name you own to serve the page from, such as `status.example.com`. Point its CNAME record to `statuspage.betteruptime.com`."},
+			"custom_javascript":                  schema.StringAttribute{Optional: true, Description: "Custom JavaScript added to the page."},
+			"dark_logo_remote_url":               schema.StringAttribute{Optional: true, Description: "The URL the dark mode logo was fetched from. Remove the argument to remove the logo. When both are sent, dark_logo_url wins.", MarkdownDescription: "The URL the dark mode logo was fetched from. Remove the argument to remove the logo. When both are sent, `dark_logo_url` wins."},
+			"dark_logo_url":                      schema.StringAttribute{Optional: true, Description: "The logo shown in dark mode. Responses return the URL of the stored logo. It accepts the URL of an image under 20 MB, and we fetch the logo from it. Remove the argument to remove the logo."},
+			"deletion_protection":                schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether destroying or replacing this status page is refused. Defaults to true. Set it to false and apply before you delete or replace it on purpose. It's kept in state and never sent to Better Stack.", MarkdownDescription: "Whether destroying or replacing this status page is refused. Defaults to `true`. Set it to `false` and apply before you delete or replace it on purpose. It's kept in state and never sent to Better Stack."},
+			"design":                             schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("v1"), Description: "Page design.\n\n- v1: The classic design.\n- v2: The modern design.", MarkdownDescription: "Page design.\n\n- `v1`: The classic design.\n- `v2`: The modern design.", Validators: []validator.String{stringvalidator.OneOf("v1", "v2")}},
+			"favicon_remote_url":                 schema.StringAttribute{Optional: true, Description: "The URL the favicon was fetched from. It accepts the URL of an image under 20 MB, and we fetch the favicon from it. Remove the argument to remove the favicon."},
+			"favicon_url":                        schema.StringAttribute{Computed: true, Description: "The icon browsers show in the page's tab, as the URL of the stored favicon. Only the v2 design shows it.", MarkdownDescription: "The icon browsers show in the page's tab, as the URL of the stored favicon. Only the `v2` design shows it."},
+			"google_analytics_id":                schema.StringAttribute{Optional: true, Description: "Your Google Analytics ID, such as G-XXXXXXXX. It must start with G-, UA- or GTM-.", MarkdownDescription: "Your Google Analytics ID, such as `G-XXXXXXXX`. It must start with `G-`, `UA-` or `GTM-`."},
+			"hide_from_search_engines":           schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether to hide the page from search engines with a noindex tag.", MarkdownDescription: "Whether to hide the page from search engines with a `noindex` tag."},
+			"history":                            schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(90), Description: "Number of days of history the page shows, from 7 to 365."},
+			"ip_allowlist":                       schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, Description: "IP addresses or CIDR ranges allowed to view the page. Entries starting with # are comments. Set it to [] to let anyone view it.", MarkdownDescription: "IP addresses or CIDR ranges allowed to view the page. Entries starting with `#` are comments. Set it to `[]` to let anyone view it.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"layout":                             schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("vertical"), Description: "Header layout of the page. Only the v2 design uses it.", MarkdownDescription: "Header layout of the page. Only the `v2` design uses it.", Validators: []validator.String{stringvalidator.OneOf("vertical", "horizontal")}},
+			"logo_remote_url":                    schema.StringAttribute{Optional: true, Description: "The URL the light mode logo was fetched from. Remove the argument to remove the logo. When both are sent, logo_url wins.", MarkdownDescription: "The URL the light mode logo was fetched from. Remove the argument to remove the logo. When both are sent, `logo_url` wins."},
+			"logo_url":                           schema.StringAttribute{Optional: true, Description: "The logo shown in light mode. Responses return the URL of the stored logo. It accepts the URL of an image under 20 MB, and we fetch the logo from it. Remove the argument to remove the logo."},
+			"min_incident_length":                schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(0), Description: "Shortest incident the page shows, in seconds. 0 shows every incident. Must be less than a year.", MarkdownDescription: "Shortest incident the page shows, in seconds. `0` shows every incident. Must be less than a year."},
+			"navigation_links":                   schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"text": schema.StringAttribute{Optional: true, Computed: true, Description: "The link's text, such as Maintenance.", MarkdownDescription: "The link's text, such as `Maintenance`."}, "href": schema.StringAttribute{Optional: true, Computed: true, Description: "Where the link goes, a full URL, or /, /maintenance or /incidents for the status page's own pages.", MarkdownDescription: "Where the link goes, a full URL, or `/`, `/maintenance` or `/incidents` for the status page's own pages."}}}, Description: "Up to four links in the page's navigation, each with text and href. Only the v2 design shows them. An empty list removes them all.", MarkdownDescription: "Up to four links in the page's navigation, each with `text` and `href`. Only the `v2` design shows them. An empty list removes them all.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"organization_id":                    schema.StringAttribute{Optional: true, Computed: true, Description: "The ID of the organization the page belongs to, such as 123. Get the ID from organization_id in List teams (https://betterstack.com/docs/uptime/api/teams/list/). Required on create when you sign in with OAuth and can access more than one organization.", MarkdownDescription: "The ID of the organization the page belongs to, such as `123`. Get the ID from `organization_id` in [List teams](https://betterstack.com/docs/uptime/api/teams/list/). Required on create when you sign in with OAuth and can access more than one organization.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), replaceWarningString{stringplanmodifier.RequiresReplaceIfConfigured(), "betterstack_status_page"}}},
+			"password":                           schema.StringAttribute{Optional: true, Description: "Password visitors enter to view the page. Never returned. Setting a password also turns on password_enabled, unless password_enabled is set too. An empty password removes the password and turns protection off.", MarkdownDescription: "Password visitors enter to view the page. Never returned. Setting a password also turns on `password_enabled`, unless `password_enabled` is set too. An empty password removes the password and turns protection off.", Sensitive: true},
+			"password_enabled":                   schema.BoolAttribute{Optional: true, Computed: true, Description: "Whether visitors need a password to view the page. Off unless you turn it on or set password.", MarkdownDescription: "Whether visitors need a password to view the page. Off unless you turn it on or set `password`."},
+			"public_url":                         schema.StringAttribute{Computed: true, Description: "The address visitors open the page at. It is the custom_domain when the page has one, otherwise the betterstack.com subdomain.", MarkdownDescription: "The address visitors open the page at. It is the `custom_domain` when the page has one, otherwise the betterstack.com `subdomain`."},
+			"published":                          schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), Description: "Whether the page is published and publicly visible. An unpublished page is a draft. Publishing a draft fails when the organization already has as many published status pages as its plan allows."},
+			"require_sso":                        schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether visitors must sign in with SSO to view the page. Needs SSO set up for your organization, and can't be on together with password_enabled.", MarkdownDescription: "Whether visitors must sign in with SSO to view the page. Needs SSO set up for your organization, and can't be on together with `password_enabled`."},
+			"sections":                           schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Optional: true, Computed: true, Description: "Section id. Leave it out for a new section. An id keeps the section, even when it moves."}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "Section name."}, "resources": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"id": schema.StringAttribute{Optional: true, Computed: true, Description: "Resource id. Leave it out for a new resource. An id keeps the resource and its subscribers, even when it moves to another section."}, "resource_type": schema.StringAttribute{Optional: true, Computed: true, Description: "Type of the underlying resource. Required for a new resource.\n\n- Monitor: Shows a monitor.\n- MonitorGroup: Shows a monitor group.\n- Heartbeat: Shows a heartbeat.\n- HeartbeatGroup: Shows a heartbeat group.\n- WebhookIntegration: Shows an integration that opens incidents from another tool's alerts, such as Datadog or Grafana.\n- EmailIntegration: Shows an e-mail integration.\n- IncomingWebhook: Shows an incoming webhook.\n- AmazonSnsIntegration: Shows an Amazon SNS integration.\n- ManuallyTrackedItem: Shows a manually tracked item. Better Stack creates it when you leave out resource_id.\n- LogsChart: Shows a dashboard chart, given in chart_id.\n- CatalogReference: Shows a catalog value, given in catalog_reference.\n- ThirdPartyService: Shows the status of a third-party service. It can only be added in the status page editor, and sent back with its id it keeps the services it shows.", MarkdownDescription: "Type of the underlying resource. Required for a new resource.\n\n- `Monitor`: Shows a monitor.\n- `MonitorGroup`: Shows a monitor group.\n- `Heartbeat`: Shows a heartbeat.\n- `HeartbeatGroup`: Shows a heartbeat group.\n- `WebhookIntegration`: Shows an integration that opens incidents from another tool's alerts, such as Datadog or Grafana.\n- `EmailIntegration`: Shows an e-mail integration.\n- `IncomingWebhook`: Shows an incoming webhook.\n- `AmazonSnsIntegration`: Shows an Amazon SNS integration.\n- `ManuallyTrackedItem`: Shows a manually tracked item. Better Stack creates it when you leave out `resource_id`.\n- `LogsChart`: Shows a dashboard chart, given in `chart_id`.\n- `CatalogReference`: Shows a catalog value, given in `catalog_reference`.\n- `ThirdPartyService`: Shows the status of a third-party service. It can only be added in the status page editor, and sent back with its `id` it keeps the services it shows.", Validators: []validator.String{stringvalidator.OneOf("Monitor", "MonitorGroup", "Heartbeat", "HeartbeatGroup", "WebhookIntegration", "EmailIntegration", "IncomingWebhook", "AmazonSnsIntegration", "ManuallyTrackedItem", "LogsChart", "CatalogReference", "ThirdPartyService")}}, "resource_id": schema.StringAttribute{Optional: true, Computed: true, Description: "ID of the underlying monitor, heartbeat, group or other record. Required for a new resource. A ManuallyTrackedItem doesn't need it, since it creates its backing record. Neither does a resource whose catalog_reference names a catalog value or whose chart_id names a dashboard chart.", MarkdownDescription: "ID of the underlying monitor, heartbeat, group or other record. Required for a new resource. A `ManuallyTrackedItem` doesn't need it, since it creates its backing record. Neither does a resource whose `catalog_reference` names a catalog value or whose `chart_id` names a dashboard chart."}, "catalog_reference": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"key": schema.StringAttribute{Optional: true, Computed: true, Description: "The catalog relation's name."}, "value": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true, Description: "String for a plain value, or the type of the catalog item, such as User or Team.", MarkdownDescription: "`String` for a plain value, or the type of the catalog item, such as `User` or `Team`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The plain value, when type is String.", MarkdownDescription: "The plain value, when `type` is `String`."}, "item_id": schema.StringAttribute{Optional: true, Computed: true, Description: "The catalog item's ID, when type isn't String. A user is u123 or their e-mail, and a team is t123.", MarkdownDescription: "The catalog item's ID, when `type` isn't `String`. A user is `u123` or their e-mail, and a team is `t123`.", Validators: []validator.String{patternWhenString{Sibling: "type", Patterns: map[string]string{"User": "^(u[1-9][0-9]*|[^@/\\s]+@[^@/\\s]+)$", "Team": "^t[1-9][0-9]*$"}}}}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The catalog item's name. Set it instead of item_id to find the item.", MarkdownDescription: "The catalog item's name. Set it instead of `item_id` to find the item."}, "email": schema.StringAttribute{Optional: true, Computed: true, Description: "The user's e-mail, when type is User. Set it instead of item_id to find the user.", MarkdownDescription: "The user's e-mail, when `type` is `User`. Set it instead of `item_id` to find the user."}}, Description: "The catalog value to show, a plain string or a catalog item."}}, Description: "For a CatalogReference resource, the catalog value it shows, as on a status page resource. When it's set, the value is found or created and decides the resource's resource_id, so a resource_id set with it is ignored. null for every other type.", MarkdownDescription: "For a `CatalogReference` resource, the catalog value it shows, as on a status page resource. When it's set, the value is found or created and decides the resource's `resource_id`, so a `resource_id` set with it is ignored. `null` for every other type."}, "chart_id": schema.StringAttribute{Optional: true, Computed: true, Description: "For a LogsChart resource, the ID of the dashboard chart it shows, as on a status page resource. The chart must be on one of your organization's dashboards. It decides the resource's resource_id, so a resource_id sent with it is ignored. null for every other type.", MarkdownDescription: "For a `LogsChart` resource, the ID of the dashboard chart it shows, as on a status page resource. The chart must be on one of your organization's dashboards. It decides the resource's `resource_id`, so a `resource_id` sent with it is ignored. `null` for every other type."}, "public_name": schema.StringAttribute{Optional: true, Computed: true, Description: "Name shown publicly. Required for a new resource."}, "explanation": schema.StringAttribute{Optional: true, Computed: true, Description: "Tooltip explanation shown to visitors."}, "widget_type": schema.StringAttribute{Optional: true, Computed: true, Description: "How this resource is rendered.\n\n- plain: Shows only the current status.\n- history: Shows the current status and a history of it.\n- intraday_history: Shows the current status and a detailed history of it.\n- response_times: Shows a history of the status and a response times chart, for a monitor or a logs chart.\n- intraday_response_times: Shows a detailed history of the status and a response times chart, for a monitor or a logs chart.\n- chart_only: Shows only the chart, for a logs chart.", MarkdownDescription: "How this resource is rendered.\n\n- `plain`: Shows only the current status.\n- `history`: Shows the current status and a history of it.\n- `intraday_history`: Shows the current status and a detailed history of it.\n- `response_times`: Shows a history of the status and a response times chart, for a monitor or a logs chart.\n- `intraday_response_times`: Shows a detailed history of the status and a response times chart, for a monitor or a logs chart.\n- `chart_only`: Shows only the chart, for a logs chart.", Validators: []validator.String{stringvalidator.OneOf("plain", "history", "intraday_history", "response_times", "intraday_response_times", "chart_only")}}, "mark_as_down_for": schema.StringAttribute{Optional: true, Computed: true, Description: "When an incident marks this resource as down. A ManuallyTrackedItem has no incidents, so this has no effect on one.\n\n- no_incident: No incident marks the resource down.\n- any_incident: Every open incident of the resource marks it down.\n- incident_matching_metadata: An open incident marks the resource down when its metadata matches mark_as_down_metadata_rule.", MarkdownDescription: "When an incident marks this resource as down. A `ManuallyTrackedItem` has no incidents, so this has no effect on one.\n\n- `no_incident`: No incident marks the resource down.\n- `any_incident`: Every open incident of the resource marks it down.\n- `incident_matching_metadata`: An open incident marks the resource down when its metadata matches `mark_as_down_metadata_rule`.", Validators: []validator.String{stringvalidator.OneOf("no_incident", "any_incident", "incident_matching_metadata")}}, "mark_as_down_metadata_rule": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"key": schema.StringAttribute{Optional: true, Computed: true, Description: "The incident metadata key to match."}, "values": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true, Description: "String for a plain value, or the type of the catalog item, such as User or Team.", MarkdownDescription: "`String` for a plain value, or the type of the catalog item, such as `User` or `Team`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The plain value, when type is String.", MarkdownDescription: "The plain value, when `type` is `String`."}, "item_id": schema.StringAttribute{Optional: true, Computed: true, Description: "The catalog item's ID, when type isn't String. A user is u123 or their e-mail, and a team is t123. Get the user ID via List team members (https://betterstack.com/docs/uptime/api/team-members/list/).", MarkdownDescription: "The catalog item's ID, when `type` isn't `String`. A user is `u123` or their e-mail, and a team is `t123`. Get the user ID via [List team members](https://betterstack.com/docs/uptime/api/team-members/list/).", Validators: []validator.String{patternWhenString{Sibling: "type", Patterns: map[string]string{"User": "^(u[1-9][0-9]*|[^@/\\s]+@[^@/\\s]+)$", "Team": "^t[1-9][0-9]*$"}}}}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The catalog item's name. Set it instead of item_id to find the item.", MarkdownDescription: "The catalog item's name. Set it instead of `item_id` to find the item."}, "email": schema.StringAttribute{Optional: true, Computed: true, Description: "The user's e-mail, when type is User. Set it instead of item_id to find the user.", MarkdownDescription: "The user's e-mail, when `type` is `User`. Set it instead of `item_id` to find the user."}}}, Description: "The values to match. An incident matches when its metadata under key holds one of them.", MarkdownDescription: "The values to match. An incident matches when its metadata under `key` holds one of them."}}, Description: "Metadata rule used when mark_as_down_for is incident_matching_metadata, as on a status page resource. A user is u123 or their e-mail, and a team is t123. Get a user's ID via List team members (https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via List teams (https://betterstack.com/docs/uptime/api/teams/list/). A ManuallyTrackedItem has no incidents, so this has no effect on one.", MarkdownDescription: "Metadata rule used when `mark_as_down_for` is `incident_matching_metadata`, as on a status page resource. A user is `u123` or their e-mail, and a team is `t123`. Get a user's ID via [List team members](https://betterstack.com/docs/uptime/api/team-members/list/), and a team's ID via [List teams](https://betterstack.com/docs/uptime/api/teams/list/). A `ManuallyTrackedItem` has no incidents, so this has no effect on one."}, "mark_as_degraded_for": schema.StringAttribute{Optional: true, Computed: true, Description: "When an incident marks this resource as degraded. A ManuallyTrackedItem has no incidents, so this has no effect on one.\n\n- no_incident: No incident marks the resource degraded.\n- any_incident: Every open incident of the resource marks it degraded.\n- incident_matching_metadata: An open incident marks the resource degraded when its metadata matches mark_as_degraded_metadata_rule.", MarkdownDescription: "When an incident marks this resource as degraded. A `ManuallyTrackedItem` has no incidents, so this has no effect on one.\n\n- `no_incident`: No incident marks the resource degraded.\n- `any_incident`: Every open incident of the resource marks it degraded.\n- `incident_matching_metadata`: An open incident marks the resource degraded when its metadata matches `mark_as_degraded_metadata_rule`.", Validators: []validator.String{stringvalidator.OneOf("no_incident", "any_incident", "incident_matching_metadata")}}, "mark_as_degraded_metadata_rule": schema.SingleNestedAttribute{Optional: true, Computed: true, Attributes: map[string]schema.Attribute{"key": schema.StringAttribute{Optional: true, Computed: true, Description: "The incident metadata key to match."}, "values": schema.ListNestedAttribute{Optional: true, Computed: true, NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{"type": schema.StringAttribute{Optional: true, Computed: true, Description: "String for a plain value, or the type of the catalog item, such as User or Team.", MarkdownDescription: "`String` for a plain value, or the type of the catalog item, such as `User` or `Team`."}, "value": schema.StringAttribute{Optional: true, Computed: true, Description: "The plain value, when type is String.", MarkdownDescription: "The plain value, when `type` is `String`."}, "item_id": schema.StringAttribute{Optional: true, Computed: true, Description: "The catalog item's ID, when type isn't String. A user is u123 or their e-mail, and a team is t123. Get the user ID via List team members (https://betterstack.com/docs/uptime/api/team-members/list/).", MarkdownDescription: "The catalog item's ID, when `type` isn't `String`. A user is `u123` or their e-mail, and a team is `t123`. Get the user ID via [List team members](https://betterstack.com/docs/uptime/api/team-members/list/).", Validators: []validator.String{patternWhenString{Sibling: "type", Patterns: map[string]string{"User": "^(u[1-9][0-9]*|[^@/\\s]+@[^@/\\s]+)$", "Team": "^t[1-9][0-9]*$"}}}}, "name": schema.StringAttribute{Optional: true, Computed: true, Description: "The catalog item's name. Set it instead of item_id to find the item.", MarkdownDescription: "The catalog item's name. Set it instead of `item_id` to find the item."}, "email": schema.StringAttribute{Optional: true, Computed: true, Description: "The user's e-mail, when type is User. Set it instead of item_id to find the user.", MarkdownDescription: "The user's e-mail, when `type` is `User`. Set it instead of `item_id` to find the user."}}}, Description: "The values to match. An incident matches when its metadata under key holds one of them.", MarkdownDescription: "The values to match. An incident matches when its metadata under `key` holds one of them."}}, Description: "Metadata rule used when mark_as_degraded_for is incident_matching_metadata, in the shape of mark_as_down_metadata_rule. A ManuallyTrackedItem has no incidents, so this has no effect on one.", MarkdownDescription: "Metadata rule used when `mark_as_degraded_for` is `incident_matching_metadata`, in the shape of `mark_as_down_metadata_rule`. A `ManuallyTrackedItem` has no incidents, so this has no effect on one."}}}, Description: "The section's resources, in display order. Leave it out to keep the section's resources as they are. A new section starts empty. In Terraform, an item without an id keeps the id of the existing item with the same resource_type and resource_id, or else the same resource_type and public_name, so a reorder or a move updates it in place.", MarkdownDescription: "The section's resources, in display order. Leave it out to keep the section's resources as they are. A new section starts empty. In Terraform, an item without an id keeps the id of the existing item with the same `resource_type` and `resource_id`, or else the same `resource_type` and `public_name`, so a reorder or a move updates it in place."}}}, Description: "The page's sections and their resources, in display order. Setting it replaces the whole structure. Sections and resources are matched by id. Ones without an id are created. Ones left out are removed from the page. The monitors and other records behind them aren't affected. An attribute a resource leaves out keeps its value. Leave it out to keep the structure as it is. Only an update accepts it. In Terraform, an item without an id keeps the id of the existing item with the same name, so a reorder or a move updates it in place. An item that matches none keeps the id of the existing item at its position when no other item took that one, so a rename updates it in place too.", MarkdownDescription: "The page's sections and their resources, in display order. Setting it replaces the whole structure. Sections and resources are matched by `id`. Ones without an `id` are created. Ones left out are removed from the page. The monitors and other records behind them aren't affected. An attribute a resource leaves out keeps its value. Leave it out to keep the structure as it is. Only an update accepts it. In Terraform, an item without an id keeps the id of the existing item with the same `name`, so a reorder or a move updates it in place. An item that matches none keeps the id of the existing item at its position when no other item took that one, so a rename updates it in place too.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
+			"status_page_group_id":               schema.StringAttribute{Optional: true, Description: "The ID of the status page group the page belongs to. Get the ID via List status page groups (https://betterstack.com/docs/uptime/api/list-all-status-page-groups/).", MarkdownDescription: "The ID of the status page group the page belongs to. Get the ID via [List status page groups](https://betterstack.com/docs/uptime/api/list-all-status-page-groups/)."},
+			"subdomain":                          schema.StringAttribute{Required: true, Description: "Subdomain of the page's default address. It must be unique across Better Stack, up to 63 characters of letters, digits, dashes and underscores."},
+			"subscribable":                       schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether visitors can subscribe to updates."},
+			"theme":                              schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("light"), Description: "Color theme. Only the v2 design uses it.", MarkdownDescription: "Color theme. Only the `v2` design uses it.", Validators: []validator.String{stringvalidator.OneOf("light", "dark", "system")}},
+			"timezone":                           schema.StringAttribute{Required: true, Description: "Time zone the page shows times in, as a Rails time zone name such as Tokyo or an IANA ID such as Europe/Prague. Returned as the Rails name.", MarkdownDescription: "Time zone the page shows times in, as a Rails time zone name such as `Tokyo` or an IANA ID such as `Europe/Prague`. Returned as the Rails name."},
+			"treat_not_monitored_as_operational": schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether the days a resource wasn't monitored show as operational in its history and count toward its uptime, instead of showing as not monitored."},
+			"updated_at":                         schema.StringAttribute{Computed: true, Description: "When the status page was last updated."},
+			"whitelabeled":                       schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), Description: "Whether to remove Better Stack branding from the page."},
 		},
 	}
 	pulumiSchemaDocs(resp.Schema.Attributes)
@@ -666,7 +825,7 @@ func (r *StatusPageResource) Configure(ctx context.Context, req resource.Configu
 func (r *StatusPageResource) body(ctx context.Context, m StatusPageModel) map[string]interface{} {
 	body := map[string]interface{}{}
 	if !m.OrganizationId.IsNull() && !m.OrganizationId.IsUnknown() {
-		body["organization_id"] = idToAPI(m.OrganizationId.ValueString())
+		body["organization_id"] = m.OrganizationId.ValueString()
 	}
 	if !m.CompanyName.IsNull() && !m.CompanyName.IsUnknown() {
 		body["company_name"] = m.CompanyName.ValueString()
@@ -697,6 +856,9 @@ func (r *StatusPageResource) body(ctx context.Context, m StatusPageModel) map[st
 	}
 	if !m.DarkLogoRemoteUrl.IsNull() && !m.DarkLogoRemoteUrl.IsUnknown() {
 		body["dark_logo_remote_url"] = m.DarkLogoRemoteUrl.ValueString()
+	}
+	if !m.FaviconRemoteUrl.IsNull() && !m.FaviconRemoteUrl.IsUnknown() {
+		body["favicon_remote_url"] = m.FaviconRemoteUrl.ValueString()
 	}
 	if !m.CustomCss.IsNull() && !m.CustomCss.IsUnknown() {
 		body["custom_css"] = m.CustomCss.ValueString()
@@ -731,6 +893,9 @@ func (r *StatusPageResource) body(ctx context.Context, m StatusPageModel) map[st
 	if !m.History.IsNull() && !m.History.IsUnknown() {
 		body["history"] = m.History.ValueInt64()
 	}
+	if !m.TreatNotMonitoredAsOperational.IsNull() && !m.TreatNotMonitoredAsOperational.IsUnknown() {
+		body["treat_not_monitored_as_operational"] = m.TreatNotMonitoredAsOperational.ValueBool()
+	}
 	if !m.Design.IsNull() && !m.Design.IsUnknown() {
 		body["design"] = m.Design.ValueString()
 	}
@@ -744,7 +909,7 @@ func (r *StatusPageResource) body(ctx context.Context, m StatusPageModel) map[st
 		body["automatic_reports"] = m.AutomaticReports.ValueBool()
 	}
 	if !m.StatusPageGroupId.IsNull() && !m.StatusPageGroupId.IsUnknown() {
-		body["status_page_group_id"] = idToAPI(m.StatusPageGroupId.ValueString())
+		body["status_page_group_id"] = m.StatusPageGroupId.ValueString()
 	}
 	if !m.Whitelabeled.IsNull() && !m.Whitelabeled.IsUnknown() {
 		body["whitelabeled"] = m.Whitelabeled.ValueBool()
@@ -811,6 +976,9 @@ func (r *StatusPageResource) bodyForUpdate(ctx context.Context, m StatusPageMode
 	if !m.DarkLogoRemoteUrl.IsNull() && !m.DarkLogoRemoteUrl.IsUnknown() {
 		body["dark_logo_remote_url"] = m.DarkLogoRemoteUrl.ValueString()
 	}
+	if !m.FaviconRemoteUrl.IsNull() && !m.FaviconRemoteUrl.IsUnknown() {
+		body["favicon_remote_url"] = m.FaviconRemoteUrl.ValueString()
+	}
 	if !m.CustomCss.IsNull() && !m.CustomCss.IsUnknown() {
 		body["custom_css"] = m.CustomCss.ValueString()
 	}
@@ -844,6 +1012,9 @@ func (r *StatusPageResource) bodyForUpdate(ctx context.Context, m StatusPageMode
 	if !m.History.IsNull() && !m.History.IsUnknown() {
 		body["history"] = m.History.ValueInt64()
 	}
+	if !m.TreatNotMonitoredAsOperational.IsNull() && !m.TreatNotMonitoredAsOperational.IsUnknown() {
+		body["treat_not_monitored_as_operational"] = m.TreatNotMonitoredAsOperational.ValueBool()
+	}
 	if !m.Design.IsNull() && !m.Design.IsUnknown() {
 		body["design"] = m.Design.ValueString()
 	}
@@ -857,7 +1028,7 @@ func (r *StatusPageResource) bodyForUpdate(ctx context.Context, m StatusPageMode
 		body["automatic_reports"] = m.AutomaticReports.ValueBool()
 	}
 	if !m.StatusPageGroupId.IsNull() && !m.StatusPageGroupId.IsUnknown() {
-		body["status_page_group_id"] = idToAPI(m.StatusPageGroupId.ValueString())
+		body["status_page_group_id"] = m.StatusPageGroupId.ValueString()
 	}
 	if !m.Whitelabeled.IsNull() && !m.Whitelabeled.IsUnknown() {
 		body["whitelabeled"] = m.Whitelabeled.ValueBool()
@@ -939,6 +1110,9 @@ func (r *StatusPageResource) updateBody(ctx context.Context, config, plan, state
 	if !state.DarkLogoRemoteUrl.IsNull() && !state.DarkLogoRemoteUrl.IsUnknown() && plan.DarkLogoRemoteUrl.IsNull() {
 		body["dark_logo_remote_url"] = nil
 	}
+	if !state.FaviconRemoteUrl.IsNull() && !state.FaviconRemoteUrl.IsUnknown() && plan.FaviconRemoteUrl.IsNull() {
+		body["favicon_remote_url"] = nil
+	}
 	if !state.CustomCss.IsNull() && !state.CustomCss.IsUnknown() && plan.CustomCss.IsNull() {
 		body["custom_css"] = nil
 	}
@@ -972,24 +1146,31 @@ func (r *StatusPageResource) Create(ctx context.Context, req resource.CreateRequ
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var request StatusPageModel
 	resp.Diagnostics.Append(configWithPlannedUnknowns(ctx, req.Config, req.Plan, nullValue(req.Plan.Raw.Type()), &request)...)
-	request.AnnouncementEmbedVisible = plan.AnnouncementEmbedVisible // its schema default travels when unset, so removing the line resets it
-	request.AutomaticReports = plan.AutomaticReports                 // its schema default travels when unset, so removing the line resets it
-	request.Design = plan.Design                                     // its schema default travels when unset, so removing the line resets it
-	request.HideFromSearchEngines = plan.HideFromSearchEngines       // its schema default travels when unset, so removing the line resets it
-	request.History = plan.History                                   // its schema default travels when unset, so removing the line resets it
-	request.Layout = plan.Layout                                     // its schema default travels when unset, so removing the line resets it
-	request.MinIncidentLength = plan.MinIncidentLength               // its schema default travels when unset, so removing the line resets it
-	request.PasswordEnabled = plan.PasswordEnabled                   // its schema default travels when unset, so removing the line resets it
-	request.Published = plan.Published                               // its schema default travels when unset, so removing the line resets it
-	request.RequireSso = plan.RequireSso                             // its schema default travels when unset, so removing the line resets it
-	request.Subscribable = plan.Subscribable                         // its schema default travels when unset, so removing the line resets it
-	request.Theme = plan.Theme                                       // its schema default travels when unset, so removing the line resets it
-	request.Whitelabeled = plan.Whitelabeled                         // its schema default travels when unset, so removing the line resets it
+	request.AnnouncementEmbedVisible = plan.AnnouncementEmbedVisible             // its schema default travels when unset, so removing the line resets it
+	request.AutomaticReports = plan.AutomaticReports                             // its schema default travels when unset, so removing the line resets it
+	request.Design = plan.Design                                                 // its schema default travels when unset, so removing the line resets it
+	request.HideFromSearchEngines = plan.HideFromSearchEngines                   // its schema default travels when unset, so removing the line resets it
+	request.History = plan.History                                               // its schema default travels when unset, so removing the line resets it
+	request.Layout = plan.Layout                                                 // its schema default travels when unset, so removing the line resets it
+	request.MinIncidentLength = plan.MinIncidentLength                           // its schema default travels when unset, so removing the line resets it
+	request.Published = plan.Published                                           // its schema default travels when unset, so removing the line resets it
+	request.RequireSso = plan.RequireSso                                         // its schema default travels when unset, so removing the line resets it
+	request.Subscribable = plan.Subscribable                                     // its schema default travels when unset, so removing the line resets it
+	request.Theme = plan.Theme                                                   // its schema default travels when unset, so removing the line resets it
+	request.TreatNotMonitoredAsOperational = plan.TreatNotMonitoredAsOperational // its schema default travels when unset, so removing the line resets it
+	request.Whitelabeled = plan.Whitelabeled                                     // its schema default travels when unset, so removing the line resets it
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	vars := map[string]string{}
 	out, err := r.client.Create(ctx, statusPageBinding, vars, r.body(ctx, request))
+	// The API took the create but its work didn't finish (wait.go): the object exists, so it goes
+	// into state, which the error taints, and the next apply replaces it.
+	unsettled, _ := err.(*waitError)
+	if unsettled != nil {
+		resp.Diagnostics.AddError("creating status_page", err.Error())
+		out, err = unsettled.Object, nil
+	}
 	if err != nil {
 		addAPIError(&resp.Diagnostics, "creating status_page", err, req.Plan.Raw.Type())
 		return
@@ -1007,7 +1188,7 @@ func (r *StatusPageResource) Create(ctx context.Context, req resource.CreateRequ
 	// values stay untouched so the apply result is always consistent with the plan.
 	resp.State.Raw = stateFromPlan(req.Plan.Raw, nullValue(req.Plan.Raw.Type()), out)
 	// Retain the created identity if applying update-only fields fails.
-	if pcBody := r.postCreateBody(ctx, request); len(pcBody) > 0 {
+	if pcBody := r.postCreateBody(ctx, request); len(pcBody) > 0 && unsettled == nil {
 		vars["id"] = id
 		pcOut, err := r.client.Update(ctx, statusPageBinding, vars, pcBody)
 		if err != nil {
@@ -1051,6 +1232,10 @@ func (r *StatusPageResource) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 	populateStatusPage(ctx, &state, out)
+	// The API never returns it: an imported object starts protected, as a created one does.
+	if state.DeletionProtection.IsNull() || state.DeletionProtection.IsUnknown() {
+		state.DeletionProtection = types.BoolValue(true)
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -1079,7 +1264,7 @@ func populateStatusPage(ctx context.Context, m *StatusPageModel, attrs map[strin
 		m.Subdomain = types.StringValue(v)
 	}
 	if v, ok := stringFromAPI(attrs["timezone"]); ok {
-		m.Timezone = types.StringValue(v)
+		m.Timezone = timeZoneValue(m.Timezone, v)
 	}
 	if rawValue, exists := attrs["custom_domain"]; exists {
 		if rawValue == nil {
@@ -1135,6 +1320,24 @@ func populateStatusPage(ctx context.Context, m *StatusPageModel, attrs map[strin
 			}
 		}
 	}
+	if rawValue, exists := attrs["favicon_url"]; exists {
+		if rawValue == nil {
+			m.FaviconUrl = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["favicon_url"]); ok {
+				m.FaviconUrl = types.StringValue(v)
+			}
+		}
+	}
+	if rawValue, exists := attrs["favicon_remote_url"]; exists {
+		if rawValue == nil {
+			m.FaviconRemoteUrl = types.StringNull()
+		} else {
+			if v, ok := stringFromAPI(attrs["favicon_remote_url"]); ok {
+				m.FaviconRemoteUrl = types.StringValue(v)
+			}
+		}
+	}
 	if rawValue, exists := attrs["custom_css"]; exists {
 		if rawValue == nil {
 			m.CustomCss = types.StringNull()
@@ -1182,6 +1385,9 @@ func populateStatusPage(ctx context.Context, m *StatusPageModel, attrs map[strin
 	}
 	if v, ok := int64FromAPI(attrs["history"]); ok {
 		m.History = types.Int64Value(v)
+	}
+	if v, ok := boolFromAPI(attrs["treat_not_monitored_as_operational"]); ok {
+		m.TreatNotMonitoredAsOperational = types.BoolValue(v)
 	}
 	if v, ok := stringFromAPI(attrs["design"]); ok {
 		m.Design = types.StringValue(v)
@@ -1289,6 +1495,9 @@ func populateStatusPage(ctx context.Context, m *StatusPageModel, attrs map[strin
 	if v, ok := stringFromAPI(attrs["aggregate_state"]); ok {
 		m.AggregateState = types.StringValue(v)
 	}
+	if v, ok := stringFromAPI(attrs["public_url"]); ok {
+		m.PublicUrl = types.StringValue(v)
+	}
 	if v, ok := stringFromAPI(attrs["created_at"]); ok {
 		m.CreatedAt = datetimeValue(m.CreatedAt, v)
 	}
@@ -1308,6 +1517,7 @@ func (r *StatusPageResource) mergeResponse(ctx context.Context, m StatusPageMode
 }
 
 func (r *StatusPageResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer clearImported(ctx, resp.Private, &resp.Diagnostics)
 	defer rememberConfigured(ctx, req.Config, resp.Private, statusPageKeptOnRemoval, &resp.Diagnostics)
 	var plan StatusPageModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -1342,9 +1552,6 @@ func (r *StatusPageResource) Update(ctx context.Context, req resource.UpdateRequ
 	if !plan.MinIncidentLength.Equal(state.MinIncidentLength) {
 		request.MinIncidentLength = plan.MinIncidentLength
 	}
-	if !plan.PasswordEnabled.Equal(state.PasswordEnabled) {
-		request.PasswordEnabled = plan.PasswordEnabled
-	}
 	if !plan.Published.Equal(state.Published) {
 		request.Published = plan.Published
 	}
@@ -1357,8 +1564,17 @@ func (r *StatusPageResource) Update(ctx context.Context, req resource.UpdateRequ
 	if !plan.Theme.Equal(state.Theme) {
 		request.Theme = plan.Theme
 	}
+	if !plan.TreatNotMonitoredAsOperational.Equal(state.TreatNotMonitoredAsOperational) {
+		request.TreatNotMonitoredAsOperational = plan.TreatNotMonitoredAsOperational
+	}
 	if !plan.Whitelabeled.Equal(state.Whitelabeled) {
 		request.Whitelabeled = plan.Whitelabeled
+	}
+	// Sent, this list replaces the whole structure, so an unchanged one isn't sent: whatever was
+	// added outside this configuration since the last refresh (a Pulumi update reads no live state)
+	// stays instead of being removed.
+	if plan.Sections.Equal(state.Sections) {
+		request.Sections = types.ListNull(request.Sections.ElementType(ctx))
 	}
 	vars := map[string]string{}
 	vars["id"] = plan.Id.ValueString()
@@ -1375,6 +1591,9 @@ func (r *StatusPageResource) Update(ctx context.Context, req resource.UpdateRequ
 }
 
 func (r *StatusPageResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	if refuseProtectedDelete(ctx, req.State, "status page", &resp.Diagnostics) {
+		return
+	}
 	var state StatusPageModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -1388,12 +1607,13 @@ func (r *StatusPageResource) Delete(ctx context.Context, req resource.DeleteRequ
 }
 
 // Attributes whose removal from the configuration keeps the server's value (no default, no null).
-var statusPageKeptOnRemoval = []string{"ip_allowlist", "navigation_links", "sections"}
+var statusPageKeptOnRemoval = []string{"ip_allowlist", "navigation_links", "password_enabled", "sections"}
 
 // ModifyPlan matches each configured list item without an id to the existing item it stands for,
 // by the list's item key, and plans that item's id and unconfigured values from it. The write then
 // updates the item in place, where an item sent without an id would be created anew.
 func (r *StatusPageResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	refuseProtectedDestroy(ctx, req, resp, "status page")
 	warnKeptOnRemoval(ctx, "betterstack_status_page", req, resp, statusPageKeptOnRemoval)
 	if resp.Diagnostics.HasError() || req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
 		return
@@ -1411,7 +1631,21 @@ func (r *StatusPageResource) ModifyPlan(ctx context.Context, req resource.Modify
 }
 
 func (r *StatusPageResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	markImported(ctx, resp.Private, &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("min_incident_length"), 0)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("subscribable"), false)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("hide_from_search_engines"), false)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("require_sso"), false)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("published"), true)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("history"), 90)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("treat_not_monitored_as_operational"), false)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("design"), "v1")...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("theme"), "light")...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("layout"), "vertical")...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("automatic_reports"), false)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("whitelabeled"), false)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("announcement_embed_visible"), true)...)
 }
 
 var _ resource.ResourceWithMoveState = &StatusPageResource{}
@@ -1420,6 +1654,6 @@ var _ resource.ResourceWithMoveState = &StatusPageResource{}
 // betteruptime_status_page (registry.terraform.io/BetterStackHQ/better-uptime).
 func (r *StatusPageResource) MoveState(ctx context.Context) []resource.StateMover {
 	return []resource.StateMover{
-		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"sentinel_null\",\"path\":\"status_page_group_id\",\"value\":0},{\"op\":\"string_id\",\"path\":\"status_page_group_id\"}],\"ignored_fields\":[],\"instructions\":[\"Keep every attribute: the legacy provider wrote the same /api/v2/status-pages fields. Its status_page_group_id of zero means no group and becomes null. Keep password in its original sensitive input expression, never copy it into migration output; read refresh must retain the write-only value. Import uses the existing page id.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/better-uptime\",\"source_type\":\"betteruptime_status_page\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"source_attributes\":[{\"computed\":true,\"description\":\"The overall status of this status page.\",\"name\":\"aggregate_state\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Add an announcement to your status page.\",\"name\":\"announcement\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Modify the design of the announcement embed.\",\"name\":\"announcement_embed_css\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Point your embedded announcement to a specified URL.\",\"name\":\"announcement_embed_link\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Toggle this field if you want to show an announcement in your embed. You can embed the announcement using this snippet: `<script src=\\\"https://uptime.betterstack.com/widgets/announcement.js\\\" data-id=\\\"<SET STATUS_PAGE_ID>\\\" async=\\\"async\\\" type=\\\"text/javascript\\\"></script>`\",\"name\":\"announcement_embed_visible\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Generate automatic reports when your services go down\",\"name\":\"automatic_reports\",\"optional\":true,\"type\":\"bool\"},{\"description\":\"Name of your company.\",\"name\":\"company_name\",\"required\":true,\"type\":\"string\"},{\"description\":\"URL of your company's website.\",\"name\":\"company_url\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"URL that should be used for contacting you in case of an emergency.\",\"name\":\"contact_url\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this status page was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Unleash your inner designer and tweak our status page design to fit your branding.\",\"name\":\"custom_css\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Do you want a custom domain on your status page? Add a CNAME record that points your domain to status.betteruptime.com. Example: `CNAME status.walmine.com statuspage.betteruptime.com` To remove the custom domain, set the value to an empty string `\\\"\\\"`.\",\"name\":\"custom_domain\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Add custom behavior to your status page. It is only allowed for status pages with a custom domain name.\",\"name\":\"custom_javascript\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"A direct link to a dark version of your company's logo. The image should be under 20MB in size.\",\"name\":\"dark_logo_url\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Choose between classic and modern status page design. Possible values: 'v1', 'v2'.\",\"name\":\"design\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Specify your own Google Analytics ID if you want to receive hits on your status page.\",\"name\":\"google_analytics_id\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Hide your status page from search engines.\",\"name\":\"hide_from_search_engines\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Number of days to display on the status page. Between 7 and 365 days.\",\"name\":\"history\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.func14\"},{\"computed\":true,\"description\":\"The ID of this Status Page.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"List of IP addresses or CIDR ranges that are allowed to access the status page. Accepts IPv4, IPv6, CIDR ranges, and comments starting with `#`. To remove all IP restrictions, set to an empty list `[]`. This is a [billable feature](https://betterstack.com/pricing#status-pages).\",\"name\":\"ip_allowlist\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"Choose usual vertical layout or space-saving horizontal layout. Only applicable when design: v2. Possible values: 'vertical', 'horizontal'.\",\"name\":\"layout\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"A direct link to your company's logo. The image should be under 20MB in size.\",\"name\":\"logo_url\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"If you don't want to display short incidents on your status page, this attribute is for you.\",\"name\":\"min_incident_length\",\"optional\":true,\"type\":\"int\"},{\"description\":\"Adjust the navigation links on your status page. Only applicable when design: v2. Only first 4 links considered.\",\"name\":\"navigation_links\",\"optional\":true,\"type\":\"list(object)\"},{\"description\":\"Href of the link. Use full URL for external links. Use `/`, `/maintenance` and `/incidents` for built-in links.\",\"name\":\"navigation_links.href\",\"required\":true,\"type\":\"string\"},{\"description\":\"Label of the link.\",\"name\":\"navigation_links.text\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Set a password of your status page (we won't store it as plaintext, promise). Required when password_enabled: true. We will set password_enabled: false automatically when you send us an empty password.\",\"name\":\"password\",\"optional\":true,\"sensitive\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Do you want to enable password protection on your status page?\",\"name\":\"password_enabled\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Is your status page currently accessible?\",\"name\":\"published\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Require SSO sign-in to access your status page. Requires SSO to be configured for your organization and is mutually exclusive with password protection.\",\"name\":\"require_sso\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Set this attribute if you want to add this status page to a status page group.\",\"name\":\"status_page_group_id\",\"optional\":true,\"type\":\"int\"},{\"description\":\"What subdomain should we use for your status page? This needs to be unique across our entire application, so choose carefully\",\"name\":\"subdomain\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Do you want to allow users to subscribe to your status page changes?\",\"name\":\"subscribable\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Choose theme of your status page. Only applicable when design: v2. Possible values: 'light', 'dark'.\",\"name\":\"theme\",\"optional\":true,\"type\":\"string\"},{\"description\":\"What timezone should we display your status page in? The accepted values can be found in the Rails TimeZone documentation. https://api.rubyonrails.org/classes/ActiveSupport/TimeZone.html\",\"name\":\"timezone\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this status page was updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether the 'Powered by Better Stack' footer should be removed.\",\"name\":\"whitelabeled\",\"optional\":true,\"type\":\"bool\"}],\"response_projections\":[]}"),
+		legacyStateMover("{\"renames\":{},\"constants\":{},\"transforms\":[{\"op\":\"sentinel_null\",\"path\":\"status_page_group_id\",\"value\":0},{\"op\":\"string_id\",\"path\":\"status_page_group_id\"}],\"ignored_fields\":[],\"instructions\":[\"Keep every attribute. Its status_page_group_id of zero means no group and becomes null. Keep password in its original sensitive input expression, never copy it into migration output; read refresh must retain the write-only value. Import uses the existing page id.\",\"The page's betteruptime_status_page_section and betteruptime_status_page_resource blocks fold into its sections list: the refresh after the move reads them into state, and the list written with the same section names and resources keeps every id.\"],\"source_provider\":\"registry.terraform.io/BetterStackHQ/better-uptime\",\"source_type\":\"betteruptime_status_page\",\"kind\":\"resource\",\"schema_versions\":[0],\"handling\":\"move\",\"identity\":\"preserve\",\"defaults\":{\"min_incident_length\":0,\"subscribable\":false,\"hide_from_search_engines\":false,\"require_sso\":false,\"published\":true,\"history\":90,\"treat_not_monitored_as_operational\":false,\"design\":\"v1\",\"theme\":\"light\",\"layout\":\"vertical\",\"automatic_reports\":false,\"whitelabeled\":false,\"announcement_embed_visible\":true},\"source_attributes\":[{\"computed\":true,\"description\":\"The overall status of this status page.\",\"name\":\"aggregate_state\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Add an announcement to your status page.\",\"name\":\"announcement\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Modify the design of the announcement embed.\",\"name\":\"announcement_embed_css\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Point your embedded announcement to a specified URL.\",\"name\":\"announcement_embed_link\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Toggle this field if you want to show an announcement in your embed. You can embed the announcement using this snippet: `<script src=\\\"https://uptime.betterstack.com/widgets/announcement.js\\\" data-id=\\\"<SET STATUS_PAGE_ID>\\\" async=\\\"async\\\" type=\\\"text/javascript\\\"></script>`\",\"name\":\"announcement_embed_visible\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Generate automatic reports when your services go down\",\"name\":\"automatic_reports\",\"optional\":true,\"type\":\"bool\"},{\"description\":\"Name of your company.\",\"name\":\"company_name\",\"required\":true,\"type\":\"string\"},{\"description\":\"URL of your company's website.\",\"name\":\"company_url\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"URL that should be used for contacting you in case of an emergency.\",\"name\":\"contact_url\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this status page was created.\",\"name\":\"created_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Unleash your inner designer and tweak our status page design to fit your branding.\",\"name\":\"custom_css\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Do you want a custom domain on your status page? Add a CNAME record that points your domain to status.betteruptime.com. Example: `CNAME status.walmine.com statuspage.betteruptime.com` To remove the custom domain, set the value to an empty string `\\\"\\\"`.\",\"name\":\"custom_domain\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Add custom behavior to your status page. It is only allowed for status pages with a custom domain name.\",\"name\":\"custom_javascript\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"A direct link to a dark version of your company's logo. The image should be under 20MB in size.\",\"name\":\"dark_logo_url\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Choose between classic and modern status page design. Possible values: 'v1', 'v2'.\",\"name\":\"design\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Specify your own Google Analytics ID if you want to receive hits on your status page.\",\"name\":\"google_analytics_id\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Hide your status page from search engines.\",\"name\":\"hide_from_search_engines\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Number of days to display on the status page. Between 7 and 365 days.\",\"name\":\"history\",\"optional\":true,\"type\":\"int\",\"validate_func\":\"provider.init.func14\"},{\"computed\":true,\"description\":\"The ID of this Status Page.\",\"name\":\"id\",\"type\":\"string\"},{\"description\":\"List of IP addresses or CIDR ranges that are allowed to access the status page. Accepts IPv4, IPv6, CIDR ranges, and comments starting with `#`. To remove all IP restrictions, set to an empty list `[]`. This is a [billable feature](https://betterstack.com/pricing#status-pages).\",\"name\":\"ip_allowlist\",\"optional\":true,\"type\":\"list(string)\"},{\"computed\":true,\"description\":\"Choose usual vertical layout or space-saving horizontal layout. Only applicable when design: v2. Possible values: 'vertical', 'horizontal'.\",\"name\":\"layout\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"A direct link to your company's logo. The image should be under 20MB in size.\",\"name\":\"logo_url\",\"optional\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"If you don't want to display short incidents on your status page, this attribute is for you.\",\"name\":\"min_incident_length\",\"optional\":true,\"type\":\"int\"},{\"description\":\"Adjust the navigation links on your status page. Only applicable when design: v2. Only first 4 links considered.\",\"name\":\"navigation_links\",\"optional\":true,\"type\":\"list(object)\"},{\"description\":\"Href of the link. Use full URL for external links. Use `/`, `/maintenance` and `/incidents` for built-in links.\",\"name\":\"navigation_links.href\",\"required\":true,\"type\":\"string\"},{\"description\":\"Label of the link.\",\"name\":\"navigation_links.text\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Set a password of your status page (we won't store it as plaintext, promise). Required when password_enabled: true. We will set password_enabled: false automatically when you send us an empty password.\",\"name\":\"password\",\"optional\":true,\"sensitive\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Do you want to enable password protection on your status page?\",\"name\":\"password_enabled\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Is your status page currently accessible?\",\"name\":\"published\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Require SSO sign-in to access your status page. Requires SSO to be configured for your organization and is mutually exclusive with password protection.\",\"name\":\"require_sso\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Set this attribute if you want to add this status page to a status page group.\",\"name\":\"status_page_group_id\",\"optional\":true,\"type\":\"int\"},{\"description\":\"What subdomain should we use for your status page? This needs to be unique across our entire application, so choose carefully\",\"name\":\"subdomain\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"Do you want to allow users to subscribe to your status page changes?\",\"name\":\"subscribable\",\"optional\":true,\"type\":\"bool\"},{\"computed\":true,\"description\":\"Choose theme of your status page. Only applicable when design: v2. Possible values: 'light', 'dark'.\",\"name\":\"theme\",\"optional\":true,\"type\":\"string\"},{\"description\":\"What timezone should we display your status page in? The accepted values can be found in the Rails TimeZone documentation. https://api.rubyonrails.org/classes/ActiveSupport/TimeZone.html\",\"name\":\"timezone\",\"required\":true,\"type\":\"string\"},{\"computed\":true,\"description\":\"The time when this status page was updated.\",\"name\":\"updated_at\",\"type\":\"string\"},{\"computed\":true,\"description\":\"Whether the 'Powered by Better Stack' footer should be removed.\",\"name\":\"whitelabeled\",\"optional\":true,\"type\":\"bool\"}],\"response_projections\":[]}"),
 	}
 }
