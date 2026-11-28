@@ -1613,6 +1613,8 @@ var statusPageKeptOnRemoval = []string{"ip_allowlist", "navigation_links", "pass
 // by the list's item key, and plans that item's id and unconfigured values from it. The write then
 // updates the item in place, where an item sent without an id would be created anew.
 func (r *StatusPageResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	// Deferred, so it sees the plan the steps below leave.
+	defer planNoChangeForZoneNames(ctx, req, resp, "timezone")
 	refuseProtectedDestroy(ctx, req, resp, "status page")
 	warnKeptOnRemoval(ctx, "betterstack_status_page", req, resp, statusPageKeptOnRemoval)
 	if resp.Diagnostics.HasError() || req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {

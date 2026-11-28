@@ -654,6 +654,8 @@ func (r *HeartbeatResource) Delete(ctx context.Context, req resource.DeleteReque
 var heartbeatKeptOnRemoval = []string{"metadata"}
 
 func (r *HeartbeatResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	// Deferred, so it sees the plan the steps below leave.
+	defer planNoChangeForZoneNames(ctx, req, resp, "maintenance_timezone")
 	refuseUnnamedTeam(ctx, req, resp, r.client, "heartbeat")
 	refuseProtectedDestroy(ctx, req, resp, "heartbeat")
 	warnKeptOnRemoval(ctx, "betterstack_heartbeat", req, resp, heartbeatKeptOnRemoval)

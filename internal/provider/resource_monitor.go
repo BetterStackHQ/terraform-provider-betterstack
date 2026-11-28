@@ -1124,6 +1124,8 @@ func (r *MonitorResource) Delete(ctx context.Context, req resource.DeleteRequest
 var monitorKeptOnRemoval = []string{"auth_password", "auth_username", "environment_variables", "metadata", "pronounceable_name", "regions", "request_headers", "request_timeout"}
 
 func (r *MonitorResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	// Deferred, so it sees the plan the steps below leave.
+	defer planNoChangeForZoneNames(ctx, req, resp, "maintenance_timezone")
 	refuseUnnamedTeam(ctx, req, resp, r.client, "monitor")
 	refuseProtectedDestroy(ctx, req, resp, "monitor")
 	warnKeptOnRemoval(ctx, "betterstack_monitor", req, resp, monitorKeptOnRemoval)

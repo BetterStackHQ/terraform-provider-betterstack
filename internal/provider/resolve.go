@@ -760,6 +760,99 @@ func (emptyConfiguredObject) PlanModifyObject(ctx context.Context, req planmodif
 	resp.PlanValue = req.ConfigValue
 }
 
+// configuredPartsOnly plans an object the API replaces whole (keep_unset) as the configuration
+// writes it: a part the configured object leaves out is cleared, so removing it plans the change the
+// write sends. Its parts stay Optional+Computed, so removing the whole object, which the API can't
+// do, keeps it as it is (the plan warns) instead of planning a change on every run.
+type configuredPartsOnly struct {
+	parts []string
+	// skipImported: a write-only object, whose imported state holds the template the API read back
+	// (parts the configuration never set included), plans none of them as cleared until its first update.
+	skipImported bool
+}
+
+func (configuredPartsOnly) Description(context.Context) string {
+	return "A part the configured object leaves out is cleared."
+}
+
+func (m configuredPartsOnly) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+
+func (m configuredPartsOnly) PlanModifyObject(ctx context.Context, req planmodifier.ObjectRequest, resp *planmodifier.ObjectResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() || resp.PlanValue.IsNull() || resp.PlanValue.IsUnknown() {
+		return
+	}
+	if m.skipImported && req.Private != nil && keepImported(ctx, req.Private, true) {
+		return
+	}
+	config := req.ConfigValue.Attributes()
+	attrs := map[string]attr.Value{}
+	for name, value := range resp.PlanValue.Attributes() {
+		attrs[name] = value
+	}
+	changed := false
+	for _, name := range m.parts {
+		if value, ok := config[name]; !ok || !value.IsNull() || attrs[name] == nil || attrs[name].IsNull() {
+			continue
+		}
+		null, err := attrs[name].Type(ctx).ValueFromTerraform(ctx, tftypes.NewValue(attrs[name].Type(ctx).TerraformType(ctx), nil))
+		if err != nil {
+			resp.Diagnostics.AddError("planning "+req.Path.String(), err.Error())
+			return
+		}
+		attrs[name] = null
+		changed = true
+	}
+	if !changed {
+		return
+	}
+	planned, diags := types.ObjectValue(resp.PlanValue.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if !diags.HasError() {
+		resp.PlanValue = planned
+	}
+}
+
+// withoutUnconfiguredParts is the object an update sends for a keep_unset object (at, below the
+// root): the plan, without the update-only parts (parts) the configuration leaves out, so a saved
+// template's id the API read back isn't sent, and the API replaces the object as configured.
+func withoutUnconfiguredParts(ctx context.Context, plan, config types.Object, at []string, parts []string) types.Object {
+	if plan.IsNull() || plan.IsUnknown() || config.IsNull() || config.IsUnknown() {
+		return plan
+	}
+	attrs := map[string]attr.Value{}
+	for name, value := range plan.Attributes() {
+		attrs[name] = value
+	}
+	configAttrs := config.Attributes()
+	if len(at) > 0 {
+		inner, ok := attrs[at[0]].(types.Object)
+		innerConfig, configOK := configAttrs[at[0]].(types.Object)
+		if !ok || !configOK {
+			return plan
+		}
+		attrs[at[0]] = withoutUnconfiguredParts(ctx, inner, innerConfig, at[1:], parts)
+	} else {
+		for _, name := range parts {
+			value, ok := configAttrs[name]
+			if !ok || !value.IsNull() || attrs[name] == nil || attrs[name].IsNull() {
+				continue
+			}
+			null, err := attrs[name].Type(ctx).ValueFromTerraform(ctx, tftypes.NewValue(attrs[name].Type(ctx).TerraformType(ctx), nil))
+			if err != nil {
+				return plan
+			}
+			attrs[name] = null
+		}
+	}
+	out, diags := types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	if diags.HasError() {
+		return plan
+	}
+	return out
+}
+
 // stringifyScalar renders an API scalar exactly (json.Number keeps its digits, so ids never
 // collapse into scientific notation); container values fall back to compact JSON.
 func stringifyScalar(v interface{}) string {
@@ -830,8 +923,9 @@ func timeZoneValue(prior types.String, v string) types.String {
 
 // keepTimeZoneName plans the zone in state when the configuration names the same zone under its
 // other name, as after an import, where the read returns the Rails name and the configuration may
-// hold the IANA ID. Terraform accepts the prior value as the plan for an equivalent configuration,
-// so the first plan shows no change the API wouldn't make.
+// hold the IANA ID. Terraform accepts the prior value as the plan for an equivalent configuration.
+// On its own it can't make the plan empty: the framework marks unconfigured computed attributes
+// unknown before attribute plan modifiers run, so planNoChangeForZoneNames finishes the job.
 type keepTimeZoneName struct{}
 
 func (keepTimeZoneName) Description(context.Context) string {
@@ -846,6 +940,53 @@ func (keepTimeZoneName) PlanModifyString(ctx context.Context, req planmodifier.S
 	}
 	if req.ConfigValue.ValueString() != req.StateValue.ValueString() && sameTimeZone(req.ConfigValue.ValueString(), req.StateValue.ValueString()) {
 		resp.PlanValue = req.StateValue
+	}
+}
+
+// planNoChangeForZoneNames plans no change when a zone the configuration spells under its other
+// name is the only difference from state. The framework compares the configuration with state
+// before any plan modifier runs, sees the two spellings as a change and marks every unconfigured
+// computed attribute unknown (updated_at, status), so the plan is an update even after
+// keepTimeZoneName plans the zone in state, and the update writes the same zone back every time.
+// When each remaining difference is such an unknown, the plan is the state. Any other difference
+// keeps the plan as it is.
+func planNoChangeForZoneNames(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse, zones ...string) {
+	if resp.Diagnostics.HasError() || req.State.Raw.IsNull() || resp.Plan.Raw.IsNull() || !req.Config.Raw.IsFullyKnown() {
+		return
+	}
+	renamed := false
+	for _, name := range zones {
+		var config, state types.String
+		if req.Config.GetAttribute(ctx, path.Root(name), &config).HasError() || req.State.GetAttribute(ctx, path.Root(name), &state).HasError() {
+			return
+		}
+		if !config.IsNull() && !state.IsNull() && config.ValueString() != state.ValueString() && sameTimeZone(config.ValueString(), state.ValueString()) {
+			renamed = true
+		}
+	}
+	if !renamed {
+		return
+	}
+	settled, err := tftypes.Transform(resp.Plan.Raw, func(p *tftypes.AttributePath, v tftypes.Value) (tftypes.Value, error) {
+		if v.IsKnown() {
+			return v, nil
+		}
+		if configured, _, err := tftypes.WalkAttributePath(req.Config.Raw, p); err == nil {
+			if c, ok := configured.(tftypes.Value); !ok || !c.IsNull() {
+				return v, nil
+			}
+		}
+		prior, _, err := tftypes.WalkAttributePath(req.State.Raw, p)
+		if err != nil {
+			return v, nil
+		}
+		if s, ok := prior.(tftypes.Value); ok {
+			return s, nil
+		}
+		return v, nil
+	})
+	if err == nil && settled.Equal(req.State.Raw) {
+		resp.Plan.Raw = req.State.Raw
 	}
 }
 
