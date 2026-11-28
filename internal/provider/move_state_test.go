@@ -495,6 +495,9 @@ func TestLegacyMoveMatchesCLIParityCases(t *testing.T) {
 		SourceType     string          `json:"source_type"`
 		State          json.RawMessage `json:"state"`
 		Converted      json.RawMessage `json:"converted"`
+		// Defaults the provider mover gives an attribute the legacy state lacks. The CLI port leaves
+		// it out, so migrate's configuration omits it and plans the same default.
+		ProviderDefaults map[string]json.RawMessage `json:"provider_defaults"`
 	}
 	if err := json.Unmarshal(raw, &cases); err != nil {
 		t.Fatal(err)
@@ -538,7 +541,20 @@ func TestLegacyMoveMatchesCLIParityCases(t *testing.T) {
 					delete(got, name)
 				}
 			}
-			if want = parityDropNulls(want); !reflect.DeepEqual(got, want) {
+			want = parityDropNulls(want)
+			for name, raw := range c.ProviderDefaults {
+				decoder := json.NewDecoder(strings.NewReader(string(raw)))
+				decoder.UseNumber()
+				var value interface{}
+				if err := decoder.Decode(&value); err != nil {
+					t.Fatal(err)
+				}
+				if _, ok := want.(map[string]interface{})[name]; ok {
+					t.Fatalf("%s: the CLI port converts it, so it is no provider-only default", name)
+				}
+				want.(map[string]interface{})[name] = value
+			}
+			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("provider mover and CLI port disagree:\n got %v\nwant %v", got, want)
 			}
 		})

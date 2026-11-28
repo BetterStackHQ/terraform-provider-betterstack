@@ -65,7 +65,7 @@ resource "betterstack_incidents_outgoing_webhook_integration" "send_on_call_chan
 - `on_incident_acknowledged` (Boolean) Whether to send the webhook when an incident is acknowledged. Only for an `incident_change` webhook. Defaults to `true`.
 - `on_incident_resolved` (Boolean) Whether to send the webhook when an incident is resolved. Only for an `incident_change` webhook. Defaults to `true`.
 - `on_incident_reopened` (Boolean) Whether to send the webhook when an incident is reopened. Only for an `incident_change` webhook. Defaults to `true`.
-- `on_incident_comment` (Boolean) Whether to send the webhook when a comment is added to an incident. The default body then also has a `comment` object, whose `attributes` hold the comment's `content`, `created_at`, `updated_at`, `user_id` and `user_email`. Only for an `incident_change` webhook. Defaults to `true`.
+- `on_incident_comment` (Boolean) Whether to send the webhook when a comment is added to an incident. The body sent without a custom template then also has a `comment` object, whose `attributes` hold the comment's `content`, `created_at`, `updated_at`, `user_id` and `user_email`. Only for an `incident_change` webhook. Defaults to `true`.
 - `notify_alongside_primary_responder` (Boolean) Whether to send the webhook alongside the primary responder when the incident has no escalation policy. Only for an `incident_change` webhook. Defaults to `true`.
 - `custom_webhook_template_attributes` (Attributes, Computed) Custom request method, headers, body and basic authentication. Without it, an `incident_change` or `monitor_change` webhook sends the incident or monitor under `data`, with what happened in `event`, such as `started` or `created`. An `on_call_change` webhook then sends the on-call calendar's `message`, `emails`, `on_holiday_emails`, `change`, `calendar_id`, `calendar_name` and `primary_calendar` under `data`. It comes back as `custom_webhook_template`. Better Stack never returns it, so Terraform keeps the value you set. (see [below for nested schema](#nestedatt--custom_webhook_template_attributes))
 - `team_id` (String) Team that owns this integration, such as `t123`. Defaults to the provider's `team_id`. Set it to create this object in another team. Changing it replaces the resource, because an object can't move to another team.
@@ -74,7 +74,7 @@ resource "betterstack_incidents_outgoing_webhook_integration" "send_on_call_chan
 
 - `id` (String) The ID of this outgoing webhook integration.
 - `paused` (Boolean) Whether the integration is paused. A paused integration sends no webhooks.
-- `custom_webhook_template` (Attributes) The saved request template, returned under `included`. `null` when the webhook sends its default body. (see [below for nested schema](#nestedatt--custom_webhook_template))
+- `custom_webhook_template` (Attributes) The saved request template, returned under `included`. `null` when the webhook has no custom template. (see [below for nested schema](#nestedatt--custom_webhook_template))
 - `team_name` (String) Name of the team that owns this integration.
 
 <a id="nestedatt--custom_webhook_template_attributes"></a>

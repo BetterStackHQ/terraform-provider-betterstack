@@ -203,6 +203,9 @@ func populateDashboardSection(ctx context.Context, m *DashboardSectionModel, att
 	if attrs == nil {
 		return
 	}
+	if v, ok := stringFromAPI(attrs["dashboard_id"]); ok {
+		m.DashboardId = types.StringValue(v)
+	}
 	if rawValue, exists := attrs["name"]; exists {
 		if rawValue == nil {
 			m.Name = types.StringNull()
@@ -229,16 +232,6 @@ func populateDashboardSection(ctx context.Context, m *DashboardSectionModel, att
 	}
 	if v, ok := stringFromAPI(attrs["team_id"]); ok {
 		m.TeamId = types.StringValue(v)
-	}
-}
-
-func (r *DashboardSectionResource) mergeResponse(ctx context.Context, m DashboardSectionModel, attrs map[string]interface{}) {
-	if raw, ok := attrs["dashboard_id"]; ok && !m.DashboardId.IsNull() && !m.DashboardId.IsUnknown() {
-		if tv, err := m.DashboardId.ToTerraformValue(ctx); err == nil {
-			if prior, err := tftypesToAPI(tv); err == nil {
-				attrs["dashboard_id"] = mergeAPIRead(raw, prior, apiValueShape{WriteOnly: true})
-			}
-		}
 	}
 }
 
@@ -272,7 +265,6 @@ func (r *DashboardSectionResource) Update(ctx context.Context, req resource.Upda
 	if out == nil {
 		out = map[string]interface{}{}
 	}
-	r.mergeResponse(ctx, state, out)
 	resp.State.Raw = stateFromPlan(req.Plan.Raw, req.State.Raw, out)
 }
 

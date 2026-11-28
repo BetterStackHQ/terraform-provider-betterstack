@@ -828,6 +828,27 @@ func timeZoneValue(prior types.String, v string) types.String {
 	return types.StringValue(v)
 }
 
+// keepTimeZoneName plans the zone in state when the configuration names the same zone under its
+// other name, as after an import, where the read returns the Rails name and the configuration may
+// hold the IANA ID. Terraform accepts the prior value as the plan for an equivalent configuration,
+// so the first plan shows no change the API wouldn't make.
+type keepTimeZoneName struct{}
+
+func (keepTimeZoneName) Description(context.Context) string {
+	return "A time zone written under its other name plans no change."
+}
+
+func (m keepTimeZoneName) MarkdownDescription(ctx context.Context) string { return m.Description(ctx) }
+
+func (keepTimeZoneName) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	if req.StateValue.IsNull() || req.StateValue.IsUnknown() || req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	if req.ConfigValue.ValueString() != req.StateValue.ValueString() && sameTimeZone(req.ConfigValue.ValueString(), req.StateValue.ValueString()) {
+		resp.PlanValue = req.StateValue
+	}
+}
+
 // sameTimeZone reports whether two spellings name one zone: a Rails name is read as the IANA ID
 // Rails maps it to (ActiveSupport::TimeZone::MAPPING), and an IANA ID as itself.
 func sameTimeZone(a, b string) bool {
@@ -1395,7 +1416,7 @@ func refuseProtectedDestroy(ctx context.Context, req resource.ModifyPlanRequest,
 		return
 	}
 	if label, ok := protectedLabel(ctx, req.State, noun); ok {
-		resp.Diagnostics.AddError("Deletion protection is on for "+label, protectedMessage(label))
+		addProtectedError(&resp.Diagnostics, "Deletion protection is on for "+label, label)
 	}
 }
 
@@ -1424,9 +1445,22 @@ func refuseUnnamedTeam(ctx context.Context, req resource.ModifyPlanRequest, resp
 func refuseProtectedDelete(ctx context.Context, state tfsdk.State, noun string, diags *diag.Diagnostics) bool {
 	label, ok := protectedLabel(ctx, state, noun)
 	if ok {
-		diags.AddError("Deletion protection is on for "+label+", so it was not deleted", protectedMessage(label))
+		addProtectedError(diags, "Deletion protection is on for "+label+", so it was not deleted", label)
 	}
 	return ok
+}
+
+// addProtectedError adds the deletion protection refusal. The Pulumi bridge both logs an error as
+// "detail: summary" and fails the operation with "summary: detail", so people read it twice in
+// opposite orders. Under Pulumi the whole message is both summary and detail: the operation fails
+// with it once, and the provider's log sink drops the logged copy (pulumi/provider says how).
+func addProtectedError(diags *diag.Diagnostics, summary, label string) {
+	if pulumiNames != nil {
+		msg := summary + ". " + protectedMessage(label)
+		diags.AddError(msg, msg)
+		return
+	}
+	diags.AddError(summary, protectedMessage(label))
 }
 
 // refuseProtectedReplace fails the plan when this attribute's change forces replacing an object
@@ -1441,7 +1475,7 @@ func refuseProtectedReplace(ctx context.Context, resourceType string, state tfsd
 	switch {
 	case !ok:
 	case pulumiNames != nil:
-		diags.AddError("Deletion protection is on for "+label, protectedMessage(label))
+		addProtectedError(diags, "Deletion protection is on for "+label, label)
 	default:
 		diags.AddAttributeError(p, "Deletion protection is on for "+label, protectedMessage(label))
 	}

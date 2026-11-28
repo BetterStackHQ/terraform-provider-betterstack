@@ -1,5 +1,5 @@
 {
-  "minimum_provider_version": "0.1.0",
+  "minimum_provider_version": "1.4.1",
   "mappings": [
     {
       "renames": {},
@@ -737,7 +737,7 @@
         "team_name"
       ],
       "instructions": [
-        "Keep the NativeWebhook id, trigger_type, destination URL, notify_alongside_primary_responder and every event toggle explicitly. Unwrap the single custom_webhook_template_attributes block into an object, preserving method, ordered headers, body template and basic-auth input expressions. Preserve body_template as its stored string, including JSON encoding and template variables; do not drop non-JSON template strings. Move team_name to the provider's team_id, or to the resource's own team_id for an object in another team."
+        "Keep the NativeWebhook id, trigger_type, destination URL, notify_alongside_primary_responder and every event toggle explicitly. The generated block leaves custom_webhook_template_attributes out, which changes nothing. To keep managing it, copy it from the old block as an object instead of a single nested block, with its method, ordered headers, body template and basic-auth inputs as they are. Keep body_template as its stored string, including JSON encoding and template variables. Move team_name to the provider's team_id, or to the resource's own team_id for an object in another team."
       ],
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
       "source_type": "betteruptime_outgoing_webhook",
@@ -2413,7 +2413,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_application"
+      "target_type": "betterstack_application",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
@@ -2421,7 +2422,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_application_group"
+      "target_type": "betterstack_application_group",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
@@ -2429,7 +2431,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_aws_log_group_subscription"
+      "target_type": "betterstack_aws_log_group_subscription",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2437,7 +2440,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_catalog_relation"
+      "target_type": "betterstack_catalog_relation",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
@@ -2445,7 +2449,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_collector"
+      "target_type": "betterstack_collector",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
@@ -2453,7 +2458,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_collector_target"
+      "target_type": "betterstack_collector_target",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
@@ -2461,7 +2467,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_connection"
+      "target_type": "betterstack_connection",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
@@ -2469,7 +2476,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_dashboard"
+      "target_type": "betterstack_dashboard",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
@@ -2477,7 +2485,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_dashboard_chart"
+      "target_type": "betterstack_dashboard_chart",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
@@ -2485,7 +2494,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_dashboard_group"
+      "target_type": "betterstack_dashboard_group",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
@@ -2493,7 +2503,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_dashboard_section"
+      "target_type": "betterstack_dashboard_section",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
@@ -2501,7 +2512,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_errors_jira_integration"
+      "target_type": "betterstack_errors_jira_integration",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
@@ -2509,7 +2521,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_errors_linear_integration"
+      "target_type": "betterstack_errors_linear_integration",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
@@ -2517,7 +2530,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_errors_microsoft_teams_integration"
+      "target_type": "betterstack_errors_microsoft_teams_integration",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
@@ -2525,7 +2539,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_errors_slack_integration"
+      "target_type": "betterstack_errors_slack_integration",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2533,7 +2548,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_escalation_policy_group"
+      "target_type": "betterstack_escalation_policy_group",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
@@ -2541,7 +2557,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_exploration"
+      "target_type": "betterstack_exploration",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
@@ -2549,7 +2566,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_exploration_group"
+      "target_type": "betterstack_exploration_group",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
@@ -2557,7 +2575,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_extracted_metric"
+      "target_type": "betterstack_extracted_metric",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2565,7 +2584,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_heartbeat"
+      "target_type": "betterstack_heartbeat",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2573,7 +2593,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_heartbeat_group"
+      "target_type": "betterstack_heartbeat_group",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2581,7 +2602,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_incidents_amazon_sns_integration"
+      "target_type": "betterstack_incidents_amazon_sns_integration",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2589,7 +2611,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_incidents_aws_cloudwatch_integration"
+      "target_type": "betterstack_incidents_aws_cloudwatch_integration",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2597,7 +2620,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_incidents_azure_integration"
+      "target_type": "betterstack_incidents_azure_integration",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2605,7 +2629,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_incidents_datadog_integration"
+      "target_type": "betterstack_incidents_datadog_integration",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2613,7 +2638,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_incidents_elastic_integration"
+      "target_type": "betterstack_incidents_elastic_integration",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2621,7 +2647,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_incidents_google_monitoring_integration"
+      "target_type": "betterstack_incidents_google_monitoring_integration",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2629,7 +2656,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_incidents_grafana_integration"
+      "target_type": "betterstack_incidents_grafana_integration",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2637,7 +2665,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_incidents_incoming_webhook_integration"
+      "target_type": "betterstack_incidents_incoming_webhook_integration",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2645,7 +2674,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_incidents_jira_integration"
+      "target_type": "betterstack_incidents_jira_integration",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2653,7 +2683,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_incidents_new_relic_integration"
+      "target_type": "betterstack_incidents_new_relic_integration",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2661,7 +2692,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_incidents_outgoing_pagerduty_integration"
+      "target_type": "betterstack_incidents_outgoing_pagerduty_integration",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2669,7 +2701,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_incidents_outgoing_webhook_integration"
+      "target_type": "betterstack_incidents_outgoing_webhook_integration",
+      "provider_version": "1.4.1"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2677,7 +2710,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_incidents_prometheus_integration"
+      "target_type": "betterstack_incidents_prometheus_integration",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2685,7 +2719,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_incidents_splunk_on_call_integration"
+      "target_type": "betterstack_incidents_splunk_on_call_integration",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2693,7 +2728,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_monitor"
+      "target_type": "betterstack_monitor",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2701,7 +2737,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_monitor_group"
+      "target_type": "betterstack_monitor_group",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
@@ -2709,7 +2746,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_release"
+      "target_type": "betterstack_release",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2717,7 +2755,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_severity"
+      "target_type": "betterstack_severity",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2725,7 +2764,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_severity_group"
+      "target_type": "betterstack_severity_group",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
@@ -2733,7 +2773,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_source"
+      "target_type": "betterstack_source",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
@@ -2741,7 +2782,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_source_aws_account"
+      "target_type": "betterstack_source_aws_account",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
@@ -2749,7 +2791,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_source_gcp_project"
+      "target_type": "betterstack_source_gcp_project",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/logtail",
@@ -2757,7 +2800,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_source_group"
+      "target_type": "betterstack_source_group",
+      "provider_version": "1.4.0"
     },
     {
       "source_provider": "registry.terraform.io/BetterStackHQ/better-uptime",
@@ -2765,7 +2809,8 @@
       "schema_versions": [
         0
       ],
-      "target_type": "betterstack_status_page"
+      "target_type": "betterstack_status_page",
+      "provider_version": "1.4.0"
     }
   ]
 }

@@ -1,0 +1,2 @@
+# GoReleaser's output. Untracked, it would make Go stamp every release binary as modified (vX.Y.Z+dirty).
+/dist/

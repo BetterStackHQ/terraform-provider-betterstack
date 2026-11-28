@@ -579,3 +579,25 @@ func TestATimeZoneReadBackUnderItsOtherNameKeepsThePriorValue(t *testing.T) {
 		t.Fatalf("an import must read the API's zone: %v", got)
 	}
 }
+
+func TestATimeZoneConfiguredUnderItsOtherNamePlansNoChange(t *testing.T) {
+	plan := func(state, config types.String) types.String {
+		req := planmodifier.StringRequest{StateValue: state, ConfigValue: config, PlanValue: config}
+		resp := planmodifier.StringResponse{PlanValue: req.PlanValue}
+		keepTimeZoneName{}.PlanModifyString(context.Background(), req, &resp)
+		return resp.PlanValue
+	}
+	// After an import the state holds the API's Rails name and the configuration the IANA ID.
+	if got := plan(types.StringValue("Tokyo"), types.StringValue("Asia/Tokyo")); got.ValueString() != "Tokyo" {
+		t.Fatalf("the same zone under its IANA ID must plan the state's name: %v", got)
+	}
+	if got := plan(types.StringValue("Europe/Prague"), types.StringValue("Prague")); got.ValueString() != "Europe/Prague" {
+		t.Fatalf("the same zone under its Rails name must plan the state's ID: %v", got)
+	}
+	if got := plan(types.StringValue("Tokyo"), types.StringValue("Europe/Prague")); got.ValueString() != "Europe/Prague" {
+		t.Fatalf("another zone must plan the change: %v", got)
+	}
+	if got := plan(types.StringNull(), types.StringValue("Asia/Tokyo")); got.ValueString() != "Asia/Tokyo" {
+		t.Fatalf("a create must plan the configured zone: %v", got)
+	}
+}

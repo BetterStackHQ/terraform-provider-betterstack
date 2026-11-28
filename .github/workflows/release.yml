@@ -57,7 +57,15 @@ jobs:
       - name: Build, sign and verify a snapshot with the release key
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
-        run: ruby scripts/package.rb --signed-snapshot
+        run: |
+          # GoReleaser stamps the binaries from git: any untracked or ignored file here makes them vX.Y.Z+dirty.
+          dirty="$(git status --porcelain --untracked-files=all --ignored)"
+          if [ -n "$dirty" ]; then
+            echo "::error::the checkout is not exactly the committed tree, so the snapshot would be stamped +dirty"
+            printf '%s\n' "$dirty"
+            exit 1
+          fi
+          ruby scripts/package.rb --signed-snapshot
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: signed-snapshot
@@ -94,7 +102,13 @@ jobs:
           test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
           ruby scripts/package.rb --verify
           go test -mod=readonly ./...
-          git diff --exit-code
+          # GoReleaser stamps the binaries from git: any untracked or ignored file here makes them vX.Y.Z+dirty.
+          dirty="$(git status --porcelain --untracked-files=all --ignored)"
+          if [ -n "$dirty" ]; then
+            echo "::error::the checkout is not exactly the tagged tree, so the release could not be rebuilt from its tag"
+            printf '%s\n' "$dirty"
+            exit 1
+          fi
       - name: Import release signing key
         id: import_gpg
         uses: crazy-max/ghaction-import-gpg@e89d40939c28e39f97cf32126055eeae86ba74ec # v6.3.0

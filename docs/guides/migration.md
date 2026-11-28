@@ -51,13 +51,14 @@ You need Terraform 1.8 or newer and a [global API token](https://betterstack.com
     - `migration.tf` tells Terraform to hand each resource to the new provider, with `moved` blocks, and `removed` plus `import` blocks for the few types that can't be moved.
     - `betterstack.tf` holds a `betterstack_*` resource block for each migrated resource, with the values from your state.
 
-6. Add the `betterstack` provider next to the old ones. Keep the old providers until step 10, because Terraform needs them to apply `migration.tf`. Copy `team_id` from the commented provider block at the top of `betterstack.tf`.
+6. Add the `betterstack` provider next to the old ones. Keep the old providers until step 10, because Terraform needs them to apply `migration.tf`. Copy `team_id` and the `version` from the commented provider block at the top of `betterstack.tf`. The version is the oldest provider that can take over every resource in your state.
 
     ```hcl
     terraform {
       required_providers {
         betterstack = {
-          source = "BetterStackHQ/betterstack"
+          source  = "BetterStackHQ/betterstack"
+          version = ">= 1.4.0"
         }
         # ...keep better-uptime and logtail here for now
       }
@@ -571,7 +572,7 @@ Back up state and stop other applies. Run `betterstack on-call-schedule get ID` 
 - Supported state schema versions: `0`.
 - Handling: one-to-one moved state, subject to whole-state and ownership validation.
 - Conversion: `{"op":"singleton","path":"custom_webhook_template_attributes"}`. Follow the configuration instructions below; state conversion does not rewrite HCL.
-- Keep the NativeWebhook id, trigger_type, destination URL, notify_alongside_primary_responder and every event toggle explicitly. Unwrap the single custom_webhook_template_attributes block into an object, preserving method, ordered headers, body template and basic-auth input expressions. Preserve body_template as its stored string, including JSON encoding and template variables; do not drop non-JSON template strings. Move team_name to the provider's team_id, or to the resource's own team_id for an object in another team.
+- Keep the NativeWebhook id, trigger_type, destination URL, notify_alongside_primary_responder and every event toggle explicitly. The generated block leaves custom_webhook_template_attributes out, which changes nothing. To keep managing it, copy it from the old block as an object instead of a single nested block, with its method, ordered headers, body template and basic-auth inputs as they are. Keep body_template as its stored string, including JSON encoding and template variables. Move team_name to the provider's team_id, or to the resource's own team_id for an object in another team.
 
 ### Resource: `betteruptime_pagerduty_integration`
 

@@ -26,6 +26,10 @@ builds:
       - goos: windows
         goarch: arm
     binary: "terraform-provider-betterstack_v{{ .Version }}"
+    hooks:
+      # Runs after each build, before anything is archived or published.
+      post:
+        - cmd: ruby scripts/package.rb --check-build {{ .Path }}
 archives:
   - formats: ["zip"]
     name_template: "terraform-provider-betterstack_{{ .Version }}_{{ .Os }}_{{ .Arch }}"

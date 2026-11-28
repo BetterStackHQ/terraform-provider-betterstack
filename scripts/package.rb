@@ -53,6 +53,20 @@ module ProviderPackage
     puts "Verified provider export from #{revision}"
   end
 
+  # Go stamps a binary built from a tree with untracked or changed files as modified (vX.Y.Z+dirty),
+  # and such a release can't be rebuilt from its tag.
+  def self.check_build(binary)
+    info = capture("go", "version", "-m", binary).lines.map { |line| line.strip.split("\t") }
+    modified = info.find { |kind, value| kind == "build" && value.to_s.start_with?("vcs.modified=") }&.last
+    raise "#{binary} was built from a tree with uncommitted files" if modified == "vcs.modified=true"
+    if (tag = ENV["GORELEASER_CURRENT_TAG"])
+      raise "#{binary} has no clean git stamp" unless modified == "vcs.modified=false"
+      version = info.find { |kind, path| kind == "mod" && path == "github.com/betterstackhq/terraform-provider-betterstack" }&.fetch(2, nil)
+      raise "#{binary} is stamped #{version.inspect}, not #{tag}" unless version == tag
+    end
+    puts "Build stamp of #{File.basename(binary)} is clean"
+  end
+
   def self.checksum_entries(path)
     entries = {}
     File.foreach(path) do |line|
@@ -140,7 +154,8 @@ if $PROGRAM_NAME == __FILE__
       when ["--verify"] then ProviderPackage.verify
       when ["--snapshot"] then ProviderPackage.snapshot
       when ["--signed-snapshot"] then ProviderPackage.snapshot(release_key: true)
-      else raise "usage: ruby scripts/package.rb --verify|--snapshot|--signed-snapshot (never publishes)"
+      when ->(args) { args.length == 2 && args.first == "--check-build" } then ProviderPackage.check_build(ARGV[1])
+      else raise "usage: ruby scripts/package.rb --verify|--snapshot|--signed-snapshot|--check-build BINARY (never publishes)"
       end
     end
   rescue StandardError => error

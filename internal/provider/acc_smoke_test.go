@@ -311,7 +311,7 @@ var smokeCases = []smokeCase{
   name         = "example"
   explanation  = "example-updated"
 }`,
-		importIgnore:   []string{"dashboard_id"},
+		importIgnore:   []string{},
 		importParts:    []string{"dashboard_id", "id"},
 		computedFields: map[string]map[string]interface{}{},
 		computedChecks: map[string]string{},
